@@ -19,7 +19,7 @@ funciona en la 7B. Lo que el plotter añade está sin probar en la placa.
 |---|---|
 | Simulador | Hecho. Encendido al arrancar; `SIM 0` / `SIM 1` por la consola |
 | RS485 a 38400 (AIS) o 4800 (NMEA) | Código hecho (`src/links.cpp`), **sin probar en la placa** |
-| NMEA 2000 por CAN | Pendiente. `board::setCanMode(true)` conmuta los pines al transceptor |
+| NMEA 2000 por CAN | Solo escucha, 250 kbit/s (`links.cpp`, núcleo `n2k`); Ajustes > NMEA 2000. Sin probar en la placa |
 | WiFi (TCP, UDP, Signal K, gpsd) | Pendiente |
 
 Dudas a comprobar con la placa delante:

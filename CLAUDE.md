@@ -35,6 +35,11 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   38400 para el AIS Comar y el viento va a 4800: hace falta un segundo puerto serie (pines libres por confirmar), un
   multiplexor NMEA, o pasarlo por la pasarela XIAO a NMEA 2000 (PGN 130306, ya leído). Sin confirmar: de qué punto se toma
   la señal (de la unidad del palo o de la pantalla Target) y su nivel eléctrico.
+  **Decidido por Manuel (2026-11-11)**: entra por la **pasarela XIAO de NMEA 2000**, que se puede reconfigurar para
+  enlazarse con el plotter por BLE o por la WiFi local (además del CAN). Lo que el plotter ya admite sin cambios: CAN (PGN
+  130306), NMEA 0183 por UDP al puerto de Ajustes > Red, y NMEA por TCP si la XIAO hace de servidor (el plotter solo tiene
+  un cliente TCP: si se usa para gpsd o Signal K, la XIAO debe usar UDP). **BLE con la XIAO: sin hacer en el plotter** (no
+  hay BLE todavía; servicio y formato por definir junto con el firmware de la XIAO, repositorio `APRS-LoRa-Plus-NMEA2000`).
 - Unidades: náutico (profundidad en metros), métrico, imperial y usuario.
 - Piloto automático: solo se da por viable enviar datos de ruta; los mandos dependen de la marca (pendiente saber cuál).
 - Declinación: Modelo Magnético Mundial calculado a bordo, con descarga del archivo de coeficientes cuando caduque.
@@ -332,4 +337,4 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
    medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Relevo por internet y pestaña Meteo hechos. Lo siguiente: Signal K nativo, zumbador, AEMET, y probar en la placa.
 2. NMEA 2000: hecho en escucha con decodificador propio; más PGN según lo que haya en la red de Manuel.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
-4. Pendiente de Manuel: marca del piloto automático; cómo conectar el NASA Target 2 Wind (4800 baudios) teniendo el AIS a 38400 en el único puerto serie.
+4. Pendiente de Manuel: marca del piloto automático. Viento: entra por la pasarela XIAO (CAN, UDP por WiFi o BLE); falta el BLE en el plotter y adaptar el firmware de la XIAO.

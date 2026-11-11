@@ -17,6 +17,7 @@
 #include "nmea.h"
 #include "store.h"
 #include "inputs.h"
+#include "lights.h"
 #include "route.h"
 #include "signalk.h"
 #include "stream.h"
@@ -630,6 +631,101 @@ static void testGnss() {
     CHECK(!std::strcmp(kGpsdWatchNmea, "?WATCH={\"enable\":true,\"nmea\":true};\r\n") && kGpsdPort == 2947);
 }
 
+static void testLights() {
+    // Alcance geografico: ojo a 2 m y faro de 49 m -> 2,03 x (1,414 + 7) = 17,08 mn
+    NEAR(geographicRangeNm(2, 49), 17.08, 0.01);
+    NEAR(geographicRangeNm(0, 100), 20.3, 1e-9);
+    // Alcance luminoso: con 10 mn de visibilidad es el nominal; con menos, menos; con mas, mas
+    NEAR(luminousRangeNm(10, 10), 10.0, 1e-6);
+    NEAR(luminousRangeNm(20, 10), 20.0, 1e-6);
+    double fog = luminousRangeNm(20, 2), clear = luminousRangeNm(20, 27);
+    CHECK(fog > 3.5 && fog < 6.5 && clear > 30 && clear < 45);
+    CHECK(luminousRangeNm(5, 5) < 5 && luminousRangeNm(5, 5) > 3 && luminousRangeNm(0, 10) == 0 && luminousRangeNm(10, 0) == 0);
+    // Coherencia con Allard: la iluminancia relativa a esa distancia es la del umbral
+    { double d = luminousRangeNm(15, 4), T = std::pow(0.05, 1 / 4.0);
+      NEAR(std::pow(T, d) / (d * d), std::pow(std::pow(0.05, 0.1), 15) / 225.0, 1e-9); }
+    NEAR(sightingRangeNm(20, 10, 2, 49), 17.08, 0.01);               // lo tapa el horizonte
+    NEAR(sightingRangeNm(10, 10, 2, 49), 10.0, 1e-6);                // no da mas de si la luz
+
+    // Borneo: 30 m de cadena en 6 m de agua -> 29,39 m; con la roldana a 1 m, 29,17 m
+    NEAR(swingRadiusM(30, 6), 29.3939, 1e-3);
+    NEAR(swingRadiusM(30, 6, 1), 29.1719, 1e-3);
+    CHECK(swingRadiusM(5, 6) == 0);
+    NEAR(scopeRatio(30, 6), 5.0, 1e-12); NEAR(scopeRatio(28, 6, 1), 4.0, 1e-12);
+
+    // Ritmos
+    LightCharacter c;
+    CHECK(parseLightCharacter("Fl(2) W 10s", c) && c.cls == LightClass::Flashing && c.group == 2 && c.color == LightColor::White && c.periodS == 10);
+    CHECK(ialaMarkFromLight(c) == IalaMark::IsolatedDanger);
+    CHECK(parseLightCharacter("Q(6)+LFl 15s", c) && c.cls == LightClass::Quick && c.group == 6 && c.longFlashAfter && c.periodS == 15);
+    CHECK(ialaMarkFromLight(c) == IalaMark::CardinalS);
+    CHECK(parseLightCharacter("VQ(3) 5s", c) && c.cls == LightClass::VeryQuick && ialaMarkFromLight(c) == IalaMark::CardinalE);
+    CHECK(parseLightCharacter("Q(9) 15s", c) && ialaMarkFromLight(c) == IalaMark::CardinalW);
+    CHECK(parseLightCharacter("Q", c) && c.periodS == 0 && ialaMarkFromLight(c) == IalaMark::CardinalN);
+    CHECK(parseLightCharacter("Iso R 4s", c) && c.cls == LightClass::Isophase && c.color == LightColor::Red && ialaMarkFromLight(c) == IalaMark::PortHand);
+    CHECK(ialaMarkFromLight(c, true) == IalaMark::StarboardHand);     // region B
+    CHECK(parseLightCharacter("Fl G 5s", c) && ialaMarkFromLight(c) == IalaMark::StarboardHand);
+    CHECK(parseLightCharacter("Fl(2+1) R 12s", c) && c.group == 2 && c.group2 == 1 && ialaMarkFromLight(c) == IalaMark::PreferredChannelPort);
+    CHECK(parseLightCharacter("Mo(A) 6s", c) && c.cls == LightClass::Morse && c.morse == 'A' && ialaMarkFromLight(c) == IalaMark::SafeWater);
+    CHECK(parseLightCharacter("LFl 10s", c) && c.cls == LightClass::LongFlash && ialaMarkFromLight(c) == IalaMark::SafeWater);
+    CHECK(parseLightCharacter("Fl(4) Y 12s", c) && ialaMarkFromLight(c) == IalaMark::Special);
+    CHECK(parseLightCharacter("F R", c) && c.cls == LightClass::Fixed && c.color == LightColor::Red);
+    CHECK(parseLightCharacter("Oc(2) G 8s", c) && c.cls == LightClass::Occulting && c.group == 2 && c.color == LightColor::Green);
+    CHECK(parseLightCharacter("Fl(3) 20s", c) && ialaMarkFromLight(c) == IalaMark::Light);
+    // En espanol
+    CHECK(parseLightCharacter("GpD(2) B 10s", c) && c.cls == LightClass::Flashing && c.group == 2 && c.color == LightColor::White);
+    CHECK(parseLightCharacter("DL 10s", c) && c.cls == LightClass::LongFlash);
+    CHECK(parseLightCharacter("Ct", c) && c.cls == LightClass::Quick);
+    CHECK(parseLightCharacter("Rp(3) 5s", c) && c.cls == LightClass::VeryQuick && c.group == 3);
+    CHECK(parseLightCharacter("GpOc(2) V 8s", c) && c.cls == LightClass::Occulting && c.color == LightColor::Green);
+    CHECK(parseLightCharacter("D A 2,5s", c) && c.color == LightColor::Yellow); NEAR(c.periodS, 2.5, 1e-9);
+    CHECK(!parseLightCharacter("xyz", c) && !parseLightCharacter("Fl(0)", c) && !parseLightCharacter("Fl(2", c) && !parseLightCharacter(nullptr, c));
+
+    // Animacion: cuenta de destellos y tiempo encendida en un periodo
+    auto count = [](const LightCharacter& lc, double seconds, double* onS) {
+        int rises = 0; bool prev = false; int onTicks = 0;
+        for (uint32_t t = 0; t < uint32_t(seconds * 1000); t += 10) {
+            bool on = lightIsOn(lc, t);
+            if (on && !prev) rises++;
+            if (on) onTicks++;
+            prev = on;
+        }
+        if (onS) *onS = onTicks / 100.0;
+        return rises;
+    };
+    double onS = 0;
+    parseLightCharacter("Fl(2) W 10s", c);
+    CHECK(count(c, 10, &onS) == 2); NEAR(onS, 1.0, 0.05);
+    parseLightCharacter("Q(6)+LFl 15s", c);
+    CHECK(count(c, 15, &onS) == 7 && onS > 3.5 && onS < 4.1);        // 6 centelleos y uno largo de 2 s
+    parseLightCharacter("VQ(9) 10s", c);
+    CHECK(count(c, 10, nullptr) == 9 && count(c, 30, nullptr) == 27);
+    parseLightCharacter("Q", c);
+    CHECK(count(c, 10, nullptr) == 10);
+    parseLightCharacter("Iso 4s", c);
+    CHECK(count(c, 8, &onS) == 2); NEAR(onS, 4.0, 0.05);
+    parseLightCharacter("Oc(2) 8s", c);
+    count(c, 8, &onS);
+    CHECK(onS > 5.9 && onS < 6.1 && !lightIsOn(c, 500) && lightIsOn(c, 1500) && lightIsOn(c, 7000));   // mas luz que oscuridad
+    parseLightCharacter("Mo(A) 6s", c);
+    CHECK(count(c, 6, &onS) == 2); NEAR(onS, 2.0, 0.05);
+    parseLightCharacter("Fl(2+1) R 12s", c);
+    CHECK(count(c, 12, nullptr) == 3);
+    parseLightCharacter("Fl(5) 4s", c);                              // no cabe a 2 s por destello: se aprieta
+    CHECK(count(c, 4, nullptr) == 5);
+    parseLightCharacter("F R", c);
+    CHECK(lightIsOn(c, 0) && lightIsOn(c, 12345));
+
+    // Ayudas AIS (mensaje 21)
+    bool fl = false;
+    CHECK(ialaMarkFromAisAton(20, &fl) == IalaMark::CardinalN && fl);
+    CHECK(ialaMarkFromAisAton(9, &fl) == IalaMark::CardinalN && !fl);
+    CHECK(ialaMarkFromAisAton(24) == IalaMark::PortHand && ialaMarkFromAisAton(14) == IalaMark::StarboardHand);
+    CHECK(ialaMarkFromAisAton(28) == IalaMark::IsolatedDanger && ialaMarkFromAisAton(29) == IalaMark::SafeWater && ialaMarkFromAisAton(30) == IalaMark::Special);
+    CHECK(ialaMarkFromAisAton(2) == IalaMark::Racon && ialaMarkFromAisAton(6) == IalaMark::Light && ialaMarkFromAisAton(0) == IalaMark::Unknown);
+    CHECK(!std::strcmp(ialaMarkNameEs(IalaMark::CardinalE), "Cardinal este") && !std::strcmp(ialaMarkNameEs(IalaMark::SafeWater), "Aguas navegables"));
+}
+
 static void testGpx() {
     // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
     const char* in =
@@ -694,7 +790,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

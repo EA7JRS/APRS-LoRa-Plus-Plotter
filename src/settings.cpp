@@ -28,6 +28,8 @@ void load() {
     p.getString("owm", v.owmKey, sizeof(v.owmKey));
     v.bleOn = p.getBool("ble", false);
     p.getString("bleAddr", v.bleAddr, sizeof(v.bleAddr));
+    v.blePin = p.getInt("blePin", 123456);
+    if (v.blePin < 0 || v.blePin > 999999) v.blePin = 123456;
     v.pilotOut = p.getInt("pilot", 0);
     v.units = p.getInt("units", 0);
     v.baseMap = p.getInt("map", 0);
@@ -64,6 +66,7 @@ void save() {
     p.putString("owm", v.owmKey);
     p.putBool("ble", v.bleOn);
     p.putString("bleAddr", v.bleAddr);
+    p.putInt("blePin", v.blePin);
     p.putInt("pilot", v.pilotOut);
     p.putInt("units", v.units);
     p.putInt("map", v.baseMap);

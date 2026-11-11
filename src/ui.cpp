@@ -198,7 +198,7 @@ static lv_obj_t* setCanLbl = nullptr;
 static lv_obj_t* setBleLbl = nullptr;
 // Pantalla de red (WiFi, TCP, UDP) con teclado
 static lv_obj_t* netScr = nullptr;
-static lv_obj_t* netTa[6] = {};                        // red, clave, servidor, puerto TCP, puerto UDP, clave de OpenWeatherMap
+static lv_obj_t* netTa[7] = {};                        // red, clave, servidor, puerto TCP, puerto UDP, clave de OpenWeatherMap
 static lv_obj_t* netKb = nullptr;
 static lv_obj_t* netKindLbl = nullptr;
 static lv_obj_t* netStatus = nullptr;
@@ -1679,6 +1679,8 @@ static void openNet() {
     snprintf(b, sizeof(b), "%d", v.udpPort);
     lv_textarea_set_text(netTa[4], v.udpPort ? b : "");
     lv_textarea_set_text(netTa[5], v.owmKey);
+    snprintf(b, sizeof(b), "%06d", v.blePin);
+    lv_textarea_set_text(netTa[6], b);
     netKind = v.tcpKind;
     lv_keyboard_set_textarea(netKb, netTa[0]);
     lv_obj_set_hidden(netScr, false);
@@ -1696,6 +1698,7 @@ static void onNetBtn(lv_event_t* e) {
         snprintf(v.wifiPass, sizeof(v.wifiPass), "%s", lv_textarea_get_text(netTa[1]));
         snprintf(v.tcpHost, sizeof(v.tcpHost), "%s", lv_textarea_get_text(netTa[2]));
         snprintf(v.owmKey, sizeof(v.owmKey), "%s", lv_textarea_get_text(netTa[5]));
+        if (lv_textarea_get_text(netTa[6])[0]) v.blePin = atoi(lv_textarea_get_text(netTa[6]));
         v.tcpKind = netKind;
         int port = atoi(lv_textarea_get_text(netTa[3]));
         v.tcpPort = (port >= 1 && port <= 65535) ? port : 10110;
@@ -1703,6 +1706,7 @@ static void onNetBtn(lv_event_t* e) {
         v.udpPort = (port >= 1 && port <= 65535) ? port : 0;
         settings::save();
         links::applyNetwork();
+        links::applyBle();
     } else lv_obj_set_hidden(netScr, true);
 }
 
@@ -1761,7 +1765,8 @@ static void makeNet() {
     netField(2, 232, 126, 420, "Servidor (vac\xC3\xADo: el tel\xC3\xA9" "fono que da la WiFi)", 39, false);
     netField(3, 668, 126, 140, "Puerto", 5, true);
     netField(4, 824, 126, 184, "Puerto UDP", 5, true);
-    netField(5, 16, 184, 992, "Clave de OpenWeatherMap: tiempo de internet, de reserva si falla un sensor de a bordo", 39, false);
+    netField(5, 16, 184, 700, "Clave de OpenWeatherMap: tiempo de internet, de reserva si falla un sensor", 39, false);
+    netField(6, 732, 184, 276, "PIN del tracker (Bluetooth)", 6, true);
     netKb = lv_keyboard_create(netScr);
     lv_obj_set_size(netKb, board::W, 360);
     lv_obj_align(netKb, LV_ALIGN_BOTTOM_MID, 0, 0);
@@ -2466,6 +2471,7 @@ static void updateSettings() {
         char t[64];
         if (!v.bleOn) snprintf(t, sizeof(t), "Bluetooth: apagado");
         else if (bs.state == ble::CONNECTED) snprintf(t, sizeof(t), "Bluetooth: %.20s", bs.name);
+        else if (bs.pinFailed) snprintf(t, sizeof(t), "Bluetooth: el tracker no acepta el PIN");
         else if (bs.state == ble::CONNECTING) snprintf(t, sizeof(t), "Bluetooth: conectando...");
         else snprintf(t, sizeof(t), v.bleAddr[0] ? "Bluetooth: buscando la pasarela" : "Bluetooth: buscando pasarela nueva");
         lv_label_set_text(setBleLbl, t);

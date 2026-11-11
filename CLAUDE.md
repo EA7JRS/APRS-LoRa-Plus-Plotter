@@ -341,10 +341,22 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   2000 y la pasarela por BLE; **teléfono**: con el servidor de Ajustes > Red vacío, el plotter se conecta al equipo que da
   la WiFi (puerta de enlace) en el puerto 10110, que es donde la app Android sirve NMEA (`NmeaServer`; sin probar);
   **emisoras VHF**: van a 4800 y el RS485 está a 38400 para el AIS: por la pasarela XIAO, como el viento; **tracker
-  directo: falta** (su servicio BLE de control va cifrado con PIN; por WiFi no consta que sirva NMEA). Si llegan varias,
+  directo: por BLE con su PIN** (ver «Tracker APRS LoRa+ como fuente»). Si llegan varias,
   gana la de más prioridad (CAN, puerto serie, red, BLE) y a los 10 s sin ella entra la siguiente; Ajustes > Estado dice
   de dónde sale la posición. Sin hacer: elegir a mano la fuente preferida, y evitar saltos entre dos fuentes de la misma
   clase (gpsd por TCP y otra por UDP).
+- **Tracker APRS LoRa+ como fuente (2026-11-11; Manuel: «consulta el repositorio tracker»)**: leído `EA7JRS/aprs-lora-plus`
+  (público, clonado en `/home/claude/ea7jrs/aprs-lora-plus`, commit 09e3d92). Lo que hay en el tracker: (1) **BLE**:
+  característica NMEA `4c6f5261-2b00-4ea7-a000-000000000004` (NOTIFY, texto NMEA 0183) del servicio de control, solo con
+  enlace emparejado con el PIN (`authed`) y suscrito; anuncia el servicio KISS o el UART de Nordic, no el de control; estado
+  de conexión único (un central a la vez); (2) **WiFi**: servidor TCP 10110 (`nmea_link.cpp`), pero **de compilación**
+  (`NMEA_TCP` 0 por defecto en la Supreme; red fija en `NMEA_WIFI_SSID` o punto de acceso propio «APRSLoRa+tracker-NMEA»;
+  WiFi siempre encendido = batería); (3) **UART** a 38400 hacia un conversor RS-422, limitada a `!AIVDM` y MDA
+  (`NMEA_UART_PLOTTER_ONLY` 1, pensada para el Garmin): no saca la posición. Sentencias: RMC, GGA, VTG, GLL, ZDA, MDA, XDR y
+  `!AIVDM`; solo placas con `NMEA_OUTPUT` (T-Beam Supreme). **Hecho en el plotter (rama `ble-tracker`)**: el BLE busca
+  también el servicio KISS, y si el equipo tiene el servicio de control se empareja con el PIN (`settings.blePin`, Ajustes >
+  Red) y se suscribe a su NMEA; las estaciones APRS oídas por el tracker entran como blancos AIS. Sin tocar el firmware del
+  tracker. Sin probar con un tracker. Límite: plotter y app del móvil no pueden estar conectados a la vez al tracker.
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables

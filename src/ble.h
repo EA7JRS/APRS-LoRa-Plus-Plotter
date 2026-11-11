@@ -4,6 +4,8 @@
  *
  * Enlace BLE con la pasarela (XIAO): el plotter es el central, busca un equipo que anuncie el servicio de datos NMEA,
  * se conecta y recibe lineas NMEA 0183 por notificaciones. Protocolo en docs/BLE_NMEA.md. Va en una tarea aparte.
+ * Tambien se conecta a un tracker APRS LoRa+: se empareja con su PIN y se suscribe a la caracteristica NMEA de su
+ * servicio de control (docs/BLE_CONTROL.md del firmware del tracker).
  */
 #pragma once
 #include <Arduino.h>
@@ -19,10 +21,13 @@ struct Status {
     int rssi = 0;
     uint32_t bytes = 0;                 // recibidos
     uint32_t connects = 0;              // conexiones logradas
+    bool tracker = false;               // el equipo es un tracker APRS LoRa+ (servicio de control, con PIN)
+    bool pinFailed = false;             // el tracker no ha aceptado el PIN
 };
 
 // on = false: desconecta y deja de buscar. addr: direccion del equipo ya conocido ("" = el primero que aparezca).
-void set(bool on, const char* addr);
+// pin: el PIN de control del tracker (WebUI del tracker > Bluetooth > Control PIN); la pasarela no lo usa.
+void set(bool on, const char* addr, uint32_t pin);
 const Status& status();
 int read(uint8_t* buf, int max);        // bytes recibidos desde la ultima llamada
 }

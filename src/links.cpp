@@ -124,7 +124,7 @@ void applyNetwork() {
 
 void applyBle() {
     const settings::Values& v = settings::get();
-    ble::set(v.bleOn, v.bleAddr);
+    ble::set(v.bleOn, v.bleAddr, (uint32_t)v.blePin);
 }
 
 // Pasarela por BLE: lineas NMEA como fuente "BLE". La primera vez que conecta se recuerda el equipo.
@@ -147,7 +147,7 @@ static void bleLoop(uint32_t now) {
     if (v.bleOn && bs.state == ble::CONNECTED && bs.addr[0] && strcmp(v.bleAddr, bs.addr) != 0) {
         snprintf(v.bleAddr, sizeof(v.bleAddr), "%s", bs.addr);
         settings::save();
-        ble::set(true, v.bleAddr);                                 // desde ahora, solo ese equipo
+        ble::set(true, v.bleAddr, (uint32_t)v.blePin);             // desde ahora, solo ese equipo
     }
 }
 

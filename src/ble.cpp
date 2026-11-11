@@ -25,6 +25,12 @@ static const NimBLEUUID kChrIn("4c6f5261-2b00-4ea7-b100-000000000003");
 static const NimBLEUUID kNus("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
 static const NimBLEUUID kNusTx("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
 static const NimBLEUUID kNusRx("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
+// Tracker APRS LoRa+: anuncia su servicio KISS (o el UART de Nordic en modo TNC2); el NMEA va por el servicio de control,
+// que exige enlace cifrado y emparejado con el PIN (el tracker muestra la clave, el plotter la teclea)
+static const NimBLEUUID kKiss("00000001-ba2a-46c9-ae49-01b0961f68bb");
+static const NimBLEUUID kTrk("4c6f5261-2b00-4ea7-a000-000000000001");
+static const NimBLEUUID kTrkNmea("4c6f5261-2b00-4ea7-a000-000000000004");
+static volatile uint32_t wantPin = 123456;
 
 static volatile bool wantOn = false;
 static char wantAddr[18] = "";
@@ -47,7 +53,7 @@ static void onNotify(NimBLERemoteCharacteristic*, uint8_t* data, size_t len, boo
 class ScanCb : public NimBLEScanCallbacks {
     void onResult(const NimBLEAdvertisedDevice* dev) override {
         if (found) return;
-        if (!dev->isAdvertisingService(kSvc) && !dev->isAdvertisingService(kNus)) return;
+        if (!dev->isAdvertisingService(kSvc) && !dev->isAdvertisingService(kNus) && !dev->isAdvertisingService(kKiss)) return;
         std::string a = dev->getAddress().toString();
         if (wantAddr[0] && strcasecmp(a.c_str(), wantAddr) != 0) return;      // hay un equipo ya elegido y no es este
         foundAddr = dev->getAddress();
@@ -59,13 +65,22 @@ class ScanCb : public NimBLEScanCallbacks {
 
 class ClientCb : public NimBLEClientCallbacks {
     void onDisconnect(NimBLEClient*, int) override { linkDown = true; }
+    void onPassKeyEntry(NimBLEConnInfo& info) override { NimBLEDevice::injectPassKey(info, wantPin); }
 };
 
 static ScanCb scanCb;
 static ClientCb clientCb;
 
 static bool subscribe(NimBLEClient* c) {
-    NimBLERemoteService* s = c->getService(kSvc);
+    NimBLERemoteService* s = c->getService(kTrk);
+    st.tracker = s != nullptr;
+    st.pinFailed = false;
+    if (s) {                                                       // tracker: primero emparejar; sin eso no manda NMEA
+        if (!c->secureConnection() || !c->getConnInfo().isEncrypted() || !c->getConnInfo().isAuthenticated()) { st.pinFailed = true; return false; }
+        NimBLERemoteCharacteristic* n = s->getCharacteristic(kTrkNmea);
+        return n && n->canNotify() && n->subscribe(true, onNotify);
+    }
+    s = c->getService(kSvc);
     NimBLERemoteCharacteristic* ch = s ? s->getCharacteristic(kChrIn) : nullptr;
     if (!ch) {                                                     // UART de Nordic: la que notifique de las dos
         s = c->getService(kNus);
@@ -95,6 +110,8 @@ static void task(void*) {
         if (!inited) {
             NimBLEDevice::init("APRS LoRa+ Plotter");
             NimBLEDevice::setMTU(247);
+            NimBLEDevice::setSecurityAuth(true, true, true);       // bonding, MITM y conexiones seguras, como pide el tracker
+            NimBLEDevice::setSecurityIOCap(BLE_HS_IO_KEYBOARD_ONLY);
             NimBLEScan* scan = NimBLEDevice::getScan();
             scan->setScanCallbacks(&scanCb, false);
             scan->setActiveScan(true);                             // para leer el nombre
@@ -125,7 +142,7 @@ static void task(void*) {
                 st.state = CONNECTED;
             } else if (client && client->isConnected()) client->disconnect();   // conectado pero sin el servicio esperado
             found = false;
-            if (!ok) vTaskDelay(pdMS_TO_TICKS(2000));
+            if (!ok) vTaskDelay(pdMS_TO_TICKS(st.pinFailed ? 15000 : 2000));    // con el PIN mal, sin insistir tanto
             continue;
         }
         st.state = SCANNING;
@@ -134,7 +151,8 @@ static void task(void*) {
     }
 }
 
-void set(bool on, const char* addr) {
+void set(bool on, const char* addr, uint32_t pin) {
+    wantPin = pin;
     if (!sb) sb = xStreamBufferCreate(4096, 1);
     snprintf(wantAddr, sizeof(wantAddr), "%s", addr ? addr : "");
     wantOn = on;
@@ -146,7 +164,7 @@ int read(uint8_t* b, int max) { return sb ? (int)xStreamBufferReceive(sb, b, (si
 
 #else   // en el PC no hay Bluetooth
 
-void set(bool, const char*) {}
+void set(bool, const char*, uint32_t) {}
 int read(uint8_t*, int) { return 0; }
 
 #endif

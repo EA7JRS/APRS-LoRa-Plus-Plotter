@@ -43,6 +43,19 @@ exigir enlace cifrado y emparejado, como en el tracker.
 El plotter acepta también un equipo que anuncie el servicio UART de Nordic (`6e400001-b5a3-f393-e0a9-e50e24dcca9e`) y
 notifique NMEA por `6e400003…` (o por `6e400002…`, como hace el servicio TNC2 del tracker).
 
+## Tracker APRS LoRa+
+
+El plotter también se conecta a un tracker APRS LoRa+ sin tocar su firmware (comprobado en el código del tracker,
+`src/ble_control.cpp` y `docs/BLE_CONTROL.md`, el 2026-11-11):
+
+- El tracker anuncia su servicio KISS (`00000001-ba2a-46c9-ae49-01b0961f68bb`) o el UART de Nordic en modo TNC2; el NMEA
+  sale por la característica `4c6f5261-2b00-4ea7-a000-000000000004` de su servicio de control, en texto, tal cual.
+- El servicio de control exige enlace cifrado y emparejado con el **PIN de control** (WebUI del tracker > Bluetooth >
+  Control PIN, `123456` de fábrica). En el plotter: Ajustes > Red > «PIN del tracker (Bluetooth)».
+- Solo las placas del tracker con salida NMEA (`NMEA_OUTPUT`, hoy la T-Beam Supreme) mandan posición: RMC, GGA, VTG, GLL y
+  ZDA, además de MDA / XDR (meteorología) y `!AIVDM` (las estaciones APRS oídas, como blancos AIS, y el receptor AIS).
+- El tracker lleva una sola conexión BLE a la vez: **o el plotter o la app del móvil**, no los dos.
+
 ## Elegir el equipo
 
 Ajustes > Bluetooth: al encenderlo, el plotter se conecta al primer equipo que anuncie el servicio y recuerda su

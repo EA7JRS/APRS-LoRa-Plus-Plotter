@@ -124,8 +124,16 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `parseLightRecord`, `lightSightingRangeNm`), independiente de dónde salgan los datos, y maqueta `CartaFaro` (ficha de faro
   con el ritmo dibujado y «se verá a», y capa «Límites» con el mar territorial). Los límites marítimos van como capa WMS (fase 3).
 
+- API-CNIG del IGN (`plataforma.idee.es/cnig-api`, repositorio IGN-CNIG/API-CNIG, EUPL 1.2; estudiado el 2026-11-11): es una
+  librería JavaScript sobre OpenLayers para visores web: **no encaja** en el ESP32. Lo aprovechable son los servicios que usa,
+  con teselas ya hechas (numeración TMS, `{-y}`): `https://tms-ign-base.idee.es/1.0.0/IGNBaseTodo/{z}/{x}/{-y}.jpeg` (mapa
+  base del IGN) y `https://tms-pnoa-ma.idee.es/1.0.0/pnoa-ma/{z}/{x}/{-y}.jpeg` (ortofoto PNOA); también WMTS `ign-base`,
+  `pnoa-ma`, `mapa-raster` y el geocodificador inverso de CartoCiudad. Añadidas como bases «IGN» y «Ortofoto» (fase 3; la app
+  Android ya usa PNOA y MTN, CC BY 4.0). Núcleo: `tiles` (posición ↔ tesela y píxel, metros por píxel, zoom para una anchura,
+  direcciones con `{z}{x}{y}{-y}`, rutas en la microSD). Sin comprobar: condiciones de uso exactas y zoom máximo de cada servicio.
+
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos). 1170 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa). 1184 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

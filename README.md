@@ -15,6 +15,7 @@ Todavía no hay firmware que compile para la placa.
 | `geo` | Círculo máximo, loxodrómica, Vincenty (WGS84), desvío de ruta |
 | `motion` | CPA / TCPA, viento real y aparente, VMG, corriente |
 | `wind` | Escala Beaufort, anemómetro de cazoletas por pulsos |
+| `tiles` | Teselas de mapa: posición a tesela y píxel, escala, direcciones XYZ y TMS |
 | `units` | Sistemas náutico, métrico, imperial y usuario |
 | `astro` | Orto, ocaso, crepúsculos, posición del sol, edad de la luna |
 | `store` | Tabla única de datos con fuente, hora y prioridad |

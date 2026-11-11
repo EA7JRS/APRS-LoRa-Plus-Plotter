@@ -22,6 +22,7 @@
 #include "route.h"
 #include "signalk.h"
 #include "stream.h"
+#include "tiles.h"
 #include "units.h"
 #include "wind.h"
 
@@ -780,6 +781,36 @@ static void testNavWarn() {
     CHECK(navWarningPositions("CHANNEL 16, 24 HOURS, 2026-06-03, 10-20 NM, 36-70.0N 004-10.0W, 136-10.0N 004-10.0W, 36-10.0NE 004-10.0W", p) == 0);
 }
 
+static void testTiles() {
+    int tx, ty, ix, iy;
+    lonLatToTile(LatLon{0, 0}, 1, tx, ty, &ix, &iy);
+    CHECK(tx == 1 && ty == 1 && ix == 0 && iy == 0);
+    // Cadiz a zoom 12, calculado aparte con la formula de OpenStreetMap: x = 1976,403, y = 1600,966
+    lonLatToTile(LatLon{36.5297, -6.2927}, 12, tx, ty, &ix, &iy);
+    CHECK(tx == 1976 && ty == 1600 && ix == 103 && iy == 247 && ix >= 0 && ix < 256 && iy >= 0 && iy < 256);
+    CHECK(tmsY(1600, 12) == 2495 && tmsY(0, 0) == 0);
+    // Ida y vuelta
+    double px, py;
+    lonLatToWorldPx(LatLon{36.5297, -6.2927}, 15, px, py);
+    LatLon b = worldPxToLonLat(px, py, 15);
+    NEAR(b.lat, 36.5297, 1e-9); NEAR(b.lon, -6.2927, 1e-9);
+    lonLatToTile(LatLon{89.9, 179.999}, 3, tx, ty);
+    CHECK(tx == 7 && ty == 0);
+    lonLatToTile(LatLon{-89.9, -180}, 3, tx, ty);
+    CHECK(tx == 0 && ty == 7);
+    // Escala: 156543 m por pixel en el ecuador a zoom 0
+    NEAR(metersPerPixel(0, 0), 156543.03, 0.01);
+    NEAR(metersPerPixel(60, 10), 156543.03 / 1024 / 2, 0.01);
+    // 3 millas en 824 px a 36,5 N
+    int z = zoomForWidth(36.5, 3.0, 824);
+    CHECK(z == 14 && metersPerPixel(36.5, z) * 824 >= 3 * 1852.0 && metersPerPixel(36.5, z + 1) * 824 < 3 * 1852.0);
+    char u[120];
+    CHECK(tileUrl(u, sizeof(u), "https://tile.example/{z}/{x}/{y}.png", 12, 1976, 1600) > 0 && !std::strcmp(u, "https://tile.example/12/1976/1600.png"));
+    CHECK(tileUrl(u, sizeof(u), kTilesIgnBase, 12, 1976, 1600) > 0 && !std::strcmp(u, "https://tms-ign-base.idee.es/1.0.0/IGNBaseTodo/12/1976/2495.jpeg"));
+    CHECK(tileUrl(u, 20, kTilesPnoa, 12, 1976, 1600) == 0 && tileUrl(u, sizeof(u), "https://sin.plantilla/", 1, 1, 1) == 0);
+    CHECK(tilePath(u, sizeof(u), "/charts/osm", 12, 1976, 1600, "png") > 0 && !std::strcmp(u, "/charts/osm/12/1976/1600.png"));
+}
+
 static void testGpx() {
     // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
     const char* in =
@@ -844,7 +875,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

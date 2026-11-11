@@ -148,9 +148,12 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   podido ver las capas** (hace falta el `GetCapabilities`, que puede abrir Manuel). `CartaOF` parece la carta oficial de papel
   en ráster: candidata a mapa base «Carta IHM» junto a la ENC. El núcleo ya pide a cualquier WMS la imagen de cada tesela
   (`tileBounds3857`, `wmsTileUrl`, EPSG:3857, 256 px): vale para las cartas del IHM, los límites marítimos y Portus.
+  `https://ideihm.covam.es/wms/lucesIHM` (enlace de Manuel): WMS de **luces** del IHM, la fuente que faltaba para los faros;
+  tampoco se han podido ver sus capas ni el formato de la ficha. El núcleo ya arma la consulta del punto tocado
+  (`wmsFeatureInfoUrl`, GetFeatureInfo); falta el nombre de capa y un ejemplo de respuesta para leerla y rellenar `LightRecord`.
 
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1221 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1226 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

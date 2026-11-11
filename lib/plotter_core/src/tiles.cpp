@@ -107,6 +107,27 @@ int wmsTileUrl(char* out, int size, const char* base, const char* layers, int zo
     return (n > 0 && n < size) ? n : 0;
 }
 
+int wmsFeatureInfoUrl(char* out, int size, const char* base, const char* layers, LatLon p, int zoom, const char* infoFormat, int count) {
+    if (!base || !layers || !infoFormat) return 0;
+    int tx, ty, i, j;
+    lonLatToTile(p, zoom, tx, ty, &i, &j);
+    double x0, y0, x1, y1;
+    tileBounds3857(zoom, tx, ty, x0, y0, x1, y1);
+    char fmt[40];
+    int k = 0;
+    for (const char* q = infoFormat; *q && k < int(sizeof(fmt)) - 4; q++) {
+        if (*q == '/') { fmt[k++] = '%'; fmt[k++] = '2'; fmt[k++] = 'F'; }
+        else if (*q == '+') { fmt[k++] = '%'; fmt[k++] = '2'; fmt[k++] = 'B'; }
+        else fmt[k++] = *q;
+    }
+    fmt[k] = 0;
+    int n = std::snprintf(out, size_t(size),
+                          "%s%cSERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo&LAYERS=%s&QUERY_LAYERS=%s&STYLES=&CRS=EPSG:3857"
+                          "&BBOX=%.2f,%.2f,%.2f,%.2f&WIDTH=%d&HEIGHT=%d&I=%d&J=%d&INFO_FORMAT=%s&FEATURE_COUNT=%d",
+                          base, std::strchr(base, '?') ? '&' : '?', layers, layers, x0, y0, x1, y1, kTileSize, kTileSize, i, j, fmt, count);
+    return (n > 0 && n < size) ? n : 0;
+}
+
 int tilePath(char* out, int size, const char* folder, int zoom, int tx, int ty, const char* ext) {
     int n = std::snprintf(out, size_t(size), "%s/%d/%d/%d.%s", folder ? folder : "", zoom, tx, ty, ext ? ext : "png");
     return (n > 0 && n < size) ? n : 0;

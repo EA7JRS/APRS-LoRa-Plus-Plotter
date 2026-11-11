@@ -38,8 +38,13 @@ int tilePath(char* out, int size, const char* folder, int zoom, int tx, int ty, 
 void tileBounds3857(int zoom, int tx, int ty, double& minX, double& minY, double& maxX, double& maxY);   // metros
 int wmsTileUrl(char* out, int size, const char* base, const char* layers, int zoom, int tx, int ty, bool transparent = true,
                const char* format = "image/png");
+// Consulta de lo que hay en un punto (GetFeatureInfo): la tesela que lo contiene y el pixel dentro de ella. Sirve para
+// pedir la ficha de una luz o de una estacion de mareas al tocarla en la carta.
+int wmsFeatureInfoUrl(char* out, int size, const char* base, const char* layers, LatLon p, int zoom,
+                      const char* infoFormat = "text/plain", int featureCount = 5);
 // Servicios del Instituto Hidrografico de la Marina (los nombres de capa se leen del GetCapabilities de cada uno)
 constexpr const char* kWmsIhmPaperCharts = "https://ideihm.covam.es/wms/CartaOF";
+constexpr const char* kWmsIhmLights = "https://ideihm.covam.es/wms/lucesIHM";
 constexpr const char* kWmsIhmTides = "https://ideihm.covam.es/wms/mareas";
 constexpr const char* kWmsIhmMaritimeLimits = "https://ideihm.covam.es/ihm-inspire/wms-unidadesmaritimas";
 

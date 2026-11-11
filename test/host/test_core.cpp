@@ -826,6 +826,12 @@ static void testTiles() {
     CHECK(wmsTileUrl(w, sizeof(w), "https://servidor.example/wms?map=a", "c", 0, 0, 0, false, "image/jpeg") > 0);
     CHECK(std::strstr(w, "wms?map=a&SERVICE=WMS") && std::strstr(w, "FORMAT=image%2Fjpeg&TRANSPARENT=FALSE"));
     CHECK(wmsTileUrl(w, 60, kWmsIhmTides, "c", 1, 1, 0) == 0 && wmsTileUrl(w, sizeof(w), nullptr, "c", 1, 1, 0) == 0);
+    char q[400];
+    CHECK(wmsFeatureInfoUrl(q, sizeof(q), kWmsIhmLights, "luces", LatLon{36.5297, -6.2927}, 12) > 0);
+    CHECK(std::strstr(q, "https://ideihm.covam.es/wms/lucesIHM?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo&LAYERS=luces&QUERY_LAYERS=luces"));
+    CHECK(std::strstr(q, "&WIDTH=256&HEIGHT=256&I=103&J=247&INFO_FORMAT=text%2Fplain&FEATURE_COUNT=5"));
+    CHECK(wmsFeatureInfoUrl(q, sizeof(q), kWmsIhmLights, "luces", LatLon{36.5297, -6.2927}, 12, "application/vnd.ogc.gml+xml", 1) > 0);
+    CHECK(std::strstr(q, "INFO_FORMAT=application%2Fvnd.ogc.gml%2Bxml&FEATURE_COUNT=1") && wmsFeatureInfoUrl(q, 80, kWmsIhmLights, "l", LatLon{0, 0}, 3) == 0);
     CHECK(tilePath(u, sizeof(u), "/charts/osm", 12, 1976, 1600, "png") > 0 && !std::strcmp(u, "/charts/osm/12/1976/1600.png"));
 }
 

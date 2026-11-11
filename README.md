@@ -20,6 +20,7 @@ Todavía no hay firmware que compile para la placa.
 | `store` | Tabla única de datos con fuente, hora y prioridad |
 | `nmea` | NMEA 0183: RMC, GLL, VTG, DPT, DBT, MWV, HDT, VHW, MTW, VDM, VDO |
 | `ais` | Mensajes AIS 1, 2, 3, 5, 18, 19 y 24 |
+| `gpx` | Lectura y escritura de GPX 1.1 (waypoints, rutas y tracks) |
 
 ## Pruebas
 

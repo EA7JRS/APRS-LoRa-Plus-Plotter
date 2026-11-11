@@ -32,8 +32,17 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 - Fase 4: mareas (constantes por puerto; mirar el WMS de mareas del IHM) y rectas de altura (Meeus, contrastar con el Almanaque).
 - Librerías: versiones fijadas y una tarea semanal que proponga actualizaciones tras compilar.
 
+- Tomado de OpenCPN (estudiado el 2026-11-11; ideas y formatos, no código): GPX para waypoints, rutas y tracks; línea de costa
+  mundial ligera como fondo de reserva; reproducción de archivos NMEA (simulador y repaso de travesías); datos de mareas
+  (`data/tcdata` de OpenCPN: `ticon-europe-global.tcd`, 1690 estaciones; confirmar puertos españoles y licencia); filtros y
+  prioridad por conexión con monitor de tramas; blanco AIS perdido, ocultar amarrados y silenciar por buque. GRIB, más adelante.
+- Datos de la embarcación (nombre, MMSI, distintivo, tipo, dimensiones, antena GPS, sonda, depósitos): solo para el plotter.
+- AIS en la carta con iconos propios por tipo de buque (no los de MarineTraffic). AISHub: zona visible, 1 consulta/min, atenuado
+  y sin alarma de colisión. Alarma de garreo con pantalla de fondeo. Tablilla de desvíos (automática con compás electrónico;
+  pendiente saber si Manuel tiene uno).
+
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais. 214 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx. 235 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.
@@ -41,5 +50,5 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 ## Siguiente
 1. Esqueleto del firmware: `platformio.ini`, drivers de la 7B copiados de Display, LVGL, pantalla de Instrumentos con simulador NMEA.
 2. NMEA 2000 por TWAI (librería NMEA2000) y UART / RS485.
-3. Carta con teselas en microSD, waypoints y rutas; radar AIS; alarmas; zumbador externo.
+3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático; comprobar pines libres de la 7B para el anemómetro.

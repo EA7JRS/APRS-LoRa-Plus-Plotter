@@ -12,6 +12,7 @@
 #include "ais.h"
 #include "astro.h"
 #include "geo.h"
+#include "gpx.h"
 #include "motion.h"
 #include "nmea.h"
 #include "store.h"
@@ -252,8 +253,46 @@ static void testNmea() {
     CHECK(nm.ais().own);
 }
 
+static void testGpx() {
+    // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
+    const char* in =
+        "<?xml version=\"1.0\"?>\n<gpx version=\"1.1\" creator=\"OpenCPN\" xmlns:opencpn=\"http://www.opencpn.org\">\n"
+        "<!-- comentario -->\n<metadata><name>no es un punto</name></metadata>\n"
+        "<wpt lat=\"36.52\" lon=\"-6.3516667\"><time>2026-11-11T09:40:00Z</time><name>WPT 01</name><sym>circle</sym>"
+        "<extensions><opencpn:guid>abc</opencpn:guid><name>dentro de extensiones</name></extensions></wpt>\n"
+        "<wpt lon='-6.2366667' lat='36.5016667'><name>Fondeo &amp; boya &lt;1&gt;</name></wpt>\n"
+        "<rte><name>A puerto</name><rtept lat=\"36.52\" lon=\"-6.35\"><name>R1</name></rtept><rtept lat=\"36.54\" lon=\"-6.38\"/></rte>\n"
+        "<trk><name>Hoy</name><trkseg><trkpt lat=\"36.5\" lon=\"-6.2\"><time>2026-11-11T08:00:00Z</time></trkpt></trkseg>"
+        "<trkseg><trkpt lat=\"36.51\" lon=\"-6.21\"></trkpt></trkseg></trk>\n</gpx>\n";
+    GpxData d;
+    CHECK(gpxParse(in, d));
+    CHECK(d.waypoints.size() == 2 && d.routes.size() == 1 && d.tracks.size() == 1);
+    CHECK(d.waypoints[0].name == "WPT 01" && d.waypoints[0].time == "2026-11-11T09:40:00Z");
+    NEAR(d.waypoints[0].lon, -6.3516667, 1e-9);
+    CHECK(d.waypoints[1].name == "Fondeo & boya <1>");
+    NEAR(d.waypoints[1].lat, 36.5016667, 1e-9);
+    CHECK(d.routes[0].name == "A puerto" && d.routes[0].pts.size() == 2 && d.routes[0].pts[0].name == "R1" && d.routes[0].pts[1].name.empty());
+    CHECK(d.tracks[0].name == "Hoy" && d.tracks[0].pts.size() == 2 && d.tracks[0].pts[0].time == "2026-11-11T08:00:00Z");
+    // Ida y vuelta
+    GpxData d2;
+    CHECK(gpxParse(gpxWrite(d), d2));
+    CHECK(d2.waypoints.size() == 2 && d2.waypoints[1].name == d.waypoints[1].name && d2.routes[0].pts.size() == 2 && d2.tracks[0].pts.size() == 2);
+    NEAR(d2.waypoints[0].lat, d.waypoints[0].lat, 1e-7);
+    NEAR(d2.tracks[0].pts[1].lon, -6.21, 1e-7);
+    CHECK(d2.routes[0].name == "A puerto" && d2.tracks[0].pts[0].time == d.tracks[0].pts[0].time);
+    // Entradas no validas
+    CHECK(!gpxParse("", d2));
+    CHECK(!gpxParse("<kml></kml>", d2));
+    CHECK(!gpxParse("<gpx><wpt lat=\"95\" lon=\"0\"/></gpx>", d2));           // latitud imposible
+    CHECK(!gpxParse("<gpx><wpt lat=\"x\" lon=\"0\"/></gpx>", d2));
+    CHECK(!gpxParse("<gpx><wpt lon=\"0\"/></gpx>", d2));                      // falta la latitud
+    CHECK(!gpxParse("<gpx><rtept lat=\"1\" lon=\"1\"/></gpx>", d2));           // punto de ruta fuera de una ruta
+    CHECK(!gpxParse("<gpx><wpt lat=\"1\" lon=\"1\"></gpx>", d2));              // sin cerrar
+    CHECK(gpxParse("<gpx></gpx>", d2) && d2.waypoints.empty());
+}
+
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testGpx();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

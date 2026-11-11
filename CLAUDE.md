@@ -174,8 +174,19 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   de zonas de servicio portuarias de Puertos del Estado (`spa_puertos_estado`). El IHM tiene una herramienta «Faros y Señales
   de Niebla» con los datos del libro de faros (misma fuente que `lucesIHM`).
 
+- Faros y luces: de dónde salen los datos (Manuel, 2026-11-11: «los faros y luces»). Tres vías, por orden:
+  1. **OpenStreetMap / OpenSeaMap** (ODbL, hecho en el núcleo): las luces llevan etiquetas `seamark:light:character`, `group`,
+     `period`, `colour`, `height`, `range`. `overpassLightsUrl` pide las de un recuadro a la API Overpass (JSON),
+     `lightRecordFromSeamark` las convierte y `formatLightRecord` las guarda en la lista de la microSD. Cobertura mundial y
+     automática; la calidad depende de lo que haya cartografiado. Sin probar contra el servidor real (bloqueado en la sesión).
+  2. **WMS `lucesIHM`** del IHM (oficial): pendiente del nombre de capa y de un ejemplo de ficha.
+  3. **Libro de Faros y Señales de Niebla** del IHM (columnas: número, nombre, posición, característica y periodo, altura en
+     metros, alcance en millas, estructura, observaciones; PDF públicos de 2017 en publicaciones.defensa.gob.es; aplicación web
+     `armada.mde.es/ihm/Aplicaciones/LibroFaros/V3/`, sin poder leerla). Es © IHM: se puede usar para una lista personal, pero
+     **no se mete en el repositorio**.
+
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1226 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1248 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

@@ -731,6 +731,33 @@ static void testLights() {
     CHECK(parseLightRecord("Solo posicion;36.5;-6.3", lr) && lr.character.cls == LightClass::Unknown);
     CHECK(!parseLightRecord("# comentario", lr) && !parseLightRecord("", lr) && !parseLightRecord("Mal;x;y", lr) && !parseLightRecord("Lejos;95;0", lr));
 
+    // Luces de OpenStreetMap (etiquetas seamark:light:*)
+    char txt[32];
+    CHECK(lightCharacterFromSeamark("Fl", "2", "10", "white", c, txt, sizeof(txt)) && !std::strcmp(txt, "Fl(2) W 10s"));
+    CHECK(c.cls == LightClass::Flashing && c.group == 2 && c.periodS == 10 && c.color == LightColor::White);
+    CHECK(lightCharacterFromSeamark("Q+LFl", "6", "15", "white", c, txt, sizeof(txt)) && !std::strcmp(txt, "Q(6)+LFl W 15s"));
+    CHECK(c.cls == LightClass::Quick && c.group == 6 && c.longFlashAfter && ialaMarkFromLight(c) == IalaMark::CardinalS);
+    CHECK(lightCharacterFromSeamark("Fl", "2+1", "12", "red", c) && c.group == 2 && c.group2 == 1 && c.color == LightColor::Red);
+    CHECK(lightCharacterFromSeamark("Mo", "A", "6", "white", c) && c.cls == LightClass::Morse && c.morse == 'A');
+    CHECK(lightCharacterFromSeamark("Iso", nullptr, "4", "green", c) && c.cls == LightClass::Isophase && c.color == LightColor::Green);
+    CHECK(lightCharacterFromSeamark("VQ", "", "", "", c) && c.cls == LightClass::VeryQuick && c.periodS == 0);
+    CHECK(lightCharacterFromSeamark("Fl", "1", "5", "yellow", c) && c.group == 1 && ialaMarkFromLight(c) == IalaMark::Special);
+    CHECK(lightCharacterFromSeamark("Oc", "2", "2.5", "white;red", c, txt, sizeof(txt)) && c.cls == LightClass::Occulting); NEAR(c.periodS, 2.5, 1e-9);
+    CHECK(!lightCharacterFromSeamark(nullptr, "2", "10", "white", c) && !lightCharacterFromSeamark("", "", "", "", c));
+    CHECK(lightRecordFromSeamark("Faro; de ejemplo", 36.5297, -6.3147, "Fl", "2", "10", "white", "49", "20", lr));
+    CHECK(!std::strcmp(lr.name, "Faro, de ejemplo") && !std::strcmp(lr.characterText, "Fl(2) W 10s") && lr.heightM == 49 && lr.nominalNm == 20);
+    char ln[120];
+    CHECK(formatLightRecord(ln, sizeof(ln), lr) > 0 && !std::strcmp(ln, "Faro, de ejemplo;36.52970;-6.31470;Fl(2) W 10s;49;20"));
+    LightRecord lr2;
+    CHECK(parseLightRecord(ln, lr2) && lr2.character.group == 2 && lr2.heightM == 49);     // ida y vuelta a la microSD
+    NEAR(lr2.lon, -6.3147, 1e-9);
+    CHECK(lightRecordFromSeamark(nullptr, 36.5, -6.3, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, lr) && !std::strcmp(lr.name, "Luz"));
+    CHECK(formatLightRecord(ln, sizeof(ln), lr) > 0 && !std::strcmp(ln, "Luz;36.50000;-6.30000;;;"));
+    char ov[220];
+    CHECK(overpassLightsUrl(ov, sizeof(ov), 36.3, -6.6, 36.8, -6.0) > 0);
+    CHECK(!std::strcmp(ov, "https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%3Bnode%5B%22seamark%3Alight%3Acharacter%22%5D(36.3000,-6.6000,36.8000,-6.0000)%3Bout%3B"));
+    CHECK(overpassLightsUrl(ov, 40, 36.3, -6.6, 36.8, -6.0) == 0);
+
     // Ayudas AIS (mensaje 21)
     bool fl = false;
     CHECK(ialaMarkFromAisAton(20, &fl) == IalaMark::CardinalN && fl);

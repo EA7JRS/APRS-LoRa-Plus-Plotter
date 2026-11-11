@@ -60,6 +60,20 @@ bool parseLightRecord(const char* line, LightRecord& out);
 // Distancia a la que se vera esa luz con esta visibilidad y altura del ojo; 0 si faltan el alcance o la altura.
 double lightSightingRangeNm(const LightRecord& l, double visibilityNm, double eyeHeightM);
 
+// Luces de OpenStreetMap / OpenSeaMap (licencia ODbL): cada luz lleva las etiquetas "seamark:light:character" ("Fl",
+// "Q+LFl", "Mo"...), "seamark:light:group" ("2", "2+1", "A"), "seamark:light:period" (segundos), "seamark:light:colour"
+// ("white", "red"...), "seamark:light:height" (m) y "seamark:light:range" (mn). Cualquiera puede faltar (nullptr o "").
+bool lightCharacterFromSeamark(const char* character, const char* group, const char* period, const char* colour, LightCharacter& out,
+                               char* textOut = nullptr, int textSize = 0);
+bool lightRecordFromSeamark(const char* name, double lat, double lon, const char* character, const char* group, const char* period,
+                            const char* colour, const char* height, const char* range, LightRecord& out);
+// Consulta a la API Overpass de las luces de un recuadro (sur, oeste, norte, este), respuesta JSON. Devuelve la longitud
+// de la direccion, 0 si no cabe.
+constexpr const char* kOverpassUrl = "https://overpass-api.de/api/interpreter";
+int overpassLightsUrl(char* out, int size, double south, double west, double north, double east);
+// Linea de la lista de luces de la microSD a partir de un registro (para guardar lo descargado)
+int formatLightRecord(char* out, int size, const LightRecord& l);
+
 // Marcas del sistema de balizamiento IALA
 enum class IalaMark : uint8_t {
     Unknown, PortHand, StarboardHand, PreferredChannelPort, PreferredChannelStarboard, CardinalN, CardinalE, CardinalS, CardinalW,

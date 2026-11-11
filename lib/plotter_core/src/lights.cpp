@@ -7,6 +7,7 @@
 
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -235,6 +236,64 @@ bool parseLightRecord(const char* line, LightRecord& out) {
 double lightSightingRangeNm(const LightRecord& l, double vis, double eye) {
     if (l.nominalNm <= 0 || l.heightM <= 0) return 0;
     return sightingRangeNm(l.nominalNm, vis, eye, l.heightM);
+}
+
+bool lightCharacterFromSeamark(const char* ch, const char* group, const char* period, const char* colour, LightCharacter& out,
+                               char* textOut, int textSize) {
+    out = LightCharacter();
+    if (!ch || !*ch) return false;
+    // Se arma la abreviatura internacional y se lee con el mismo lector: "Q+LFl" con grupo 6 -> "Q(6)+LFl"
+    char t[40];
+    const char* plus = std::strchr(ch, '+');
+    size_t head = plus ? size_t(plus - ch) : std::strlen(ch);
+    if (head == 0 || head > 8) return false;
+    int n = std::snprintf(t, sizeof(t), "%.*s", int(head), ch);
+    if (group && *group && std::strcmp(group, "1") != 0) n += std::snprintf(t + n, sizeof(t) - size_t(n), "(%.8s)", group);
+    if (plus) n += std::snprintf(t + n, sizeof(t) - size_t(n), "%.6s", plus);
+    char c = 0;
+    if (colour && *colour) {
+        if (!std::strncmp(colour, "white", 5)) c = 'W';
+        else if (!std::strncmp(colour, "red", 3)) c = 'R';
+        else if (!std::strncmp(colour, "green", 5)) c = 'G';
+        else if (!std::strncmp(colour, "yellow", 6) || !std::strncmp(colour, "amber", 5) || !std::strncmp(colour, "orange", 6)) c = 'Y';
+    }
+    bool blue = colour && !std::strncmp(colour, "blue", 4);
+    if (c) n += std::snprintf(t + n, sizeof(t) - size_t(n), " %c", c);
+    else if (blue) n += std::snprintf(t + n, sizeof(t) - size_t(n), " Bu");
+    if (period && *period) n += std::snprintf(t + n, sizeof(t) - size_t(n), " %.6ss", period);
+    if (n <= 0 || n >= int(sizeof(t))) return false;
+    if (textOut && textSize > 0) std::snprintf(textOut, size_t(textSize), "%s", t);
+    return parseLightCharacter(t, out);
+}
+
+bool lightRecordFromSeamark(const char* name, double lat, double lon, const char* ch, const char* group, const char* period,
+                            const char* colour, const char* height, const char* range, LightRecord& out) {
+    out = LightRecord();
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return false;
+    std::snprintf(out.name, sizeof(out.name), "%s", (name && *name) ? name : "Luz");
+    for (char* q = out.name; *q; q++) if (*q == ';') *q = ',';         // el punto y coma separa campos en la lista
+    out.lat = lat;
+    out.lon = lon;
+    lightCharacterFromSeamark(ch, group, period, colour, out.character, out.characterText, int(sizeof(out.characterText)));
+    if (height && *height) out.heightM = std::atof(height);
+    if (range && *range) out.nominalNm = std::atof(range);
+    return true;
+}
+
+int overpassLightsUrl(char* out, int size, double s, double w, double n, double e) {
+    // [out:json];node["seamark:light:character"](s,w,n,e);out; con los caracteres reservados codificados
+    int k = std::snprintf(out, size_t(size),
+                          "%s?data=%%5Bout%%3Ajson%%5D%%3Bnode%%5B%%22seamark%%3Alight%%3Acharacter%%22%%5D(%.4f,%.4f,%.4f,%.4f)%%3Bout%%3B",
+                          kOverpassUrl, s, w, n, e);
+    return (k > 0 && k < size) ? k : 0;
+}
+
+int formatLightRecord(char* out, int size, const LightRecord& l) {
+    char h[16] = "", r[16] = "";
+    if (l.heightM > 0) std::snprintf(h, sizeof(h), "%g", l.heightM);
+    if (l.nominalNm > 0) std::snprintf(r, sizeof(r), "%g", l.nominalNm);
+    int k = std::snprintf(out, size_t(size), "%s;%.5f;%.5f;%s;%s;%s", l.name, l.lat, l.lon, l.characterText, h, r);
+    return (k > 0 && k < size) ? k : 0;
 }
 
 const char* ialaMarkNameEs(IalaMark m) {

@@ -132,6 +132,14 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   Android ya usa PNOA y MTN, CC BY 4.0). Núcleo: `tiles` (posición ↔ tesela y píxel, metros por píxel, zoom para una anchura,
   direcciones con `{z}{x}{y}{-y}`, rutas en la microSD). Sin comprobar: condiciones de uso exactas y zoom máximo de cada servicio.
 
+- API de mareas del IHM (`https://ideihm.covam.es/portal/api-mareas/`, enlace de Manuel, 2026-11-11): oficial, «predicciones
+  de marea por puerto y fecha», página modificada el 2026-02-27. Desde la sesión no se pudo leer la documentación (la página
+  se rellena con JavaScript y la versión inglesa dio error). De memoria, **sin verificar**: `https://ideihm.covam.es/api-ihm/getmarea`
+  con `request=getlist&format=json` (puertos) y `request=gettide&id=<puerto>&format=json&date=AAAAMMDD` (o `month=AAAAMM`).
+  Plan para la fase 4: esta API como fuente principal de mareas en España (con internet, guardando en la microSD los días
+  siguientes para usarlos sin cobertura) y el cálculo armónico propio como reserva y para otros países. Pendiente: que Manuel
+  pegue el texto de la página o una respuesta de ejemplo antes de escribir el lector.
+
 ## Estado (2026-11-11)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa). 1184 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).

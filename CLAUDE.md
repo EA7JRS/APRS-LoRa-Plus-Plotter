@@ -6,7 +6,7 @@ No publicar nada ni crear repositorios sin que lo pida Manuel.
 
 ## Qué es
 Plotter náutico para la Waveshare ESP32-S3-Touch-LCD-7B (1024×600), inspirado en las funciones del Garmin GPSMAP x3
-(manual de usuario estudiado el 2026-11-11), con diseño propio. Repositorio aparte (privado) para integrarlo después en
+(manual de usuario estudiado el 2026-11-11), con diseño propio. Repositorio aparte, `EA7JRS/APRS-LoRa-Plus-Plotter` (privado, creado por Manuel el 2026-11-11; primera subida el mismo día), para integrarlo después en
 `EA7JRS/APRS-LoRa-Plus-Display`, del que reutiliza los drivers de la 7B (pantalla, táctil GT911, expansor de pines),
 LVGL ~9.6, NimBLE-Arduino ^2.5.2 y ArduinoJson 7.4.3.
 Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/3rGbM86ZobibCQ2KU44DAD
@@ -216,9 +216,9 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   fuentes DejaVu en `src/fonts`; los números grandes regenerados con coma y dos puntos: `tools/make_fonts.sh`) más
   `setCanMode` y `sdSelect`; `src/links.*` (simulador + RS485 a 38400 con el lector NMEA / AIS), `src/ui.*` (barra superior,
   8 pestañas, Instrumentos con 8 casillas, fuente y antigüedad de cada dato, viento real calculado), `src/main.cpp`
-  (consola: `APRS-INFO?`, `SIM 0` / `SIM 1`). Simulador en el núcleo (`sim`). **Sin compilar con PlatformIO**: en la sesión
-  no hay acceso a su registro; lo compila la CI (`.github/workflows/tests.yml`, trabajo `firmware`) cuando exista el
-  repositorio. Sí comprobado: `ui.cpp`, `links.cpp` y `main.cpp` compilan contra LVGL 9.6.0 con `-Werror`, y la interfaz se
+  (consola: `APRS-INFO?`, `SIM 0` / `SIM 1`). Simulador en el núcleo (`sim`). **Compila en la CI** desde el 2026-11-11 (`.github/workflows/tests.yml`, trabajo `firmware`; el `firmware.bin` queda
+  como artefacto de cada ejecución); en la sesión no hay acceso al registro de PlatformIO. La fuente de datos del puerto serie
+  se llama `Source::Uart` porque Arduino define `Serial` como macro. Sí comprobado: `ui.cpp`, `links.cpp` y `main.cpp` compilan contra LVGL 9.6.0 con `-Werror`, y la interfaz se
   ha dibujado en el PC con LVGL real (`tools/ui_preview/build.sh <lvgl> salida.ppm`). Sin probar en la placa. `docs/HARDWARE.md`.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.
 

@@ -326,6 +326,15 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   puerto han entrado datos en el último minuto, ventana emergente «RS485 COMPARTIDO» (una vez; vuelve a avisar si se apaga y
   se enciende la salida) con «Apagar salida» y «Seguir así». Las alertas de emergencia la sustituyen si saltan. Acción
   `rs485` en el dibujo del PC.
+- **BLE con la pasarela (2026-11-11, rama `ble`; Manuel: «empieza por el BLE, la pasarela XIAO estoy pensando en una
+  readaptación»)**: `src/ble.*` (NimBLE-Arduino 2.5.2, tarea aparte): el plotter es **central**, busca el servicio de datos
+  NMEA `4c6f5261-2b00-4ea7-b100-000000000001` (datos por notificación en `…0003`, órdenes reservadas en `…0002`; mismo
+  esquema que el rotor) o el UART de Nordic, se conecta, se suscribe y vuelve a buscar si se corta. Sentencias NMEA 0183 en
+  texto → `links.cpp` (`bleLoop`, fuente `Ble`). Ajustes > botón *Bluetooth* (apagado por defecto; al conectar recuerda la
+  dirección del equipo y solo vuelve a ese; apagar y encender lo olvida), contador en Estado. Protocolo en
+  `docs/BLE_NMEA.md` (**borrador**: UUID y formato propuestos por Claude, a confirmar cuando Manuel readapte la XIAO). Sin
+  emparejamiento (solo lectura). Compila en la CI; **sin probar con ningún equipo**: no existe todavía el otro extremo.
+  Falta: lista de equipos para elegir, escribir órdenes (piloto por la pasarela), y el enlace BLE con el tracker APRS LoRa+.
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
@@ -334,7 +343,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y
-   medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Relevo por internet y pestaña Meteo hechos. Lo siguiente: Signal K nativo, zumbador, AEMET, y probar en la placa.
+   medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Relevo por internet y pestaña Meteo hechos. BLE con la pasarela hecho (lado plotter). Lo siguiente: Signal K nativo, zumbador, AEMET, y probar en la placa.
 2. NMEA 2000: hecho en escucha con decodificador propio; más PGN según lo que haya en la red de Manuel.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
-4. Pendiente de Manuel: marca del piloto automático. Viento: entra por la pasarela XIAO (CAN, UDP por WiFi o BLE); falta el BLE en el plotter y adaptar el firmware de la XIAO.
+4. Pendiente de Manuel: marca del piloto automático. Viento: entra por la pasarela XIAO (CAN, UDP por WiFi o BLE); el plotter ya tiene el BLE (docs/BLE_NMEA.md); falta readaptar el firmware de la XIAO.

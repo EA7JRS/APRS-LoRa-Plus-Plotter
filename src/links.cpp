@@ -4,6 +4,7 @@
  */
 #include "links.h"
 
+#include "ble.h"
 #include "board.h"
 #include "n2k.h"
 #include "net.h"
@@ -29,8 +30,8 @@ static LineBuffer serialLine;
 static AisTargets tgs;
 static uint32_t simLast = 0;
 static N2kReader n2k;
-static Nmea0183 tcpNmea, udpNmea;
-static LineBuffer tcpLine, udpLine;
+static Nmea0183 tcpNmea, udpNmea, bleNmea;
+static LineBuffer tcpLine, udpLine, bleLine;
 [[maybe_unused]] static bool canRunning = false;
 
 // NMEA 2000: el plotter solo escucha. El controlador va en modo normal para dar el acuse de recibo a las tramas de los
@@ -119,6 +120,35 @@ void applyNetwork() {
     c.udpPort = v.udpPort;
     snprintf(c.owmKey, sizeof(c.owmKey), "%s", v.owmKey);
     net::apply(c);
+}
+
+void applyBle() {
+    const settings::Values& v = settings::get();
+    ble::set(v.bleOn, v.bleAddr);
+}
+
+// Pasarela por BLE: lineas NMEA como fuente "BLE". La primera vez que conecta se recuerda el equipo.
+static void bleLoop(uint32_t now) {
+    static uint8_t buf[256];
+    for (int round = 0; round < 4; round++) {
+        int n = ble::read(buf, sizeof(buf));
+        if (n <= 0) break;
+        for (int i = 0; i < n; i++) {
+            if (!bleLine.push((char)buf[i])) continue;
+            st.bleLines++;
+            if (bleNmea.feed(bleLine.line(), Source::Ble, now, *store) == NmeaResult::Ais) {
+                tgs.update(bleNmea.ais(), now);
+                st.aisMessages++;
+            }
+        }
+    }
+    settings::Values& v = settings::get();
+    const ble::Status& bs = ble::status();
+    if (v.bleOn && bs.state == ble::CONNECTED && bs.addr[0] && strcmp(v.bleAddr, bs.addr) != 0) {
+        snprintf(v.bleAddr, sizeof(v.bleAddr), "%s", bs.addr);
+        settings::save();
+        ble::set(true, v.bleAddr);                                 // desde ahora, solo ese equipo
+    }
 }
 
 // Datos de internet: entran como la fuente de menos prioridad y marcados como estimados. Mientras el sensor de a bordo
@@ -213,6 +243,7 @@ void loop() {
     canLoop(now);
     netLoop(now);
     internetLoop(now);
+    bleLoop(now);
 
     if (st.simulator && now - simLast >= 1000) {
         simLast = now;

@@ -26,6 +26,8 @@ void load() {
     v.tcpPort = p.getInt("tcpPort", 10110);
     v.udpPort = p.getInt("udpPort", 0);
     p.getString("owm", v.owmKey, sizeof(v.owmKey));
+    v.bleOn = p.getBool("ble", false);
+    p.getString("bleAddr", v.bleAddr, sizeof(v.bleAddr));
     v.pilotOut = p.getInt("pilot", 0);
     v.units = p.getInt("units", 0);
     v.baseMap = p.getInt("map", 0);
@@ -60,6 +62,8 @@ void save() {
     p.putInt("tcpPort", v.tcpPort);
     p.putInt("udpPort", v.udpPort);
     p.putString("owm", v.owmKey);
+    p.putBool("ble", v.bleOn);
+    p.putString("bleAddr", v.bleAddr);
     p.putInt("pilot", v.pilotOut);
     p.putInt("units", v.units);
     p.putInt("map", v.baseMap);

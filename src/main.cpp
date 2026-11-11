@@ -73,6 +73,7 @@ void setup() {
     links::setCan(settings::get().can);
     net::begin();
     links::applyNetwork();
+    links::applyBle();
     board::setBacklight(settings::get().brightness);
     ui::begin(&store);
     if (!ok) Serial.println("La placa no ha arrancado bien: revisar docs/HARDWARE.md");

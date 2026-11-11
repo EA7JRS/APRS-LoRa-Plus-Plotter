@@ -20,6 +20,8 @@ struct Values {
     int tcpPort = 10110;
     int udpPort = 0;                // 0 = sin escucha
     char owmKey[40] = "";          // clave de OpenWeatherMap (datos de reserva de internet)
+    bool bleOn = false;             // enlace BLE con la pasarela
+    char bleAddr[18] = "";          // equipo recordado ("" = el primero que aparezca)
     int pilotOut = 0;               // datos de ruta al piloto: 0 no, 1 RS485, 2 servidor TCP
     int units = 0;                  // 0 nautico, 1 metrico, 2 imperial
     int baseMap = 0;                // 0 OpenSeaMap, 1 IHM, 2 IGN, 3 ortofoto (carpetas de la tarjeta)

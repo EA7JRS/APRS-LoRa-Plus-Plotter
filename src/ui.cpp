@@ -19,6 +19,7 @@
 #include "route.h"
 #include "settings.h"
 #include "net.h"
+#include "ble.h"
 #include "tiles.h"
 #include "wind.h"
 
@@ -194,6 +195,7 @@ static int wpPage = 0, wpSel = -1;
 static lv_obj_t* setSimLbl = nullptr;
 static lv_obj_t* setUnitsLbl = nullptr;
 static lv_obj_t* setCanLbl = nullptr;
+static lv_obj_t* setBleLbl = nullptr;
 // Pantalla de red (WiFi, TCP, UDP) con teclado
 static lv_obj_t* netScr = nullptr;
 static lv_obj_t* netTa[6] = {};                        // red, clave, servidor, puerto TCP, puerto UDP, clave de OpenWeatherMap
@@ -2380,6 +2382,11 @@ static void onSetting(lv_event_t* e) {
     else if (what == 4) { v.units = (v.units + 1) % 3; applyUnits(); }
     else if (what == 6) { v.can = !v.can; links::setCan(v.can); }
     else if (what == 7) { openNet(); return; }
+    else if (what == 8) {                                 // Bluetooth: encender busca pasarela; apagar la olvida
+        v.bleOn = !v.bleOn;
+        v.bleAddr[0] = 0;
+        links::applyBle();
+    }
     else if (what == 5) { v.baseMap = (v.baseMap + 1) % kBaseMapN; setBaseMap(v.baseMap); }
     else {
         v.brightness += what == 2 ? -10 : 10;
@@ -2430,9 +2437,12 @@ static void makeSettings(lv_obj_t* page) {
     lv_obj_align(b, LV_ALIGN_RIGHT_MID, -14, 0);
     setCanLbl = lv_obj_get_child(b, 0);
     lv_obj_t* info = box(page, C_PANEL, 10);
-    lv_obj_set_size(info, 374, 404);
+    lv_obj_set_size(info, 374, 336);
     b = textButton(page, "Red: WiFi, TCP y UDP", 374, 60, onSetting, 7);
+    lv_obj_set_pos(b, 630, 344);
+    b = textButton(page, "", 374, 60, onSetting, 8);
     lv_obj_set_pos(b, 630, 412);
+    setBleLbl = lv_obj_get_child(b, 0);
     lv_obj_set_pos(info, 630, 0);
     lv_obj_t* t = label(info, "Estado", &dejavu_bold_20, C_TEXT);
     lv_obj_align(t, LV_ALIGN_TOP_LEFT, 14, 12);
@@ -2440,8 +2450,8 @@ static void makeSettings(lv_obj_t* page) {
     lv_obj_align(setInfo, LV_ALIGN_TOP_LEFT, 14, 48);
     lv_obj_set_width(setInfo, 346);
     lv_obj_set_style_text_line_space(setInfo, 6, 0);
-    lv_obj_t* about = label(info, "APRS LoRa+ \xC2\xB7 \xC2\xA9 2026 Manuel - EA7JRS\nGPL-3.0 \xC2\xB7 mapas \xC2\xA9 OpenStreetMap", &dejavu_14, C_DIM);
-    lv_obj_align(about, LV_ALIGN_BOTTOM_LEFT, 14, -12);
+    lv_obj_t* about = label(info, "APRS LoRa+ \xC2\xB7 \xC2\xA9 2026 Manuel - EA7JRS \xC2\xB7 GPL-3.0", &dejavu_14, C_DIM);
+    lv_obj_align(about, LV_ALIGN_BOTTOM_LEFT, 14, -8);
 }
 
 static void updateSettings() {
@@ -2451,6 +2461,15 @@ static void updateSettings() {
     lv_label_set_text(setUnitsLbl, v.units == 1 ? "M\xC3\xA9trico" : (v.units == 2 ? "Imperial" : "N\xC3\xA1utico"));
     lv_label_set_text(setMapLbl, kBaseMaps[baseMap].name);
     lv_label_set_text(setCanLbl, v.can ? "Encendido" : "Apagado");
+    {
+        const ble::Status& bs = ble::status();
+        char t[64];
+        if (!v.bleOn) snprintf(t, sizeof(t), "Bluetooth: apagado");
+        else if (bs.state == ble::CONNECTED) snprintf(t, sizeof(t), "Bluetooth: %.20s", bs.name);
+        else if (bs.state == ble::CONNECTING) snprintf(t, sizeof(t), "Bluetooth: conectando...");
+        else snprintf(t, sizeof(t), v.bleAddr[0] ? "Bluetooth: buscando la pasarela" : "Bluetooth: buscando pasarela nueva");
+        lv_label_set_text(setBleLbl, t);
+    }
     char b[520], netTxt[80];
     netSummary(netTxt, sizeof(netTxt), false);
     snprintf(b, sizeof(b), "%d %%", v.brightness);
@@ -2459,7 +2478,7 @@ static void updateSettings() {
     const NmeaStats& ns = links::serialStats();
     uint32_t now = millis();
     snprintf(b, sizeof(b),
-             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nNMEA 2000: %u tramas, %u mensajes\n\xC3\x9Altima trama: %s\nRed: %s\nMensajes AIS: %u\nBlancos AIS: %d\nWaypoints: %d de %d\nDerrota: %d puntos",
+             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nNMEA 2000: %u tramas, %u mensajes\n\xC3\x9Altima trama: %s\nRed: %s\nMensajes AIS: %u\nBlancos AIS: %d\nWaypoints: %d de %d\nBluetooth: %u l\xC3\xADneas",
 #ifdef PLOTTER_VERSION
              PLOTTER_VERSION,
 #else
@@ -2468,7 +2487,7 @@ static void updateSettings() {
              (unsigned)ls.serialLines, (unsigned)(ns.badChecksum + ns.malformed),
              ls.serialLines ? (now - ls.serialLastMs < 5000 ? "ahora" : "hace rato") : "ninguna", (unsigned)ls.canFrames, (unsigned)ls.canMessages,
              !ls.can ? "apagado" : (ls.canFrames ? (now - ls.canLastMs < 5000 ? "ahora" : "hace rato") : "ninguna"), netTxt, (unsigned)ls.aisMessages, links::targets().count(), wpN, kWps,
-             trackN);
+             (unsigned)ls.bleLines);
     lv_label_set_text(setInfo, b);
 }
 

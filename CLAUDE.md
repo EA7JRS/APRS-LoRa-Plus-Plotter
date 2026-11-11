@@ -107,8 +107,12 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   «42 11,718N 009 59,778E»). Núcleo hecho en `navwarn` (lector del XML, posiciones del texto —vale también para Navtex—,
   distancia al aviso), probado con avisos inventados en ese formato: falta pasarle el fichero real (desde la sesión solo se
   pudo leer resumido). Son los NAVAREA III (Mediterráneo desde 005°45′W y mar Negro): para el golfo de Cádiz hacen falta los
-  costeros / NAVAREA II, sin fuente localizada. `navarea3.com` (portal nuevo con mapa y descargas S-124 / KML / SHP) pide
-  usuario y está en construcción: no se usa. Posible fuente de Portugal: ANAVnet del Instituto Hidrográfico (sin mirar).
+  costeros / NAVAREA II, sin fuente localizada. `navarea3.com`: el panel con mapa pide usuario, pero hay páginas públicas:
+  `/InformacionNavarea/` (tabla de avisos en vigor con **fecha de cancelación**, zona y título, y por aviso PDF
+  `InformacionNavarea.aspx?Id=...&Tipo=...`, S-124, GIS y KML; filtro por localización, incluye Estrecho de Gibraltar y mar de
+  Alborán) y `/Publicos/NavareasInternacionales` (directorio de las 21 NAVAREA con su enlace de avisos en vigor; NAVAREA II =
+  SHOM, `portail.ping-info-nautique.fr`, sin poder leerlo desde la sesión). Pendiente: ver las direcciones exactas de los KML /
+  S-124 (traen la geometría hecha) y si se permiten descargas automáticas. Posible fuente de Portugal: ANAVnet del Instituto Hidrográfico (sin mirar).
 
 ## Estado (2026-11-11)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos). 1160 comprobaciones en `test/host/test_core.cpp`

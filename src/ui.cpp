@@ -28,6 +28,7 @@ LV_FONT_DECLARE(dejavu_16)
 LV_FONT_DECLARE(dejavu_bold_16)
 LV_FONT_DECLARE(dejavu_bold_20)
 LV_FONT_DECLARE(dejavu_num_60)
+LV_FONT_DECLARE(dejavu_num_44)
 
 namespace ui {
 
@@ -1767,6 +1768,246 @@ static void updateNet() {
     lv_label_set_text(netKindLbl, kTcpKinds[netKind]);
 }
 
+// ---------- Pestana Viento ----------
+static const char* sourceName(Source s);
+static const int WD = 476, WD_R = 196;                    // esfera: proa arriba
+static const int kWindHist = 60;                          // 10 min, una muestra cada 10 s
+static lv_obj_t* wLineA = nullptr;
+static lv_obj_t* wLineT = nullptr;
+static lv_point_precise_t wPtsA[2], wPtsT[2];
+static lv_obj_t* wMarkA = nullptr;
+static lv_obj_t* wMarkT = nullptr;
+static lv_obj_t* wCenter = nullptr;
+static lv_obj_t* wCenterSub = nullptr;
+struct WTile { lv_obj_t* value = nullptr; lv_obj_t* sub = nullptr; lv_obj_t* unit = nullptr; };
+static WTile wTile[4];
+static lv_obj_t* wChart = nullptr;
+static lv_chart_series_t* wSer = nullptr;
+static lv_obj_t* wChartLbl = nullptr;
+static float windHist[kWindHist];
+static int windHistN = 0;
+static uint32_t windHistMs = 0;
+
+// Viento de ahora. El real sale del aparente con la velocidad y el rumbo; si no se puede, del que llegue ya calculado.
+struct WindNow { bool app = false, tru = false, truAngle = false, truDir = false, computed = false; double awa = 0, aws = 0, twa = 0, tws = 0, twd = 0; };
+static WindNow windNow() {
+    WindNow w;
+    uint32_t now = millis();
+    double hdg = 0, spd = 0;
+    w.app = store->get(Key::Awa, now, w.awa) && store->get(Key::Aws, now, w.aws);
+    bool haveSpd = store->get(Key::Stw, now, spd) || store->get(Key::Sog, now, spd);
+    bool haveHdg = store->get(Key::Heading, now, hdg);
+    if (w.app && haveSpd && haveHdg) {
+        trueWind(w.awa, w.aws, spd, hdg, w.twa, w.tws, w.twd);
+        w.tru = w.truAngle = w.truDir = w.computed = true;
+    } else if (store->get(Key::Tws, now, w.tws)) {
+        w.tru = true;
+        if (store->get(Key::Twd, now, w.twd)) {
+            w.truDir = true;
+            if (haveHdg) { w.twa = norm180(w.twd - hdg); w.truAngle = true; }
+        }
+    }
+    return w;
+}
+
+static void sampleWind() {
+    uint32_t now = millis();
+    if (windHistN && now - windHistMs < 10000) return;
+    WindNow w = windNow();
+    if (!w.tru && !w.app) return;
+    windHistMs = now;
+    if (windHistN == kWindHist) { memmove(windHist, windHist + 1, sizeof(float) * (kWindHist - 1)); windHistN--; }
+    windHist[windHistN++] = (float)(w.tru ? w.tws : w.aws);
+}
+
+static const char* cardinalEs(double deg) {
+    static const char* const k[16] = {"N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"};
+    return k[(int)lround(norm360(deg) / 22.5) % 16];
+}
+
+static lv_obj_t* windArc(lv_obj_t* parent, int from, int to, uint32_t color) {      // sector de cenida, grados desde la proa
+    lv_obj_t* a = lv_arc_create(parent);
+    lv_obj_remove_style_all(a);
+    lv_obj_set_size(a, 2 * WD_R, 2 * WD_R);
+    lv_obj_center(a);
+    lv_arc_set_bg_angles(a, (lv_value_precise_t)((from + 270) % 360), (lv_value_precise_t)((to + 270) % 360));
+    lv_obj_set_style_arc_color(a, lv_color_hex(color), 0);
+    lv_obj_set_style_arc_width(a, 12, 0);
+    lv_obj_set_style_arc_opa(a, LV_OPA_COVER, 0);
+    lv_obj_set_clickable(a, false);
+    return a;
+}
+
+static void makeWind(lv_obj_t* page) {
+    lv_obj_t* d = box(page, C_PANEL, 10);
+    lv_obj_set_size(d, WD, WD);
+    lv_obj_set_pos(d, 0, 0);
+    lv_obj_t* ring = lv_obj_create(d);
+    lv_obj_remove_style_all(ring);
+    lv_obj_set_size(ring, 2 * WD_R, 2 * WD_R);
+    lv_obj_center(ring);
+    lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_color(ring, lv_color_hex(0x2F5F88), 0);
+    lv_obj_set_style_border_width(ring, 2, 0);
+    lv_obj_set_clickable(ring, false);
+    windArc(d, 300, 340, C_RED);                          // cenida por babor
+    windArc(d, 20, 60, 0x2ECC71);                         // y por estribor
+    for (int a = 0; a < 360; a += 30) {                   // marcas cada 30 grados: 0 a 180 por cada banda
+        double r = deg2rad((double)a);
+        int port = a > 180 ? 360 - a : a;
+        char t[8];
+        snprintf(t, sizeof(t), "%d", port);
+        lv_obj_t* l = label(d, a == 0 ? "PROA" : t, &dejavu_12, C_DIM);
+        lv_obj_align(l, LV_ALIGN_CENTER, (int)lround(sin(r) * (WD_R + 20)), (int)lround(-cos(r) * (WD_R + 20)));
+    }
+    lv_obj_t* hull = box(d, C_BAR, 30);                   // el barco, visto desde arriba
+    lv_obj_set_size(hull, 60, 150);
+    lv_obj_center(hull);
+    lv_obj_set_style_border_color(hull, lv_color_hex(C_LINE), 0);
+    lv_obj_set_style_border_width(hull, 2, 0);
+    wLineT = lv_line_create(d);
+    lv_obj_set_style_line_color(wLineT, lv_color_hex(C_ACC), 0);
+    lv_obj_set_style_line_width(wLineT, 5, 0);
+    lv_obj_set_style_line_rounded(wLineT, true, 0);
+    wLineA = lv_line_create(d);
+    lv_obj_set_style_line_color(wLineA, lv_color_hex(C_WARN), 0);
+    lv_obj_set_style_line_width(wLineA, 7, 0);
+    lv_obj_set_style_line_rounded(wLineA, true, 0);
+    wMarkT = label(d, "R", &dejavu_bold_16, C_ACC);
+    wMarkA = label(d, "A", &dejavu_bold_16, C_WARN);
+    wCenter = label(d, "--", &dejavu_num_44, C_TEXT);
+    lv_obj_align(wCenter, LV_ALIGN_CENTER, 0, -8);
+    wCenterSub = label(d, "", &dejavu_12, C_DIM);
+    lv_obj_align(wCenterSub, LV_ALIGN_CENTER, 0, 30);
+    lv_obj_t* leg = label(d, "A aparente \xC2\xB7 R real", &dejavu_12, C_DIM);
+    lv_obj_align(leg, LV_ALIGN_BOTTOM_LEFT, 10, -8);
+
+    static const char* const names[4] = {"VIENTO APARENTE", "VIENTO REAL", "DIRECCI\xC3\x93N REAL", "\xC3\x81NGULO REAL"};
+    for (int i = 0; i < 4; i++) {
+        lv_obj_t* t = box(page, C_PANEL, 10);
+        lv_obj_set_size(t, 254, 150);
+        lv_obj_set_pos(t, 486 + (i % 2) * 264, (i / 2) * 160);
+        lv_obj_set_style_pad_all(t, 12, 0);
+        lv_obj_t* n = label(t, names[i], &dejavu_bold_16, C_DIM);
+        lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, 0);
+        wTile[i].unit = label(t, "", &dejavu_14, C_DIM);
+        lv_obj_align(wTile[i].unit, LV_ALIGN_TOP_RIGHT, 0, 2);
+        wTile[i].value = label(t, "--", &dejavu_num_44, i == 0 ? C_WARN : (i == 1 ? C_ACC : C_TEXT));
+        lv_obj_align(wTile[i].value, LV_ALIGN_LEFT_MID, 0, 6);
+        wTile[i].sub = label(t, "", &dejavu_12, C_DIM);
+        lv_obj_align(wTile[i].sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    }
+    lv_obj_t* h = box(page, C_PANEL, 10);
+    lv_obj_set_size(h, 518, 156);
+    lv_obj_set_pos(h, 486, 320);
+    wChartLbl = label(h, "", &dejavu_12, C_DIM);
+    lv_obj_align(wChartLbl, LV_ALIGN_TOP_LEFT, 12, 8);
+    wChart = lv_chart_create(h);
+    lv_obj_remove_style_all(wChart);
+    lv_obj_set_size(wChart, 494, 112);
+    lv_obj_align(wChart, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_chart_set_type(wChart, LV_CHART_TYPE_LINE);
+    lv_chart_set_point_count(wChart, kWindHist);
+    lv_chart_set_div_line_count(wChart, 3, 0);
+    lv_obj_set_style_line_color(wChart, lv_color_hex(C_LINE), LV_PART_MAIN);
+    lv_obj_set_style_line_width(wChart, 1, LV_PART_MAIN);
+    lv_obj_set_style_line_width(wChart, 3, LV_PART_ITEMS);
+    lv_obj_set_style_size(wChart, 0, 0, LV_PART_INDICATOR);
+    lv_obj_set_clickable(wChart, false);
+    wSer = lv_chart_add_series(wChart, lv_color_hex(C_ACC), LV_CHART_AXIS_PRIMARY_Y);
+}
+
+static void windNeedle(lv_obj_t* line, lv_point_precise_t* pts, lv_obj_t* mark, bool has, double angle, int inner) {
+    lv_obj_set_hidden(line, !has);
+    lv_obj_set_hidden(mark, !has);
+    if (!has) return;
+    double r = deg2rad(angle);
+    double sx = sin(r), cy = -cos(r);
+    int c = WD / 2;
+    pts[0] = {(lv_value_precise_t)(c + sx * (WD_R - 4)), (lv_value_precise_t)(c + cy * (WD_R - 4))};   // viene de fuera
+    pts[1] = {(lv_value_precise_t)(c + sx * inner), (lv_value_precise_t)(c + cy * inner)};
+    lv_line_set_points(line, pts, 2);
+    lv_obj_align(mark, LV_ALIGN_CENTER, (int)lround(sx * (WD_R - 34) + cy * 16), (int)lround(cy * (WD_R - 34) - sx * 16));
+}
+
+static void updateWind() {
+    WindNow w = windNow();
+    uint32_t now = millis();
+    char b[48], s[128];
+    const char* wu = plotter::label(U.windSpeed);
+    windNeedle(wLineA, wPtsA, wMarkA, w.app, w.awa, 96);
+    windNeedle(wLineT, wPtsT, wMarkT, w.truAngle, w.twa, 96);
+    // Centro y casilla del aparente
+    if (w.app) {
+        snprintf(b, sizeof(b), "%.1f", speedFromKn(w.aws, U.windSpeed)); comma(b);
+        lv_label_set_text(wCenter, b);
+        snprintf(s, sizeof(s), "%s aparente", wu);
+        lv_label_set_text(wCenterSub, s);
+        lv_label_set_text(wTile[0].value, b);
+        snprintf(s, sizeof(s), "%d\xC2\xB0 por %s \xC2\xB7 %s", (int)lround(fabs(w.awa)), w.awa < 0 ? "babor" : "estribor", sourceName(store->source(Key::Aws, now)));
+        lv_label_set_text(wTile[0].sub, s);
+    } else {
+        lv_label_set_text(wCenter, "--");
+        lv_label_set_text(wCenterSub, "sin viento aparente");
+        lv_label_set_text(wTile[0].value, "--");
+        lv_label_set_text(wTile[0].sub, "Sin datos");
+    }
+    lv_label_set_text(wTile[0].unit, wu);
+    lv_label_set_text(wTile[1].unit, wu);
+    lv_label_set_text(wTile[2].unit, "\xC2\xB0T");
+    lv_label_set_text(wTile[3].unit, "\xC2\xB0");
+    if (w.tru) {
+        int f = beaufort(w.tws);
+        snprintf(b, sizeof(b), "%.1f", speedFromKn(w.tws, U.windSpeed)); comma(b);
+        lv_label_set_text(wTile[1].value, b);
+        snprintf(s, sizeof(s), "Fuerza %d \xC2\xB7 %s%s", f, beaufortNameEs(f), w.computed ? " \xC2\xB7 calculado" : "");
+        lv_label_set_text(wTile[1].sub, s);
+    } else {
+        lv_label_set_text(wTile[1].value, "--");
+        lv_label_set_text(wTile[1].sub, "Falta viento, velocidad o rumbo");
+    }
+    if (w.truDir) {
+        snprintf(b, sizeof(b), "%03d\xC2\xB0", (int)lround(norm360(w.twd)) % 360);
+        lv_label_set_text(wTile[2].value, b);
+        snprintf(s, sizeof(s), "Viene del %s", cardinalEs(w.twd));
+        lv_label_set_text(wTile[2].sub, s);
+    } else {
+        lv_label_set_text(wTile[2].value, "--");
+        lv_label_set_text(wTile[2].sub, "Sin datos");
+    }
+    if (w.truAngle) {
+        double a = fabs(w.twa);
+        snprintf(b, sizeof(b), "%d\xC2\xB0", (int)lround(a));
+        lv_label_set_text(wTile[3].value, b);
+        const char* point = a < 30 ? "Proa al viento" : (a < 60 ? "Ce\xC3\xB1ida" : (a < 100 ? "Trav\xC3\xA9s" : (a < 150 ? "Largo" : "Empopada")));
+        snprintf(s, sizeof(s), "%s \xC2\xB7 por %s", point, w.twa < 0 ? "babor" : "estribor");
+        lv_label_set_text(wTile[3].sub, s);
+    } else {
+        lv_label_set_text(wTile[3].value, "--");
+        lv_label_set_text(wTile[3].sub, "Sin datos");
+    }
+    // Historial de 10 minutos
+    float mx = 0, mn = 1e9f;
+    for (int i = 0; i < kWindHist; i++) {
+        int k = i - (kWindHist - windHistN);              // lo mas nuevo, a la derecha
+        if (k < 0) { lv_chart_set_series_value_by_id(wChart, wSer, (uint32_t)i, LV_CHART_POINT_NONE); continue; }
+        float v = (float)speedFromKn(windHist[k], U.windSpeed);
+        if (v > mx) mx = v;
+        if (v < mn) mn = v;
+        lv_chart_set_series_value_by_id(wChart, wSer, (uint32_t)i, (int32_t)lround(v * 10));
+    }
+    int top = ((int)(mx / 5) + 1) * 5;                    // escala en pasos de 5
+    lv_chart_set_axis_range(wChart, LV_CHART_AXIS_PRIMARY_Y, 0, top * 10);
+    lv_chart_refresh(wChart);
+    if (windHistN) {
+        char a1[16], a2[16];
+        snprintf(a1, sizeof(a1), "%.1f", mn); comma(a1);
+        snprintf(a2, sizeof(a2), "%.1f", mx); comma(a2);
+        snprintf(s, sizeof(s), "\xC3\x9Altimos 10 min \xC2\xB7 m\xC3\xADn %s \xC2\xB7 m\xC3\xA1x %s %s \xC2\xB7 escala 0 a %d", a1, a2, wu, top);
+    } else snprintf(s, sizeof(s), "\xC3\x9Altimos 10 min \xC2\xB7 sin datos");
+    lv_label_set_text(wChartLbl, s);
+}
+
 // ---------- Ajustes ----------
 static void setBaseMap(int i) {
     baseMap = (i >= 0 && i < kBaseMapN) ? i : 0;
@@ -1973,6 +2214,7 @@ void begin(DataStore* s) {
         else if (i == 2) makeRoutes(pages[i]);
         else if (i == 3) makeRadar(pages[i]);
         else if (i == 7) makeSettings(pages[i]);
+        else if (i == 4) makeWind(pages[i]);
         else if (i > 0) placeholder(pages[i], kTabs[i]);
     }
 
@@ -2073,9 +2315,11 @@ void update() {
     if (!store) return;
     uint32_t now = millis();
     sampleTrack();
+    sampleWind();
     updateNav();
     if (active == 1) updateChart();
     if (active == 2) updateRoutes();
+    if (active == 4) updateWind();
     if (active == 7) updateSettings();
     updateNet();
     if (active == 3) updateRadar();

@@ -285,6 +285,12 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   fuente `Tcp`). Ajustes > *Red: WiFi, TCP y UDP*: pantalla a toda la pantalla con teclado de LVGL (red, clave, tipo de
   servidor, dirección, puerto, puerto UDP), estado arriba; se guarda en NVS. Acción `red` en el dibujo del PC. Sin probar en
   la placa. Falta: lista de redes al alcance, Signal K nativo (JSON, TCP 8375), mDNS, bajar teselas.
+- **Pestaña Viento (2026-11-11, rama `viento`, sobre `red`)**: esfera con la proa arriba (sectores de ceñida rojo / verde,
+  aguja A del aparente y R del real, velocidad en el centro), casillas de viento aparente, real (con fuerza Beaufort y su
+  nombre), dirección real («viene del O») y ángulo real (ceñida / través / largo / empopada, banda), e historial de 10 min
+  (una muestra cada 10 s, mínimo y máximo). El real se calcula con el aparente, la velocidad y el rumbo; si no, se usa el
+  que llegue ya calculado (NMEA 2000). Falta: marcar los datos estimados (dirección de internet sin veleta) y el anemómetro
+  de pulsos propio.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.
@@ -292,7 +298,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y
-   medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Lo siguiente: Signal K nativo, pestaña Viento, zumbador, y probar en la placa.
+   medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Lo siguiente: Signal K nativo, zumbador, pestañas Piloto y Meteo, y probar en la placa.
 2. NMEA 2000: hecho en escucha con decodificador propio; más PGN según lo que haya en la red de Manuel.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático; comprobar pines libres de la 7B para el anemómetro.

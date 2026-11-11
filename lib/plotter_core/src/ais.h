@@ -66,5 +66,11 @@ class AisDecoder {
     AisError err_ = AisError::None;
 };
 
+// Codificador (para el simulador y las pruebas): arma la trama "!AIVDM,1,1,,A,<carga>,0*XX" de un informe de posicion de
+// clase A (mensaje 1) o del nombre de un clase B (mensaje 24, parte A). Devuelve la longitud, 0 si no cabe.
+int aisEncodePosition(char* out, int size, uint32_t mmsi, double lat, double lon, double sogKn, double cogDeg, int heading,
+                      int navStatus = 0);
+int aisEncodeName(char* out, int size, uint32_t mmsi, const char* name);
+
 }  // namespace plotter
 #endif

@@ -10,6 +10,7 @@
 #include <string>
 
 #include "ais.h"
+#include "aistargets.h"
 #include "astro.h"
 #include "chartui.h"
 #include "geo.h"
@@ -977,6 +978,92 @@ static void testSim() {
     CHECK(st.get(Key::Stw, now, v) && st.get(Key::WaterTemp, now, v) && v == 18.5);
     CHECK(st.get(Key::SatsUsed, now, v) && v == 9);
     CHECK(sim.sentence(99, line, sizeof(line)) == 0 && sim.sentence(0, line, 10) == 0);
+
+    // Blancos AIS del simulador: entran en la tabla y el que viene de vuelta encontrada acaba dando alarma
+    NmeaSimulator s2;
+    Nmea0183 n2;
+    AisTargets tg;
+    bool danger = false, encoded = true;
+    for (uint32_t t = 1000; t <= 600000; t += 1000) {
+        s2.step(t);
+        for (int i = 0; i < NmeaSimulator::aisCount(); i++) {
+            if (s2.aisSentence(i, line, sizeof(line)) <= 0) encoded = false;
+            if (n2.feed(line, Source::Sensor, t, st) == NmeaResult::Ais) tg.update(n2.ais(), t);
+        }
+        tg.compute(true, Mover{s2.position(), s2.sog(), s2.cog()}, t);
+        if (tg.dangerousCount() > 0) danger = true;
+    }
+    CHECK(tg.count() == 5 && danger && encoded && tg.rejectedJumps() == 0);
+    CHECK(tg.find(224900440) >= 0 && !std::strcmp(tg.at(tg.find(224900440)).name, "FONDEADO CUATRO") && tg.at(tg.find(224900440)).navStatus == 1);
+    CHECK(s2.aisSentence(99, line, sizeof(line)) == 0);
+}
+
+static void testAisTargets() {
+    // Codificador contra el decodificador (ya contrastado con gpsd)
+    Nmea0183 nm;
+    DataStore st;
+    char line[100];
+    CHECK(aisEncodePosition(line, sizeof(line), 224123450, 36.5512, -6.3321, 12.3, 87.4, 88, 0) > 0 && nmeaChecksumOk(line));
+    CHECK(nm.feed(line, Source::Uart, 1, st) == NmeaResult::Ais);
+    CHECK(nm.ais().type == 1 && nm.ais().mmsi == 224123450 && nm.ais().navStatus == 0 && nm.ais().heading == 88);
+    NEAR(nm.ais().lat, 36.5512, 1e-6); NEAR(nm.ais().lon, -6.3321, 1e-6); NEAR(nm.ais().sogKn, 12.3, 1e-9); NEAR(nm.ais().cogDeg, 87.4, 1e-9);
+    CHECK(aisEncodeName(line, sizeof(line), 224123450, "Mar de Cadiz") > 0 && nm.feed(line, Source::Uart, 1, st) == NmeaResult::Ais);
+    CHECK(nm.ais().type == 24 && !std::strcmp(nm.ais().name, "MAR DE CADIZ"));
+    CHECK(aisEncodePosition(line, 20, 1, 0, 0, 0, 0, 0) == 0);
+
+    const LatLon me{36.53, -6.29};
+    Mover own{me, 6.0, 270.0};
+    AisTargets tg;
+    auto report = [](uint32_t mmsi, LatLon p, double sog, double cog) {
+        AisReport r; r.mmsi = mmsi; r.type = 1; r.hasPos = true; r.lat = p.lat; r.lon = p.lon;
+        r.hasSog = r.hasCog = true; r.sogKn = sog; r.cogDeg = cog; return r;
+    };
+    // 1: de vuelta encontrada por la proa, a 3 mn: peligroso (se juntan en 10 min)
+    CHECK(tg.update(report(111, gcDestination(me, 270, 3.0), 12.0, 90.0), 1000) == 0);
+    // 2: lejos y alejandose; 3: fondeado a 1 mn por el traves; 4: sin posicion (solo nombre)
+    tg.update(report(222, gcDestination(me, 45, 5.0), 10.0, 45.0), 1000);
+    tg.update(report(333, gcDestination(me, 0, 1.0), 0.0, 0.0), 1000);
+    AisReport nameOnly; nameOnly.mmsi = 444; nameOnly.type = 24; std::strcpy(nameOnly.name, "SIN POSICION");
+    tg.update(nameOnly, 1000);
+    AisReport ownShip = report(999, me, 6, 270); ownShip.own = true;
+    CHECK(tg.update(ownShip, 1000) == -1 && tg.count() == 4);
+    tg.compute(true, own, 2000);
+    const AisTarget& a = tg.at(tg.find(111));
+    NEAR(a.rangeNm, 3.0, 1e-3); NEAR(a.bearing, 270.0, 0.1); CHECK(a.hasCpa && a.dangerous);
+    NEAR(a.cpaNm, 0.0, 0.02); NEAR(a.tcpaMin, 10.0, 0.1);
+    CHECK(!tg.at(tg.find(222)).dangerous && tg.at(tg.find(222)).tcpaMin < 0);
+    const AisTarget& c = tg.at(tg.find(333));
+    CHECK(!c.dangerous && c.hasCpa); NEAR(c.cpaNm, 1.0, 0.01);
+    CHECK(!tg.at(tg.find(444)).hasRange && tg.at(tg.find(444)).classB && tg.dangerousCount() == 1);
+    int idx[10];
+    CHECK(tg.sorted(idx, 10) == 4 && tg.at(idx[0]).mmsi == 111 && tg.at(idx[1]).mmsi == 333 && tg.at(idx[2]).mmsi == 222 && tg.at(idx[3]).mmsi == 444);
+    CHECK(tg.sorted(idx, 2) == 2 && tg.at(idx[0]).mmsi == 111 && tg.at(idx[1]).mmsi == 333);
+    CHECK(tg.silence(111, true) && tg.dangerousCount() == 0 && !tg.silence(12345, true));
+    // Sin posicion propia no hay distancias ni alarmas
+    tg.compute(false, own, 2000);
+    CHECK(!tg.at(tg.find(111)).hasRange && !tg.at(tg.find(111)).dangerous);
+
+    // Salto imposible: se ignora; si la siguiente lo confirma, se acepta
+    tg.update(report(333, gcDestination(me, 0, 9.0), 0.0, 0.0), 11000);
+    tg.compute(true, own, 11000);
+    NEAR(tg.at(tg.find(333)).rangeNm, 1.0, 0.01); CHECK(tg.rejectedJumps() == 1);
+    tg.update(report(333, gcDestination(me, 0, 9.01), 0.0, 0.0), 21000);
+    tg.compute(true, own, 21000);
+    NEAR(tg.at(tg.find(333)).rangeNm, 9.01, 0.01);
+
+    // Perdido a los 6 min sin posicion, fuera a los 12
+    tg.compute(true, own, 21000 + 7 * 60000);
+    CHECK(tg.at(tg.find(333)).lost && !tg.at(tg.find(333)).dangerous && tg.count() == 4);   // perdidos, pero siguen en la tabla
+    CHECK(tg.at(tg.find(111)).lost && !tg.at(tg.find(111)).dangerous);
+    tg.compute(true, own, 21000 + 13 * 60000);
+    CHECK(tg.count() == 0);
+
+    // Tabla llena: no entra uno nuevo si todos son recientes; si hay uno viejo, lo sustituye
+    AisTargets full;
+    for (int i = 0; i < AisTargets::kMax; i++) full.update(report(1000 + i, me, 1, 1), 1000 + i);
+    CHECK(full.count() == AisTargets::kMax && full.update(report(5000, me, 1, 1), 2000) == -1);
+    CHECK(full.update(report(5000, me, 1, 1), 70000) >= 0 && full.find(5000) >= 0 && full.find(1000) < 0);
+    CHECK(!std::strcmp(aisShipTypeNameEs(36), "Velero") && !std::strcmp(aisShipTypeNameEs(74), "Carguero") && !std::strcmp(aisShipTypeNameEs(-1), "Buque"));
 }
 
 static void testGpx() {
@@ -1043,7 +1130,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

@@ -209,7 +209,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `CartaPrevision`. Fase 3, sin programar.
 
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA). 1309 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS). 1346 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - **Firmware, primer paso (2026-11-11)**: `platformio.ini` (misma base que Display: pioarduino `espressif32 @ 8.0.0`, LVGL
   ~9.6.0, ArduinoJson 7.4.3), placa 7B copiada de Display (`src/board.h`, `board_lcd7b.cpp`, `board_common.*`, `lv_defs.h`,
@@ -220,6 +220,13 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   como artefacto de cada ejecución); en la sesión no hay acceso al registro de PlatformIO. La fuente de datos del puerto serie
   se llama `Source::Uart` porque Arduino define `Serial` como macro. Sí comprobado: `ui.cpp`, `links.cpp` y `main.cpp` compilan contra LVGL 9.6.0 con `-Werror`, y la interfaz se
   ha dibujado en el PC con LVGL real (`tools/ui_preview/build.sh <lvgl> salida.ppm`). Sin probar en la placa. `docs/HARDWARE.md`.
+- **Radar AIS (2026-11-11, rama `radar-ais`)**: `aistargets` en el núcleo (un blanco por MMSI, posiciones imposibles
+  descartadas salvo que la siguiente las confirme, distancia, demora, CPA / TCPA, peligroso con CPA ≤ 0,5 mn y TCPA ≤ 20 min,
+  perdido a los 6 min y fuera a los 12, silenciar por buque, orden «peligrosos primero», 100 blancos), codificador AIS para el
+  simulador (`aisEncodePosition`, `aisEncodeName`), 5 blancos simulados con nombres y MMSI inventados, y la pestaña Radar AIS
+  (`src/ui.cpp`: norte arriba, tres anillos, alcance 0,75 a 12 mn con − / +, vectores de 6 min, lista de 8 con el riesgo
+  resaltado). Dibujada en el PC: `tools/ui_preview/build.sh <lvgl> salida.ppm 3 300`. Falta: tocar un blanco para ver su ficha,
+  alarma sonora y ventana de colisión, rumbo arriba, guarda, estelas.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.
 
 ## Siguiente

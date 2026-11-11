@@ -23,6 +23,10 @@ class NmeaSimulator {
     static constexpr int count() { return 7; }
     int sentence(int i, char* out, int size) const;
 
+    // Blancos AIS de prueba alrededor del barco: tramas pares = posicion, impares = nombre
+    static constexpr int aisCount() { return 2 * kTargets; }
+    int aisSentence(int i, char* out, int size) const;
+
     LatLon position() const { return pos_; }
     double sog() const { return sog_; }
     double cog() const { return cog_; }
@@ -31,6 +35,9 @@ class NmeaSimulator {
    private:
     LatLon pos_;
     double cog_, sog_, heading_, depth_ = 12.4, twd_ = 285.0, tws_ = 11.0, waterC_ = 18.5;
+    static constexpr int kTargets = 5;
+    struct Target { uint32_t mmsi; const char* name; LatLon pos; double cog, sog; };
+    Target tg_[kTargets];
     uint32_t last_ = 0, t0_ = 0;
     bool started_ = false;
 };

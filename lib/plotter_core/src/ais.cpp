@@ -5,6 +5,7 @@
  */
 #include "ais.h"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -229,6 +230,62 @@ bool AisDecoder::feed(int total, int num, int seqId, const char* payload, int fi
     // Margen de ceros para lecturas de campos opcionales
     for (int i = n; i < kMaxChars + 8 && i < n + 8; i++) buf_[i] = 0;
     return decode(buf_, nbits, own, out);
+}
+
+namespace {
+
+struct BitWriter {
+    uint8_t six[40] = {};
+    int n = 0;
+    void put(uint32_t v, int len) {
+        for (int i = len - 1; i >= 0; i--, n++)
+            if ((v >> i) & 1) six[n / 6] |= uint8_t(1 << (5 - n % 6));
+    }
+};
+
+int wrap(char* out, int size, const BitWriter& w) {
+    char body[80];
+    int chars = (w.n + 5) / 6, k = std::snprintf(body, sizeof(body), "AIVDM,1,1,,A,");
+    for (int i = 0; i < chars; i++) {
+        int v = w.six[i] + 48;
+        if (v > 87) v += 8;
+        body[k++] = char(v);
+    }
+    k += std::snprintf(body + k, sizeof(body) - size_t(k), ",%d", chars * 6 - w.n);
+    uint8_t cs = 0;
+    for (int i = 0; i < k; i++) cs ^= uint8_t(body[i]);
+    int n = std::snprintf(out, size_t(size), "!%s*%02X", body, cs);
+    return (n > 0 && n < size) ? n : 0;
+}
+
+}  // namespace
+
+int aisEncodePosition(char* out, int size, uint32_t mmsi, double lat, double lon, double sog, double cog, int heading, int nav) {
+    BitWriter w;
+    w.put(1, 6); w.put(0, 2); w.put(mmsi, 30); w.put(uint32_t(nav & 15), 4);
+    w.put(128, 8);                                              // giro: sin dato
+    w.put(uint32_t(sog < 0 ? 1023 : (sog > 102.2 ? 1022 : sog * 10 + 0.5)), 10);
+    w.put(0, 1);
+    w.put(uint32_t(int32_t(lon * 600000.0 + (lon < 0 ? -0.5 : 0.5))) & 0xFFFFFFF, 28);
+    w.put(uint32_t(int32_t(lat * 600000.0 + (lat < 0 ? -0.5 : 0.5))) & 0x7FFFFFF, 27);
+    w.put(uint32_t(cog < 0 ? 3600 : cog * 10 + 0.5) % 3600, 12);
+    w.put(uint32_t(heading < 0 || heading > 359 ? 511 : heading), 9);
+    w.put(60, 6);                                               // segundo: sin dato
+    w.put(0, 2); w.put(0, 3); w.put(0, 1); w.put(0, 19);
+    return wrap(out, size, w);
+}
+
+int aisEncodeName(char* out, int size, uint32_t mmsi, const char* name) {
+    BitWriter w;
+    w.put(24, 6); w.put(0, 2); w.put(mmsi, 30); w.put(0, 2);
+    size_t len = name ? std::strlen(name) : 0;
+    for (size_t i = 0; i < 20; i++) {
+        char c = i < len ? name[i] : '@';
+        if (c >= 'a' && c <= 'z') c = char(c - 32);
+        int v = (c >= 64 && c < 96) ? c - 64 : ((c >= 32 && c < 64) ? c : 0);
+        w.put(uint32_t(v), 6);
+    }
+    return wrap(out, size, w);
 }
 
 }  // namespace plotter

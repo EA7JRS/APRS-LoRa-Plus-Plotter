@@ -17,7 +17,7 @@ static Status st;
 static NmeaSimulator sim;
 static Nmea0183 simNmea, serialNmea;
 static LineBuffer serialLine;
-static AisReport ais;
+static AisTargets tgs;
 static uint32_t simLast = 0;
 
 void begin(DataStore* s) {
@@ -39,7 +39,7 @@ void setSerialBaud(uint32_t baud) {
 
 const Status& status() { return st; }
 const NmeaStats& serialStats() { return serialNmea.stats(); }
-const AisReport& lastAis() { return ais; }
+AisTargets& targets() { return tgs; }
 
 void loop() {
     if (!store) return;
@@ -51,7 +51,7 @@ void loop() {
         st.serialLines++;
         st.serialLastMs = now;
         if (serialNmea.feed(serialLine.line(), Source::Uart, now, *store) == NmeaResult::Ais) {
-            ais = serialNmea.ais();
+            tgs.update(serialNmea.ais(), now);
             st.aisMessages++;
         }
     }
@@ -63,6 +63,23 @@ void loop() {
         char line[100];
         for (int i = 0; i < NmeaSimulator::count(); i++)
             if (sim.sentence(i, line, sizeof(line))) simNmea.feed(line, Source::Sensor, now, *store);
+        static uint8_t tick = 0;
+        tick++;
+        for (int i = 0; i < NmeaSimulator::aisCount(); i++) {
+            if ((i % 2) && (tick % 10)) continue;                   // los nombres, cada 10 s
+            if (sim.aisSentence(i, line, sizeof(line)) && simNmea.feed(line, Source::Sensor, now, *store) == NmeaResult::Ais)
+                tgs.update(simNmea.ais(), now);
+        }
+    }
+
+    static uint32_t tCompute = 0;
+    if (now - tCompute >= 1000) {
+        tCompute = now;
+        double la, lo, sog = 0, cog = 0;
+        bool own = store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo);
+        store->get(Key::Sog, now, sog);
+        store->get(Key::Cog, now, cog);
+        tgs.compute(own, Mover{{own ? la : 0.0, own ? lo : 0.0}, sog, cog}, now);
     }
 }
 

@@ -9,6 +9,7 @@
 #include <Arduino.h>
 
 #include "ais.h"
+#include "aistargets.h"
 #include "nmea.h"
 #include "store.h"
 
@@ -28,6 +29,6 @@ void setSimulator(bool on);
 void setSerialBaud(uint32_t baud);      // 4800 (NMEA clasico) o 38400 (AIS)
 const Status& status();
 const plotter::NmeaStats& serialStats();
-// Ultimo mensaje AIS recibido (para la lista de blancos, que llega en el paso siguiente)
-const plotter::AisReport& lastAis();
+// Blancos AIS (del puerto serie y del simulador), con distancia y CPA respecto al barco: se recalculan cada segundo
+plotter::AisTargets& targets();
 }

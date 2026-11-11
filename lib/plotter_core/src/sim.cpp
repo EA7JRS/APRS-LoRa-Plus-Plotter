@@ -13,7 +13,14 @@
 
 namespace plotter {
 
-NmeaSimulator::NmeaSimulator(LatLon start, double cog, double sog) : pos_(start), cog_(cog), sog_(sog), heading_(cog) {}
+NmeaSimulator::NmeaSimulator(LatLon start, double cog, double sog) : pos_(start), cog_(cog), sog_(sog), heading_(cog) {
+    // Nombres y MMSI inventados (224 = Espana). El primero viene de vuelta encontrada: salta la alarma a los pocos minutos.
+    tg_[0] = {224900110, "SIMULADO UNO", gcDestination(start, cog + 4, 2.6), norm360(cog + 182), 9.0};
+    tg_[1] = {224900220, "SIMULADO DOS", gcDestination(start, cog - 70, 1.8), norm360(cog + 95), 5.1};
+    tg_[2] = {224900330, "PESQUERO TRES", gcDestination(start, cog + 120, 2.2), norm360(cog - 30), 3.4};
+    tg_[3] = {224900440, "FONDEADO CUATRO", gcDestination(start, cog + 60, 1.1), 0, 0.0};
+    tg_[4] = {224900550, "CARGUERO CINCO", gcDestination(start, cog - 150, 4.5), norm360(cog + 20), 14.0};
+}
 
 void NmeaSimulator::step(uint32_t now) {
     if (!started_) { started_ = true; last_ = t0_ = now; return; }
@@ -28,6 +35,15 @@ void NmeaSimulator::step(uint32_t now) {
     tws_ = 11.0 + 3.0 * std::sin(t / 47.0);
     twd_ = norm360(285.0 + 12.0 * std::sin(t / 83.0));
     pos_ = gcDestination(pos_, cog, sog * dt / 3600.0);
+    for (Target& g : tg_)
+        if (g.sog > 0) g.pos = gcDestination(g.pos, g.cog, g.sog * dt / 3600.0);
+}
+
+int NmeaSimulator::aisSentence(int i, char* out, int size) const {
+    if (i < 0 || i >= aisCount()) return 0;
+    const Target& g = tg_[i / 2];
+    if (i % 2) return aisEncodeName(out, size, g.mmsi, g.name);
+    return aisEncodePosition(out, size, g.mmsi, g.pos.lat, g.pos.lon, g.sog, g.cog, g.sog > 0 ? int(g.cog) % 360 : 511, g.sog > 0 ? 0 : 1);
 }
 
 static int finish(char* out, int size, const char* body) {

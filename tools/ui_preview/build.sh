@@ -5,7 +5,7 @@
 # Dibuja en el PC la interfaz del firmware (src/ui.cpp, con LVGL de verdad y el simulador) y la guarda como imagen PPM.
 # Sirve para ver una pantalla sin tener la placa y para comprobar que la interfaz compila contra LVGL.
 #   git clone --depth 1 --branch v9.6.0 https://github.com/lvgl/lvgl /tmp/lvgl
-#   tools/ui_preview/build.sh /tmp/lvgl salida.ppm
+#   tools/ui_preview/build.sh /tmp/lvgl salida.ppm [pestana 0-7] [segundos de simulacion]
 set -e
 LVGL="$1"; OUT="${2:-ui.ppm}"
 [ -d "$LVGL/src" ] || { echo "uso: $0 <carpeta de lvgl 9.6> [salida.ppm]"; exit 2; }
@@ -18,5 +18,5 @@ if [ ! -f "$B/lvgl.done" ]; then      # LVGL solo se compila la primera vez
 fi
 for f in "$ROOT"/src/fonts/*.c; do gcc -O1 -w -c $DEFS "$f" -o "$B/obj/font_$(basename "$f" .c).o"; done
 g++ -std=gnu++17 -O1 -Wall -Wextra $DEFS "$HERE/host.cpp" "$ROOT/src/ui.cpp" "$ROOT/src/links.cpp" "$ROOT"/lib/plotter_core/src/*.cpp "$B"/obj/*.o -o "$B/host"
-"$B/host" "$OUT"
+"$B/host" "$OUT" "${3:-0}" "${4:-20}"
 echo "imagen en $OUT"

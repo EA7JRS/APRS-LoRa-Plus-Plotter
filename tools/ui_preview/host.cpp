@@ -36,8 +36,9 @@ int main(int argc, char** argv) {
     static plotter::DataStore store;
     links::begin(&store);
     ui::begin(&store);
-    (void)tab;
-    for (int i = 0; i < 4000; i++) {          // 20 s de reloj
+    int seconds = argc > 3 ? atoi(argv[3]) : 20;
+    ui::showPage(tab);
+    for (int i = 0; i < seconds * 200; i++) {    // reloj simulado, 5 ms por vuelta
         fakeMs += 5;
         links::loop();
         if (i % 60 == 0) ui::update();

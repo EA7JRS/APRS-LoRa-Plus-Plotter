@@ -186,6 +186,57 @@ bool lightIsOn(const LightCharacter& c, uint32_t tMs) {
     return c.cls == LightClass::Occulting ? !pulse : pulse;
 }
 
+bool parseLightRecord(const char* line, LightRecord& out) {
+    out = LightRecord();
+    if (!line) return false;
+    while (*line == ' ' || *line == '\t') line++;
+    if (!*line || *line == '#') return false;
+    const char* f[6];
+    size_t len[6];
+    int n = 0;
+    const char* p = line;
+    while (n < 6) {
+        f[n] = p;
+        const char* e = std::strchr(p, ';');
+        len[n] = e ? size_t(e - p) : std::strlen(p);
+        n++;
+        if (!e) break;
+        p = e + 1;
+    }
+    if (n < 3 || len[0] == 0) return false;
+    auto copy = [](char* dst, size_t cap, const char* src, size_t l) {
+        while (l > 0 && (src[l - 1] == ' ' || src[l - 1] == '\r' || src[l - 1] == '\n')) l--;
+        if (l >= cap) l = cap - 1;
+        std::memcpy(dst, src, l);
+        dst[l] = 0;
+    };
+    auto num = [&](int i, double& v) {
+        if (i >= n || len[i] == 0) return false;
+        char b[24];
+        size_t l = len[i] < sizeof(b) - 1 ? len[i] : sizeof(b) - 1;
+        std::memcpy(b, f[i], l);
+        b[l] = 0;
+        for (char* q = b; *q; q++) if (*q == ',') *q = '.';
+        char* e;
+        v = std::strtod(b, &e);
+        return e != b;
+    };
+    copy(out.name, sizeof(out.name), f[0], len[0]);
+    if (!num(1, out.lat) || !num(2, out.lon) || out.lat < -90 || out.lat > 90 || out.lon < -180 || out.lon > 180) return false;
+    if (n > 3) {
+        copy(out.characterText, sizeof(out.characterText), f[3], len[3]);
+        parseLightCharacter(out.characterText, out.character);
+    }
+    num(4, out.heightM);
+    num(5, out.nominalNm);
+    return true;
+}
+
+double lightSightingRangeNm(const LightRecord& l, double vis, double eye) {
+    if (l.nominalNm <= 0 || l.heightM <= 0) return 0;
+    return sightingRangeNm(l.nominalNm, vis, eye, l.heightM);
+}
+
 const char* ialaMarkNameEs(IalaMark m) {
     static const char* const k[] = {"Sin identificar", "Lateral de babor", "Lateral de estribor", "Canal principal a estribor",
                                     "Canal principal a babor", "Cardinal norte", "Cardinal este", "Cardinal sur", "Cardinal oeste",

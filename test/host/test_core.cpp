@@ -717,6 +717,18 @@ static void testLights() {
     parseLightCharacter("F R", c);
     CHECK(lightIsOn(c, 0) && lightIsOn(c, 12345));
 
+    // Lista de luces de la microSD
+    LightRecord lr;
+    CHECK(parseLightRecord("Faro de ejemplo;36.5297;-6.3147;Fl(2) W 10s;49;20", lr));
+    CHECK(!std::strcmp(lr.name, "Faro de ejemplo") && lr.character.cls == LightClass::Flashing && lr.character.group == 2 && lr.heightM == 49 && lr.nominalNm == 20);
+    NEAR(lr.lat, 36.5297, 1e-9); NEAR(lr.lon, -6.3147, 1e-9);
+    NEAR(lightSightingRangeNm(lr, 10, 2), 17.08, 0.01);              // manda el horizonte
+    NEAR(lightSightingRangeNm(lr, 6, 2), 13.557, 0.01);              // manda la visibilidad
+    CHECK(parseLightRecord("  Baliza;36,5;-6,3;Q(3) 10s;;\r\n", lr) && lr.heightM == 0 && lightSightingRangeNm(lr, 10, 2) == 0);
+    NEAR(lr.lat, 36.5, 1e-9);
+    CHECK(parseLightRecord("Solo posicion;36.5;-6.3", lr) && lr.character.cls == LightClass::Unknown);
+    CHECK(!parseLightRecord("# comentario", lr) && !parseLightRecord("", lr) && !parseLightRecord("Mal;x;y", lr) && !parseLightRecord("Lejos;95;0", lr));
+
     // Ayudas AIS (mensaje 21)
     bool fl = false;
     CHECK(ialaMarkFromAisAton(20, &fl) == IalaMark::CardinalN && fl);

@@ -120,9 +120,12 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `/ihm-inspire/wms-unidadesmaritimas` (CC-BY 4.0), catálogo `/catalogo`. El visualizador tiene un complemento de **faros y
   señales de niebla**: si esos datos (característica, alcance, altura) se pueden pedir por WFS o GetFeatureInfo, alimentan
   `lights` (animar luces, «¿cuándo veré el faro?»). Sin comprobar; pendiente de que Manuel mire las capas en el visor.
+  Añadido (Manuel: «añade lo que encaja»): lista de luces propia en la microSD (`nombre;lat;lon;característica;altura;alcance`,
+  `parseLightRecord`, `lightSightingRangeNm`), independiente de dónde salgan los datos, y maqueta `CartaFaro` (ficha de faro
+  con el ritmo dibujado y «se verá a», y capa «Límites» con el mar territorial). Los límites marítimos van como capa WMS (fase 3).
 
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos). 1160 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos). 1170 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

@@ -45,6 +45,21 @@ bool parseLightCharacter(const char* text, LightCharacter& out);
 // Luz encendida o apagada en el instante "tMs" (para animarla en la carta)
 bool lightIsOn(const LightCharacter& c, uint32_t tMs);
 
+// Lista de luces propia del plotter (microSD): una luz por linea, campos separados por ';'
+//   nombre;latitud;longitud;caracteristica;altura de la luz en m;alcance nominal en mn
+// Ejemplo: "Faro de ejemplo;36.5297;-6.3147;Fl(2) W 10s;49;20". Las lineas vacias o que empiezan por '#' se saltan.
+struct LightRecord {
+    char name[40] = "";
+    double lat = 0, lon = 0;
+    LightCharacter character;
+    char characterText[24] = "";    // tal como venia
+    double heightM = 0;             // 0 = sin dato
+    double nominalNm = 0;           // 0 = sin dato
+};
+bool parseLightRecord(const char* line, LightRecord& out);
+// Distancia a la que se vera esa luz con esta visibilidad y altura del ojo; 0 si faltan el alcance o la altura.
+double lightSightingRangeNm(const LightRecord& l, double visibilityNm, double eyeHeightM);
+
 // Marcas del sistema de balizamiento IALA
 enum class IalaMark : uint8_t {
     Unknown, PortHand, StarboardHand, PreferredChannelPort, PreferredChannelStarboard, CardinalN, CardinalE, CardinalS, CardinalW,

@@ -251,11 +251,20 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   mob,esperar:s"`). Falta: rutas de varios puntos y su pestaña, borrar y renombrar waypoints, medir, elegir mapa base,
   bajar teselas por WiFi, costa de reserva, alarma sonora (zumbador externo, pin por decidir), rumbo arriba, zona de guarda
   y estelas en el radar.
+- **Rutas y medir (2026-11-11, rama `rutas`)**: pestaña **Rutas** (izquierda: waypoints con distancia y demora, páginas de 7,
+  «Ir a», «Ver», «A la ruta», «Borrar»; derecha: la ruta, hasta 12 puntos, con tramo y demora de cada uno, «Navegar» / «Parar»,
+  «Quitar último», «Vaciar»). La ruta se guarda con los waypoints en el GPX. Navegación de varios puntos (`RouteFollower`,
+  cambio por el través, botón «Siguiente», «A P2 (2 de 4)», ruta dibujada en la carta). **Medir** en la carta (botón «Medir»
+  del punto tocado: tramos encadenados, total, último tramo con demora, tiempo a la velocidad actual; «Deshacer», «A ruta»,
+  «Salir»). Dibujado en el PC (acciones `wp:n`, `rutas:n`). Falta: renombrar waypoints, varias rutas con nombre, invertir ruta.
+- Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
+  náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
+  (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.
 
 ## Siguiente
-1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Lo
-   siguiente: pestaña Rutas (rutas de varios puntos, lista de waypoints), medir, unidades, y probar en la placa.
+1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y
+   medir hechos. Lo siguiente: unidades, elegir mapa base, pantalla de fondeo (garreo), y probar en la placa.
 2. NMEA 2000 por TWAI (librería NMEA2000) y UART / RS485.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático; comprobar pines libres de la 7B para el anemómetro.

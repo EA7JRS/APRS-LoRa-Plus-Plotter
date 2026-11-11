@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
         lv_timer_handler();
     }
     if (argc > 4) {                              // cuarto argumento: acciones separadas por comas antes de la foto
-        // cerrar | mob | marcar | tocar:x:y | boton:n | pagina:n
+        // cerrar | mob | marcar | tocar:x:y | boton:n | pagina:n | wp:n | rutas:n | esperar:s
         std::string acts = argv[4];
         size_t pos = 0;
         while (pos <= acts.size()) {
@@ -65,6 +65,8 @@ int main(int argc, char** argv) {
             else if (sscanf(a.c_str(), "tocar:%d:%d", &x, &y) == 2) ui::testTapChart(x, y);
             else if (sscanf(a.c_str(), "boton:%d", &x) == 1) ui::testPanelButton(x);
             else if (sscanf(a.c_str(), "pagina:%d", &x) == 1) ui::showPage(x);
+            else if (sscanf(a.c_str(), "wp:%d", &x) == 1) ui::testSelectWaypoint(x);
+            else if (sscanf(a.c_str(), "rutas:%d", &x) == 1) ui::testRoutes(x);
             else if (sscanf(a.c_str(), "esperar:%d", &x) == 1) {
                 for (int i = 0; i < x * 200; i++) { fakeMs += 5; links::loop(); if (i % 60 == 0) ui::update(); lv_timer_handler(); }
             }

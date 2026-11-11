@@ -128,8 +128,24 @@ static bool selOn = false;
 static LatLon selPos{0, 0};
 static lv_obj_t* selMark = nullptr;
 static RouteFollower nav;
-static LatLon navPts[1];
+static const int kRoute = 12;
+static LatLon navPts[kRoute];
+static char navNames[kRoute][20];
+static int navCount = 0;
 static bool navOn = false, navMob = false;
+// Ruta en preparacion (pestana Rutas o medida pasada a ruta) y medida sobre la carta
+static LatLon routePts[kRoute];
+static char routeNames[kRoute][20];
+static int routeN = 0;
+static LatLon measPts[kRoute];
+static char measNames[kRoute][20];
+static int measN = 0;
+static bool measOn = false;
+static lv_obj_t* routeLine = nullptr;
+static lv_point_precise_t routeLinePts[kRoute];
+static lv_obj_t* measLine = nullptr;
+static lv_point_precise_t measLinePts[kRoute];
+static lv_obj_t* measDot[kRoute] = {};
 static char navName[16] = "";
 static uint32_t mobMs = 0;
 static lv_obj_t* navLine = nullptr;
@@ -137,9 +153,19 @@ static lv_point_precise_t navLinePts[2];
 static lv_obj_t* navMark = nullptr;
 static lv_obj_t* chPanel = nullptr;
 static lv_obj_t* chPanelTxt = nullptr;
-static lv_obj_t* chPanelBtn[3] = {};
-static lv_obj_t* chPanelBtnLbl[3] = {};
+static lv_obj_t* chPanelBtn[4] = {};
+static lv_obj_t* chPanelBtnLbl[4] = {};
 static int dragDist = 0;
+
+// Pestana Rutas
+static const int kWpRows = 7, kRtRows = 8;
+static lv_obj_t* wpRow[kWpRows] = {};
+static lv_obj_t* wpRowLbl[kWpRows][3] = {};
+static lv_obj_t* wpTitle = nullptr;
+static lv_obj_t* rtTitle = nullptr;
+static lv_obj_t* rtRowLbl[kRtRows] = {};
+static lv_obj_t* rtNavLbl = nullptr;
+static int wpPage = 0, wpSel = -1;
 
 // Ajustes
 static lv_obj_t* setSimLbl = nullptr;
@@ -671,7 +697,18 @@ static void saveWaypoints() {
         g.lat = wps[i].p.lat; g.lon = wps[i].p.lon; g.name = wps[i].name;
         d.waypoints.push_back(g);
     }
+    if (routeN > 0) {
+        GpxPath r;
+        r.name = "Ruta";
+        for (int i = 0; i < routeN; i++) {
+            GpxPoint g;
+            g.lat = routePts[i].lat; g.lon = routePts[i].lon; g.name = routeNames[i];
+            r.pts.push_back(g);
+        }
+        d.routes.push_back(r);
+    }
     std::string xml = gpxWrite(d);
+    xml.append(256, ' ');                                 // por si el fichero anterior era mas largo y no se trunca
     lv_fs_file_t f;
     if (lv_fs_open(&f, kWpFile, LV_FS_MODE_WR) != LV_FS_RES_OK) return;        // sin tarjeta: se quedan en memoria
     uint32_t bw = 0;
@@ -696,6 +733,14 @@ static void loadWaypoints() {
         snprintf(wps[wpN].name, sizeof(wps[wpN].name), "%s", g.name.c_str());
         wpN++;
     }
+    routeN = 0;
+    if (!d.routes.empty())
+        for (const GpxPoint& g : d.routes[0].pts) {
+            if (routeN >= kRoute) break;
+            routePts[routeN] = {g.lat, g.lon};
+            snprintf(routeNames[routeN], sizeof(routeNames[routeN]), "%s", g.name.c_str());
+            routeN++;
+        }
 }
 
 static void addWaypoint(LatLon p) {
@@ -720,6 +765,8 @@ static void startGoTo(LatLon dest, const char* name, bool mob) {
     LatLon here = dest;
     if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) here = {la, lo};
     navPts[0] = dest;
+    snprintf(navNames[0], sizeof(navNames[0]), "%s", name);
+    navCount = 1;
     nav.setRhumbLine(true);
     nav.setArrivalRadiusNm(mob ? 0.01 : 0.05);
     nav.start(navPts, 1, here);
@@ -728,14 +775,45 @@ static void startGoTo(LatLon dest, const char* name, bool mob) {
     snprintf(navName, sizeof(navName), "%s", name);
 }
 
+// Navegar la ruta preparada: pasa al punto siguiente al quedar el actual por el traves
+static void startRoute() {
+    if (routeN < 1 || navMob) return;
+    uint32_t now = millis();
+    double la, lo;
+    LatLon here = routePts[0];
+    if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) here = {la, lo};
+    for (int i = 0; i < routeN; i++) { navPts[i] = routePts[i]; snprintf(navNames[i], sizeof(navNames[i]), "%s", routeNames[i]); }
+    navCount = routeN;
+    nav.setRhumbLine(true);
+    nav.setArrivalRadiusNm(0.05);
+    nav.setMode(WpSwitch::Abeam);
+    nav.start(navPts, navCount, here);
+    navOn = true;
+    navMob = false;
+}
+
 static void stopGoTo() {
     nav.stop();
     navOn = navMob = false;
+    navCount = 0;
     if (modalMode == M_MOB) closeModal();
 }
 
 // Punto tocado: el waypoint que este a menos de 20 px, o la posicion tal cual
+static const char* nearWaypoint(LatLon p);
+
+static void addMeasurePoint(LatLon p) {
+    if (measN >= kRoute) return;
+    selPos = p;
+    const char* n = nearWaypoint(p);                      // sobre un waypoint: se mide (y se rutea) por el waypoint
+    measPts[measN] = n ? selPos : p;
+    if (n) snprintf(measNames[measN], sizeof(measNames[measN]), "%s", n);
+    else snprintf(measNames[measN], sizeof(measNames[measN]), "P%d", measN + 1);
+    measN++;
+}
+
 static void selectPoint(LatLon p) {
+    if (measOn) { addMeasurePoint(p); return; }
     selPos = p;
     selOn = true;
 }
@@ -749,17 +827,38 @@ static const char* nearWaypoint(LatLon p) {
 
 static void onPanelBtn(lv_event_t* e) {
     int b = (int)(intptr_t)lv_event_get_user_data(e);
-    if (selOn) {                                          // Ir a / Marcar / Cerrar
+    if (measOn) {                                         // Deshacer / A ruta / Salir
+        if (b == 0) { if (measN > 0) measN--; }
+        else if (b == 1) {
+            if (measN >= 2) {
+                for (int i = 0; i < measN; i++) { routePts[i] = measPts[i]; snprintf(routeNames[i], sizeof(routeNames[i]), "%s", measNames[i]); }
+                routeN = measN;
+                saveWaypoints();
+                measOn = false;
+                measN = 0;
+                showTab(2);
+            }
+        } else { measOn = false; measN = 0; }
+    } else if (selOn) {                                   // Ir a / Marcar / Medir / Cerrar
         if (b == 0) {
             const char* n = nearWaypoint(selPos);
             startGoTo(selPos, n ? n : "Punto", false);
         } else if (b == 1) {
             if (!nearWaypoint(selPos)) addWaypoint(selPos);
+        } else if (b == 2) {
+            measOn = true;
+            measN = 0;
+            addMeasurePoint(selPos);
         }
         selOn = false;
-    } else if (navOn) {                                   // Parar / Centrar destino
+    } else if (navOn) {                                   // Parar / Destino / Siguiente
         if (b == 0) stopGoTo();
-        else if (b == 1) { chCenter = navPts[0]; chFollow = false; }
+        else if (b == 1) { chCenter = navPts[nav.status().target]; chFollow = false; }
+        else if (b == 2) {
+            uint32_t now = millis();
+            double la, lo;
+            if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) nav.skip({la, lo});
+        }
     }
 }
 
@@ -815,6 +914,21 @@ static void makeChart(lv_obj_t* page) {
         lv_obj_set_hidden(chDots[i].vec, true);
         lv_obj_set_hidden(chDots[i].num, true);
     }
+    routeLine = lv_line_create(chart);
+    lv_obj_set_style_line_color(routeLine, lv_color_hex(0xFF9F43), 0);
+    lv_obj_set_style_line_width(routeLine, 2, 0);
+    measLine = lv_line_create(chart);
+    lv_obj_set_style_line_color(measLine, lv_color_hex(C_WARN), 0);
+    lv_obj_set_style_line_width(measLine, 3, 0);
+    lv_obj_set_style_line_dash_width(measLine, 4, 0);
+    lv_obj_set_style_line_dash_gap(measLine, 6, 0);
+    for (int i = 0; i < kRoute; i++) {
+        measDot[i] = box(chart, C_INK, LV_RADIUS_CIRCLE);
+        lv_obj_set_size(measDot[i], 16, 16);
+        lv_obj_set_style_border_color(measDot[i], lv_color_hex(C_WARN), 0);
+        lv_obj_set_style_border_width(measDot[i], 3, 0);
+        lv_obj_set_hidden(measDot[i], true);
+    }
     navLine = lv_line_create(chart);
     lv_obj_set_style_line_color(navLine, lv_color_hex(0xFF9F43), 0);
     lv_obj_set_style_line_width(navLine, 3, 0);
@@ -866,17 +980,17 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_set_style_pad_ver(chScaleLbl, 2, 0);
     lv_obj_set_style_radius(chScaleLbl, 5, 0);
     chPanel = box(chart, C_PANEL, 10);
-    lv_obj_set_size(chPanel, 640, 62);
-    lv_obj_align(chPanel, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_set_size(chPanel, 744, 62);
+    lv_obj_align(chPanel, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
     lv_obj_set_style_border_width(chPanel, 2, 0);
     lv_obj_set_clickable(chPanel, true);                  // tocar el panel no marca un punto en la carta
     chPanelTxt = label(chPanel, "", &dejavu_14, C_TEXT);
     lv_obj_align(chPanelTxt, LV_ALIGN_LEFT_MID, 12, 0);
     lv_obj_set_width(chPanelTxt, 308);
     lv_obj_set_style_text_line_space(chPanelTxt, 4, 0);
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         chPanelBtn[i] = textButton(chPanel, "Cerrar", 96, 46, onPanelBtn, i);
-        lv_obj_align(chPanelBtn[i], LV_ALIGN_RIGHT_MID, -8 - (2 - i) * 102, 0);
+        lv_obj_align(chPanelBtn[i], LV_ALIGN_RIGHT_MID, -8 - (3 - i) * 102, 0);
         chPanelBtnLbl[i] = lv_obj_get_child(chPanelBtn[i], 0);
     }
     lv_obj_set_hidden(chPanel, true);
@@ -998,7 +1112,7 @@ static void updateChart() {
     // Destino y linea desde el barco
     if (navOn) {
         double x, y;
-        toScreen(navPts[0], x, y);
+        toScreen(navPts[nav.status().target], x, y);
         lv_obj_set_pos(navMark, (int)lround(x) - 10, (int)lround(y) - 10);
         lv_obj_set_style_bg_color(navMark, lv_color_hex(navMob ? C_RED : 0xFF9F43), 0);
         lv_obj_set_style_line_color(navLine, lv_color_hex(navMob ? C_RED : 0xFF9F43), 0);
@@ -1014,6 +1128,32 @@ static void updateChart() {
         lv_obj_set_hidden(navLine, true);
     }
 
+    // Ruta: la que se navega o, si no, la preparada
+    {
+        const LatLon* rp = (navOn && navCount > 1) ? navPts : routePts;
+        int rn = (navOn && navCount > 1) ? navCount : (navOn ? 0 : routeN);
+        for (int i = 0; i < rn; i++) {
+            double x, y;
+            toScreen(rp[i], x, y);
+            routeLinePts[i] = {(lv_value_precise_t)x, (lv_value_precise_t)y};
+        }
+        if (rn >= 2) lv_line_set_points(routeLine, routeLinePts, (uint32_t)rn);
+        lv_obj_set_hidden(routeLine, rn < 2);
+    }
+    // Medida
+    for (int i = 0; i < kRoute; i++) {
+        bool vis = measOn && i < measN;
+        if (vis) {
+            double x, y;
+            toScreen(measPts[i], x, y);
+            measLinePts[i] = {(lv_value_precise_t)x, (lv_value_precise_t)y};
+            lv_obj_set_pos(measDot[i], (int)lround(x) - 8, (int)lround(y) - 8);
+        }
+        lv_obj_set_hidden(measDot[i], !vis);
+    }
+    if (measOn && measN >= 2) lv_line_set_points(measLine, measLinePts, (uint32_t)measN);
+    lv_obj_set_hidden(measLine, !(measOn && measN >= 2));
+
     // Punto tocado y panel de abajo
     if (selOn) {
         double x, y;
@@ -1022,7 +1162,27 @@ static void updateChart() {
     }
     lv_obj_set_hidden(selMark, !selOn);
     char pt[200];
-    if (selOn) {
+    if (measOn) {
+        double total = pathLengthNm(measPts, measN, true);
+        char tt[24], l2[96] = "Toca la carta para a\xC3\xB1" "adir puntos";
+        snprintf(tt, sizeof(tt), "%.2f mn", total); comma(tt);
+        if (measN >= 2) {
+            Measure m = measure(measPts[measN - 2], measPts[measN - 1], true, sog);
+            char d[24], t[24] = "";
+            snprintf(d, sizeof(d), "%.2f mn", m.distanceNm); comma(d);
+            if (sog > 0.5) formatDuration(t, sizeof(t), total / sog);
+            snprintf(l2, sizeof(l2), "Tramo %s \xC2\xB7 %03d\xC2\xB0%s%s", d, (int)lround(m.bearing) % 360, t[0] ? " \xC2\xB7 total " : "", t);
+        }
+        snprintf(pt, sizeof(pt), "Medida \xC2\xB7 %d puntos \xC2\xB7 %s\n%s", measN, tt, l2);
+        lv_label_set_text(chPanelTxt, pt);
+        lv_label_set_text(chPanelBtnLbl[0], "Deshacer");
+        lv_label_set_text(chPanelBtnLbl[1], "A ruta");
+        lv_label_set_text(chPanelBtnLbl[2], "Salir");
+        lv_obj_set_hidden(chPanelBtn[1], measN < 2);
+        lv_obj_set_hidden(chPanelBtn[2], false);
+        lv_obj_set_hidden(chPanelBtn[3], true);
+        lv_obj_set_style_border_color(chPanel, lv_color_hex(C_WARN), 0);
+    } else if (selOn) {
         char pos[48] = "";
         formatLatLon(pos, sizeof(pos), selPos, 3, true);
         String p(pos);
@@ -1048,9 +1208,11 @@ static void updateChart() {
         lv_label_set_text(chPanelTxt, pt);
         lv_label_set_text(chPanelBtnLbl[0], "Ir a");
         lv_label_set_text(chPanelBtnLbl[1], "Marcar");
-        lv_label_set_text(chPanelBtnLbl[2], "Cerrar");
+        lv_label_set_text(chPanelBtnLbl[2], "Medir");
+        lv_label_set_text(chPanelBtnLbl[3], "Cerrar");
         lv_obj_set_hidden(chPanelBtn[1], wn != nullptr);
         lv_obj_set_hidden(chPanelBtn[2], false);
+        lv_obj_set_hidden(chPanelBtn[3], false);
         lv_obj_set_style_border_color(chPanel, lv_color_hex(C_WARN), 0);
     } else if (navOn) {
         const RouteStatus& st = nav.status();
@@ -1063,16 +1225,31 @@ static void updateChart() {
             snprintf(x, sizeof(x), "Hombre al agua hace %u min %02u s", (unsigned)(secs / 60), (unsigned)(secs % 60));
         } else if (fabs(st.xteNm) < 0.005) snprintf(x, sizeof(x), "En la derrota");
         else { snprintf(x, sizeof(x), "Desv\xC3\xADo %.2f mn a %s", fabs(st.xteNm), st.xteNm > 0 ? "estribor" : "babor"); comma(x); }
-        snprintf(pt, sizeof(pt), "%s%s \xC2\xB7 %s \xC2\xB7 %03d\xC2\xB0 \xC2\xB7 %s\n%s", (st.inArrival && !navMob) ? "LLEGADA \xC2\xB7 " : "A ", navName, d,
+        char who[40];
+        if (navCount > 1) snprintf(who, sizeof(who), "%s (%d de %d)", navNames[st.target], st.target + 1, navCount);
+        else snprintf(who, sizeof(who), "%s", navName);
+        bool arrived = !navMob && (navCount > 1 ? st.finished : st.inArrival);
+        snprintf(pt, sizeof(pt), "%s%s \xC2\xB7 %s \xC2\xB7 %03d\xC2\xB0 \xC2\xB7 %s\n%s", arrived ? "LLEGADA \xC2\xB7 " : "A ", who, d,
                  (int)lround(st.bearing) % 360, t, x);
         lv_label_set_text(chPanelTxt, pt);
         lv_label_set_text(chPanelBtnLbl[0], "Parar");
         lv_label_set_text(chPanelBtnLbl[1], "Destino");
+        lv_label_set_text(chPanelBtnLbl[2], "Siguiente");
         lv_obj_set_hidden(chPanelBtn[1], false);
-        lv_obj_set_hidden(chPanelBtn[2], true);
+        lv_obj_set_hidden(chPanelBtn[2], !(navCount > 1 && st.target < navCount - 1));
+        lv_obj_set_hidden(chPanelBtn[3], true);
         lv_obj_set_style_border_color(chPanel, lv_color_hex(navMob ? C_RED : 0xFF9F43), 0);
     }
-    lv_obj_set_hidden(chPanel, !(selOn || navOn));
+    {                                                     // los botones visibles, pegados a la derecha
+        int slot = 0;
+        for (int i = 3; i >= 0; i--) {
+            if (lv_obj_is_hidden(chPanelBtn[i])) continue;
+            lv_obj_align(chPanelBtn[i], LV_ALIGN_RIGHT_MID, -8 - slot * 102, 0);
+            slot++;
+        }
+        lv_obj_set_width(chPanelTxt, 744 - 24 - slot * 102 - 8);
+    }
+    lv_obj_set_hidden(chPanel, !(measOn || selOn || navOn));
 
     // Escala: la distancia redonda mas larga que quepa en 180 px
     static const double kSteps[] = {0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200};
@@ -1096,6 +1273,149 @@ static void updateNav() {
     uint32_t now = millis();
     double la, lo;
     if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) nav.update({la, lo}, now);
+}
+
+// ---------- Pestana Rutas ----------
+static void onWpRow(lv_event_t* e) {
+    int i = wpPage * kWpRows + (int)(intptr_t)lv_event_get_user_data(e);
+    wpSel = (i < wpN && i != wpSel) ? i : -1;
+}
+
+static void onRoutes(lv_event_t* e) {
+    int a = (int)(intptr_t)lv_event_get_user_data(e);
+    int pages = (wpN + kWpRows - 1) / kWpRows;
+    switch (a) {
+        case 0: if (wpPage > 0) wpPage--; break;
+        case 1: if (wpPage < pages - 1) wpPage++; break;
+        case 2: if (wpSel >= 0) { startGoTo(wps[wpSel].p, wps[wpSel].name, false); showTab(1); } break;          // Ir a
+        case 3: if (wpSel >= 0) { chCenter = wps[wpSel].p; chFollow = false; showTab(1); } break;                // Ver en la carta
+        case 4:                                                                                                   // A la ruta
+            if (wpSel >= 0 && routeN < kRoute) {
+                routePts[routeN] = wps[wpSel].p;
+                snprintf(routeNames[routeN], sizeof(routeNames[routeN]), "%s", wps[wpSel].name);
+                routeN++;
+                saveWaypoints();
+            }
+            break;
+        case 5:                                                                                                   // Borrar
+            if (wpSel >= 0) {
+                for (int i = wpSel; i < wpN - 1; i++) wps[i] = wps[i + 1];
+                wpN--;
+                wpSel = -1;
+                if (wpPage > 0 && wpPage * kWpRows >= wpN) wpPage--;
+                saveWaypoints();
+            }
+            break;
+        case 6:                                                                                                   // Navegar / Parar
+            if (navOn && navCount > 1) stopGoTo();
+            else if (routeN >= 1) { startRoute(); showTab(1); }
+            break;
+        case 7: if (routeN > 0) { routeN--; saveWaypoints(); } break;                                             // Quitar el ultimo
+        case 8: routeN = 0; saveWaypoints(); break;                                                               // Vaciar
+    }
+}
+
+static void makeRoutes(lv_obj_t* page) {
+    // Izquierda: waypoints
+    lv_obj_t* L = box(page, C_PANEL, 10);
+    lv_obj_set_size(L, 496, 476);
+    lv_obj_set_pos(L, 0, 0);
+    wpTitle = label(L, "Waypoints", &dejavu_bold_20, C_TEXT);
+    lv_obj_align(wpTitle, LV_ALIGN_TOP_LEFT, 14, 12);
+    lv_obj_t* b = textButton(L, "<", 52, 40, onRoutes, 0);
+    lv_obj_align(b, LV_ALIGN_TOP_RIGHT, -70, 6);
+    b = textButton(L, ">", 52, 40, onRoutes, 1);
+    lv_obj_align(b, LV_ALIGN_TOP_RIGHT, -12, 6);
+    static const int cx[3] = {12, 250, 360};
+    for (int r = 0; r < kWpRows; r++) {
+        wpRow[r] = box(L, C_BAR, 8);
+        lv_obj_set_size(wpRow[r], 472, 42);
+        lv_obj_set_pos(wpRow[r], 12, 54 + r * 48);
+        lv_obj_set_style_border_width(wpRow[r], 2, 0);
+        lv_obj_set_clickable(wpRow[r], true);
+        lv_obj_add_event_cb(wpRow[r], onWpRow, LV_EVENT_CLICKED, (void*)(intptr_t)r);
+        for (int c = 0; c < 3; c++) {
+            wpRowLbl[r][c] = label(wpRow[r], "", c == 0 ? &dejavu_bold_16 : &dejavu_16, C_TEXT);
+            lv_obj_align(wpRowLbl[r][c], LV_ALIGN_LEFT_MID, cx[c], 0);
+        }
+    }
+    static const char* const wb[4] = {"Ir a", "Ver", "A la ruta", "Borrar"};
+    for (int i = 0; i < 4; i++) {
+        b = textButton(L, wb[i], 112, 48, onRoutes, 2 + i);
+        lv_obj_set_pos(b, 12 + i * 120, 416);
+    }
+    // Derecha: la ruta
+    lv_obj_t* R = box(page, C_PANEL, 10);
+    lv_obj_set_size(R, 498, 476);
+    lv_obj_set_pos(R, 506, 0);
+    rtTitle = label(R, "Ruta", &dejavu_bold_20, C_TEXT);
+    lv_obj_align(rtTitle, LV_ALIGN_TOP_LEFT, 14, 12);
+    for (int r = 0; r < kRtRows; r++) {
+        rtRowLbl[r] = label(R, "", &dejavu_16, C_SOFT);
+        lv_obj_set_pos(rtRowLbl[r], 14, 54 + r * 42);
+    }
+    b = textButton(R, "Navegar", 150, 48, onRoutes, 6);
+    lv_obj_set_pos(b, 12, 416);
+    rtNavLbl = lv_obj_get_child(b, 0);
+    b = textButton(R, "Quitar \xC3\xBAltimo", 160, 48, onRoutes, 7);
+    lv_obj_set_pos(b, 170, 416);
+    b = textButton(R, "Vaciar", 150, 48, onRoutes, 8);
+    lv_obj_set_pos(b, 338, 416);
+}
+
+static void updateRoutes() {
+    uint32_t now = millis();
+    double la, lo;
+    bool own = store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo);
+    char b[96];
+    int pages = (wpN + kWpRows - 1) / kWpRows;
+    if (pages > 1) snprintf(b, sizeof(b), "Waypoints \xC2\xB7 %d \xC2\xB7 p\xC3\xA1gina %d de %d", wpN, wpPage + 1, pages);
+    else snprintf(b, sizeof(b), "Waypoints \xC2\xB7 %d", wpN);
+    lv_label_set_text(wpTitle, b);
+    for (int r = 0; r < kWpRows; r++) {
+        int i = wpPage * kWpRows + r;
+        if (i >= wpN) { lv_obj_set_hidden(wpRow[r], true); continue; }
+        lv_obj_set_hidden(wpRow[r], false);
+        lv_label_set_text(wpRowLbl[r][0], wps[i].name);
+        if (own) {
+            Measure m = measure({la, lo}, wps[i].p, true);
+            snprintf(b, sizeof(b), "%.2f mn", m.distanceNm); comma(b);
+            lv_label_set_text(wpRowLbl[r][1], b);
+            snprintf(b, sizeof(b), "%03d\xC2\xB0", (int)lround(m.bearing) % 360);
+            lv_label_set_text(wpRowLbl[r][2], b);
+        } else {
+            lv_label_set_text(wpRowLbl[r][1], "--");
+            lv_label_set_text(wpRowLbl[r][2], "--");
+        }
+        lv_obj_set_style_border_color(wpRow[r], lv_color_hex(i == wpSel ? C_ACC : C_BAR), 0);
+    }
+    bool running = navOn && navCount > 1;
+    if (routeN == 0) snprintf(b, sizeof(b), "Ruta \xC2\xB7 vac\xC3\xAD" "a");
+    else {
+        char t[24];
+        snprintf(t, sizeof(t), "%.2f mn", pathLengthNm(routePts, routeN, true)); comma(t);
+        snprintf(b, sizeof(b), "Ruta \xC2\xB7 %d puntos \xC2\xB7 %s%s", routeN, t, running ? " \xC2\xB7 navegando" : "");
+    }
+    lv_label_set_text(rtTitle, b);
+    int first = routeN > kRtRows ? routeN - kRtRows : 0;       // si no caben, los ultimos
+    for (int r = 0; r < kRtRows; r++) {
+        int i = first + r;
+        if (i >= routeN) {
+            lv_label_set_text(rtRowLbl[r], (r == 0 && routeN == 0) ? "Elige un waypoint y pulsa \xC2\xAB" "A la ruta\xC2\xBB,\no mide en la carta y pulsa \xC2\xAB" "A ruta\xC2\xBB." : "");
+            continue;
+        }
+        if (i == 0) snprintf(b, sizeof(b), "1   %s", routeNames[0]);
+        else {
+            Measure m = measure(routePts[i - 1], routePts[i], true);
+            char d[24];
+            snprintf(d, sizeof(d), "%.2f mn", m.distanceNm); comma(d);
+            snprintf(b, sizeof(b), "%d   %s   \xC2\xB7   %s   \xC2\xB7   %03d\xC2\xB0", i + 1, routeNames[i], d, (int)lround(m.bearing) % 360);
+        }
+        lv_label_set_text(rtRowLbl[r], b);
+        bool cur = running && i == nav.status().target;
+        lv_obj_set_style_text_color(rtRowLbl[r], lv_color_hex(cur ? 0xFF9F43 : C_SOFT), 0);
+    }
+    lv_label_set_text(rtNavLbl, running ? "Parar" : "Navegar");
 }
 
 // ---------- Ajustes ----------
@@ -1272,6 +1592,7 @@ void begin(DataStore* s) {
         lv_obj_set_style_pad_all(pages[i], PAD, 0);
         lv_obj_set_scrollable(pages[i], false);
         if (i == 1) makeChart(pages[i]);
+        else if (i == 2) makeRoutes(pages[i]);
         else if (i == 3) makeRadar(pages[i]);
         else if (i == 7) makeSettings(pages[i]);
         else if (i > 0) placeholder(pages[i], kTabs[i]);
@@ -1360,6 +1681,7 @@ void update() {
     sampleTrack();
     updateNav();
     if (active == 1) updateChart();
+    if (active == 2) updateRoutes();
     if (active == 7) updateSettings();
     if (active == 3) updateRadar();
     checkCollision();
@@ -1436,6 +1758,15 @@ void testPanelButton(int b) {
     lv_obj_send_event(chPanelBtn[b], LV_EVENT_CLICKED, nullptr);
 }
 void testMob() { onMob(nullptr); }
+void testRoutes(int action) {                              // 2 ir a, 3 ver, 4 a la ruta, 5 borrar, 6 navegar, 7 quitar, 8 vaciar
+    switch (action) {
+        case 4: if (wpSel >= 0 && routeN < kRoute) { routePts[routeN] = wps[wpSel].p; snprintf(routeNames[routeN], sizeof(routeNames[routeN]), "%s", wps[wpSel].name); routeN++; } break;
+        case 6: if (navOn && navCount > 1) stopGoTo(); else if (routeN >= 1) { startRoute(); showTab(1); } break;
+        case 8: routeN = 0; break;
+        default: break;
+    }
+}
+void testSelectWaypoint(int i) { wpSel = (i >= 0 && i < wpN) ? i : -1; }
 void testMark() { onMark(nullptr); }
 
 }

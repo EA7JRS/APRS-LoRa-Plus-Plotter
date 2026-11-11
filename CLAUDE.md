@@ -88,8 +88,10 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 - Avisos meteorológicos (pedido 2026-11-11: «como los recibidos de internet, Google»; fase 3): avisos de AEMET por zonas
   (OpenData, formato CAP; niveles amarillo / naranja / rojo). Pantalla Meteo > Avisos (lista con filtro «mi zona y ruta», zonas
   en un mapa, vigencia, texto tal cual) y ventana de alerta como la de emergencias cuando entra uno nuevo para la zona del barco
-  o de la ruta activa. Maquetas `AvisosMeteo` y `AlertaMeteo`. Sin programar. Por decidir: sonido por nivel y otros países
-  (Meteoalarm, sin comprobar).
+  o de la ruta activa. Maquetas `AvisosMeteo` y `AlertaMeteo`. Sin programar. Decidido por Manuel (2026-11-11): el nivel desde el que suena
+  el zumbador es seleccionable (amarillo / naranja / rojo / nunca); España con AEMET y otros países con Meteoalarm (canales CAP
+  por país en `feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-<pais>`, listados en el registro de la OMM
+  `alertingauthority.wmo.int`; condiciones de uso sin leer; EE. UU. tiene `api.weather.gov/alerts`). País según la posición.
 
 ## Estado (2026-11-11)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites). 1080 comprobaciones en `test/host/test_core.cpp`

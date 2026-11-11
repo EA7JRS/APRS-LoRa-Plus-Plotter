@@ -15,6 +15,7 @@ void showPage(int tab);
 void testTapChart(int x, int y);   // toque en la carta, en pixeles de la carta
 void testPanelButton(int b);       // boton 0, 1 o 2 del panel de la carta
 void testMob();
+void testRs485();                   // abre el aviso de RS485 compartido
 void testInternet();                // mete una observacion de internet de prueba
 void testNet();                     // abre la pantalla de red
 void testSetting(int what);         // 4 cambia de unidades, 5 de mapa base

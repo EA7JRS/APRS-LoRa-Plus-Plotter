@@ -317,6 +317,10 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   velocidad, sonda, viento aparente (el AIS tendrá AISHub). Sin probar contra el servidor real (nombres de campo de memoria,
   los mismos que usa la app Android). Falta: AEMET (estación más cercana, `wxstation`), IQAir, Portus (temperatura del agua,
   oleaje), y elegir fuente.
+- **Aviso de RS485 compartido (2026-11-11, pedido por Manuel)**: si la salida al piloto está en «Por el RS485» y por ese
+  puerto han entrado datos en el último minuto, ventana emergente «RS485 COMPARTIDO» (una vez; vuelve a avisar si se apaga y
+  se enciende la salida) con «Apagar salida» y «Seguir así». Las alertas de emergencia la sustituyen si saltan. Acción
+  `rs485` en el dibujo del PC.
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables

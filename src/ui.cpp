@@ -79,7 +79,7 @@ static lv_obj_t* lblAisBadge = nullptr;
 static uint32_t rowMmsi[kRows] = {};
 
 // Ventana centrada sobre cualquier pantalla: ficha de un blanco o alerta de abordaje (la misma que las emergencias de la app)
-enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR };
+enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485 };
 static lv_obj_t* modalBack = nullptr;
 static lv_obj_t* modalHead = nullptr;
 static lv_obj_t* modalTitle = nullptr;
@@ -486,6 +486,8 @@ static void updateRadar() {
 // ---------- Ventana centrada ----------
 static void updateMobModal();
 static void updateAnchorModal();
+static void updateRs485Modal();
+static bool rs485Warned = false;                          // el aviso de choque en el RS485 ya se ha mostrado
 
 static void closeModal() {
     modalMode = M_NONE;
@@ -495,6 +497,12 @@ static void closeModal() {
 
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
     if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta
+    if (modalMode == M_RS485) {                            // apagar la salida al piloto
+        settings::get().pilotOut = 0;
+        settings::save();
+        closeModal();
+        return;
+    }
     if (modalMode == M_ANCHOR) {                           // silenciar: 10 min sin volver a abrirse
         anchorQuiet = true;
         anchorQuietMs = millis() + 10 * 60000u;
@@ -605,6 +613,27 @@ static void updateMobModal() {
     lv_label_set_text(modalBtnBLbl, "CLOSE");
 }
 
+// La salida al piloto y la entrada de datos comparten el RS485: avisar de que pueden pisarse
+static bool rs485Busy() {
+    const links::Status& ls = links::status();
+    return ls.serialLines > 0 && millis() - ls.serialLastMs < 60000;
+}
+
+static void updateRs485Modal() {
+    if (settings::get().pilotOut != 1) { closeModal(); return; }
+    const links::Status& ls = links::status();
+    char b[320];
+    lv_obj_set_style_bg_color(modalHead, lv_color_hex(C_WARN), 0);
+    lv_label_set_text(modalTitle, "RS485 COMPARTIDO");
+    lv_label_set_text(modalSub, "Salida al piloto y entrada de datos por el mismo puerto");
+    lv_label_set_text(modalName, "Los datos pueden chocar");
+    snprintf(b, sizeof(b), "Por el RS485 est\xC3\xA1n entrando datos (%u l\xC3\xADneas, AIS o NMEA). Si el plotter emite por el mismo par, las tramas pueden pisarse y "
+             "perderse blancos AIS o datos del piloto.\nAlternativa: enviar al piloto por la red.", (unsigned)ls.serialLines);
+    lv_label_set_text(modalBody, b);
+    lv_label_set_text(modalBtnALbl, "Apagar salida");
+    lv_label_set_text(modalBtnBLbl, "Seguir as\xC3\xAD");
+}
+
 // Garreo: el barco ha salido del circulo de fondeo (o no hay posicion)
 static void updateAnchorModal() {
     if (!anchorW.alarm()) { closeModal(); return; }
@@ -637,6 +666,7 @@ static void updateModal() {
     if (modalMode == M_NONE) return;
     if (modalMode == M_MOB) { updateMobModal(); return; }
     if (modalMode == M_ANCHOR) { updateAnchorModal(); return; }
+    if (modalMode == M_RS485) { updateRs485Modal(); return; }
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i < 0) { closeModal(); return; }
@@ -678,6 +708,9 @@ static void updateModal() {
 // Abre la alerta del primer blanco con riesgo que no este silenciado ni cerrado hace poco
 static void checkCollision() {
     if (modalMode == M_COLLISION || modalMode == M_MOB || modalMode == M_ANCHOR) return;
+    // Aviso (una vez) si la salida al piloto va por el RS485 y por ese puerto estan entrando datos
+    if (settings::get().pilotOut != 1) rs485Warned = false;
+    else if (!rs485Warned && rs485Busy() && modalMode == M_NONE) { rs485Warned = true; openModal(M_RS485, 0); return; }
     if (anchorQuiet && (int32_t)(anchorQuietMs - millis()) <= 0) anchorQuiet = false;
     if (!anchorW.alarm()) anchorQuiet = false;             // al volver al circulo, la siguiente salida avisa otra vez
     else if (!anchorQuiet) { openModal(M_ANCHOR, 0); return; }
@@ -2742,6 +2775,7 @@ void testRoutes(int action) {                              // 2 ir a, 3 ver, 4 a
 void testSelectWaypoint(int i) { wpSel = (i >= 0 && i < wpN) ? i : -1; }
 void testMark() { onMark(nullptr); }
 void testAnchor() { onAnchorBtn(nullptr); }
+void testRs485() { settings::get().pilotOut = 1; rs485Warned = true; openModal(M_RS485, 0); }
 void testInternet() {                                      // como si acabara de llegar una observacion de internet
     uint32_t now = millis();
     const double v[][2] = {{(double)Key::Tws, 14.0}, {(double)Key::Twd, 280}, {(double)Key::Gust, 21.5}, {(double)Key::Pressure, 1016},

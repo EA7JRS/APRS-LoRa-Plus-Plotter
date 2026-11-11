@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
         lv_timer_handler();
     }
     if (argc > 4) {                              // cuarto argumento: acciones separadas por comas antes de la foto
-        // cerrar | mob | fondeo | red | internet | ajuste:n | marcar | tocar:x:y | boton:n | pagina:n | wp:n | rutas:n | esperar:s
+        // cerrar | mob | fondeo | red | rs485 | internet | ajuste:n | marcar | tocar:x:y | boton:n | pagina:n | wp:n | rutas:n | esperar:s
         std::string acts = argv[4];
         size_t pos = 0;
         while (pos <= acts.size()) {
@@ -63,6 +63,7 @@ int main(int argc, char** argv) {
             else if (a == "mob") ui::testMob();
             else if (a == "fondeo") ui::testAnchor();
             else if (a == "red") ui::testNet();
+            else if (a == "rs485") ui::testRs485();
             else if (a == "internet") ui::testInternet();
             else if (sscanf(a.c_str(), "ajuste:%d", &x) == 1) ui::testSetting(x);
             else if (a == "marcar") ui::testMark();

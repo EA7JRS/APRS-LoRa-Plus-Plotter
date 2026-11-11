@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
     while (std::getline(in, line)) {
         while (!line.empty() && (line.back() == '\r' || line.back() == '\n')) line.pop_back();
         if (line.empty() || line[0] == '#') continue;
-        if (nm.feed(line.c_str(), Source::Serial, 1, st) != NmeaResult::Ais) continue;
+        if (nm.feed(line.c_str(), Source::Uart, 1, st) != NmeaResult::Ais) continue;
         const AisReport& a = nm.ais();
         long lon = a.hasPos ? std::lround(a.lon * 600000.0) : 0, lat = a.hasPos ? std::lround(a.lat * 600000.0) : 0;
         std::printf("%d|%u|%d|%ld|%ld|%s|%s|%d|%d|%d|%d|%d|%s\n", a.type, a.mmsi, a.hasPos, lon, lat, a.name, a.callsign, a.shipType,

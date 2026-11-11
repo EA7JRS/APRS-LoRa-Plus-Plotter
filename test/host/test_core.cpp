@@ -203,7 +203,7 @@ static void testStore() {
     CHECK(st.set(Key::Aws, 9, Source::Internet, 14000));            // y entra la siguiente
     CHECK(st.get(Key::Aws, 14000 + 7200000, v) && !st.get(Key::Aws, 14000 + 7200001, v));
     CHECK(st.set(Key::Sog, 6, Source::Can, 100) && st.set(Key::Sog, 6.2, Source::Can, 200));   // misma fuente: actualiza
-    CHECK(st.set(Key::Depth, 5, Source::Serial, 0xFFFFFFF0u) && st.get(Key::Depth, 5, v));     // desbordamiento de millis()
+    CHECK(st.set(Key::Depth, 5, Source::Uart, 0xFFFFFFF0u) && st.get(Key::Depth, 5, v));     // desbordamiento de millis()
     st.setTimeout(Source::Can, 500);
     CHECK(!st.get(Key::Sog, 800, v));
     CHECK(st.ageMs(Key::Sog, 800) == 600);
@@ -217,56 +217,56 @@ static void testNmea() {
     Nmea0183 nm;
     DataStore st;
     double v;
-    CHECK(nm.feed("$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A", Source::Serial, 10, st) == NmeaResult::Data);
+    CHECK(nm.feed("$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A", Source::Uart, 10, st) == NmeaResult::Data);
     CHECK(st.get(Key::Lat, 10, v)); NEAR(v, 48.1173, 1e-4);
     CHECK(st.get(Key::Lon, 10, v)); NEAR(v, 11.516667, 1e-5);
     CHECK(st.get(Key::Sog, 10, v)); NEAR(v, 22.4, 1e-9);
     CHECK(st.get(Key::Cog, 10, v)); NEAR(v, 84.4, 1e-9);
-    CHECK(nm.feed(sentence("$GPRMC,123519,V,,,,,,,230394,,").c_str(), Source::Serial, 10, st) == NmeaResult::Ignored);   // sin fix
-    CHECK(nm.feed(sentence("$GPGLL,3631.84,N,00617.02,W,112500,A").c_str(), Source::Serial, 20, st) == NmeaResult::Data);
+    CHECK(nm.feed(sentence("$GPRMC,123519,V,,,,,,,230394,,").c_str(), Source::Uart, 10, st) == NmeaResult::Ignored);   // sin fix
+    CHECK(nm.feed(sentence("$GPGLL,3631.84,N,00617.02,W,112500,A").c_str(), Source::Uart, 20, st) == NmeaResult::Data);
     CHECK(st.get(Key::Lon, 20, v)); NEAR(v, -(6 + 17.02 / 60), 1e-9);
-    CHECK(nm.feed(sentence("$SDDPT,11.9,0.5").c_str(), Source::Serial, 20, st) == NmeaResult::Data);
+    CHECK(nm.feed(sentence("$SDDPT,11.9,0.5").c_str(), Source::Uart, 20, st) == NmeaResult::Data);
     CHECK(st.get(Key::Depth, 20, v)); NEAR(v, 12.4, 1e-9);
-    CHECK(nm.feed(sentence("$SDDBT,40.7,f,12.4,M,6.8,F").c_str(), Source::Serial, 20, st) == NmeaResult::Data);
-    CHECK(nm.feed(sentence("$WIMWV,38.0,R,14.8,N,A").c_str(), Source::Serial, 20, st) == NmeaResult::Data);
+    CHECK(nm.feed(sentence("$SDDBT,40.7,f,12.4,M,6.8,F").c_str(), Source::Uart, 20, st) == NmeaResult::Data);
+    CHECK(nm.feed(sentence("$WIMWV,38.0,R,14.8,N,A").c_str(), Source::Uart, 20, st) == NmeaResult::Data);
     CHECK(st.get(Key::Awa, 20, v)); NEAR(v, 38, 1e-9);
     CHECK(st.get(Key::Aws, 20, v)); NEAR(v, 14.8, 1e-9);
-    CHECK(nm.feed(sentence("$WIMWV,322.0,R,7.6,M,A").c_str(), Source::Serial, 30, st) == NmeaResult::Data);
+    CHECK(nm.feed(sentence("$WIMWV,322.0,R,7.6,M,A").c_str(), Source::Uart, 30, st) == NmeaResult::Data);
     CHECK(st.get(Key::Awa, 30, v)); NEAR(v, -38, 1e-9);                         // babor
     CHECK(st.get(Key::Aws, 30, v)); NEAR(v, 14.773, 0.001);                     // m/s a nudos
-    CHECK(nm.feed(sentence("$WIMWV,38.0,R,14.8,N,V").c_str(), Source::Serial, 30, st) == NmeaResult::Ignored);   // dato no valido
-    CHECK(nm.feed(sentence("$WIMWV,59.0,T,10.6,N,A").c_str(), Source::Serial, 30, st) == NmeaResult::Ignored);
-    CHECK(nm.feed(sentence("$HEHDT,247.0,T").c_str(), Source::Serial, 30, st) == NmeaResult::Data);
-    CHECK(nm.feed(sentence("$VWVHW,247.0,T,249.0,M,5.9,N,10.9,K").c_str(), Source::Serial, 30, st) == NmeaResult::Data);
+    CHECK(nm.feed(sentence("$WIMWV,38.0,R,14.8,N,V").c_str(), Source::Uart, 30, st) == NmeaResult::Ignored);   // dato no valido
+    CHECK(nm.feed(sentence("$WIMWV,59.0,T,10.6,N,A").c_str(), Source::Uart, 30, st) == NmeaResult::Ignored);
+    CHECK(nm.feed(sentence("$HEHDT,247.0,T").c_str(), Source::Uart, 30, st) == NmeaResult::Data);
+    CHECK(nm.feed(sentence("$VWVHW,247.0,T,249.0,M,5.9,N,10.9,K").c_str(), Source::Uart, 30, st) == NmeaResult::Data);
     CHECK(st.get(Key::Stw, 30, v)); NEAR(v, 5.9, 1e-9);
-    CHECK(nm.feed(sentence("$YXMTW,18.6,C").c_str(), Source::Serial, 30, st) == NmeaResult::Data);
-    CHECK(nm.feed(sentence("$GPVTG,247.0,T,249.0,M,6.2,N,11.5,K,A").c_str(), Source::Serial, 30, st) == NmeaResult::Data);
-    CHECK(nm.feed(sentence("$GPZDA,112500,11,11,2026,00,00").c_str(), Source::Serial, 30, st) == NmeaResult::Ignored);
-    CHECK(nm.feed("basura", Source::Serial, 30, st) == NmeaResult::Bad);
+    CHECK(nm.feed(sentence("$YXMTW,18.6,C").c_str(), Source::Uart, 30, st) == NmeaResult::Data);
+    CHECK(nm.feed(sentence("$GPVTG,247.0,T,249.0,M,6.2,N,11.5,K,A").c_str(), Source::Uart, 30, st) == NmeaResult::Data);
+    CHECK(nm.feed(sentence("$GPZDA,112500,11,11,2026,00,00").c_str(), Source::Uart, 30, st) == NmeaResult::Ignored);
+    CHECK(nm.feed("basura", Source::Uart, 30, st) == NmeaResult::Bad);
 
     // AIS: ejemplos de la documentacion AIVDM/AIVDO de gpsd
-    CHECK(nm.feed("!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C", Source::Serial, 40, st) == NmeaResult::Ais);
+    CHECK(nm.feed("!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C", Source::Uart, 40, st) == NmeaResult::Ais);
     const AisReport& a = nm.ais();
     CHECK(a.type == 1 && a.mmsi == 477553000 && a.navStatus == 5 && !a.own);
     CHECK(a.hasPos); NEAR(a.lat, 47.582833, 1e-5); NEAR(a.lon, -122.345833, 1e-5);
     CHECK(a.hasSog && a.sogKn == 0); CHECK(a.hasCog); NEAR(a.cogDeg, 51.0, 1e-9); CHECK(a.hasHeading && a.heading == 181);
     // Mensaje 5 en dos fragmentos
-    CHECK(nm.feed("!AIVDM,2,1,3,B,55P5TL01VIaAL@7WKO@mBplU@<PDhh000000001S;AJ::4A80?4i@E53,0*3E", Source::Serial, 50, st) == NmeaResult::Ignored);
-    CHECK(nm.feed("!AIVDM,2,2,3,B,1@0000000000000,2*55", Source::Serial, 50, st) == NmeaResult::Ais);
+    CHECK(nm.feed("!AIVDM,2,1,3,B,55P5TL01VIaAL@7WKO@mBplU@<PDhh000000001S;AJ::4A80?4i@E53,0*3E", Source::Uart, 50, st) == NmeaResult::Ignored);
+    CHECK(nm.feed("!AIVDM,2,2,3,B,1@0000000000000,2*55", Source::Uart, 50, st) == NmeaResult::Ais);
     CHECK(nm.ais().type == 5 && nm.ais().mmsi == 369190000 && nm.ais().hasStatic);
     CHECK(!std::strcmp(nm.ais().name, "MT.MITCHELL"));
     CHECK(!std::strcmp(nm.ais().callsign, "WDA9674"));
     // Segundo fragmento suelto: se descarta
-    CHECK(nm.feed("!AIVDM,2,2,3,B,1@0000000000000,2*55", Source::Serial, 60, st) == NmeaResult::Ignored);
+    CHECK(nm.feed("!AIVDM,2,2,3,B,1@0000000000000,2*55", Source::Uart, 60, st) == NmeaResult::Ignored);
     // VDO = barco propio
-    CHECK(nm.feed(sentence("!AIVDO,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0").c_str(), Source::Serial, 70, st) == NmeaResult::Ais);
+    CHECK(nm.feed(sentence("!AIVDO,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0").c_str(), Source::Uart, 70, st) == NmeaResult::Ais);
     CHECK(nm.ais().own);
 }
 
 static void testAisExtra() {
     Nmea0183 nm;
     DataStore st;
-    auto feed = [&](const char* body) { return nm.feed(sentence(body).c_str(), Source::Serial, 1, st); };
+    auto feed = [&](const char* body) { return nm.feed(sentence(body).c_str(), Source::Uart, 1, st); };
     // Ejemplos de la documentacion AIVDM/AIVDO de gpsd
     CHECK(feed("!AIVDM,1,1,,A,403OviQuMGCqWrRO9>E6fE700@GO,0") == NmeaResult::Ais);            // 4: estacion base
     CHECK(nm.ais().type == 4 && nm.ais().kind == AisKind::BaseStation && nm.ais().mmsi == 3669702);
@@ -302,7 +302,7 @@ static void testAisExtra() {
     CHECK(nm.stats().aisRejected == before.aisRejected + 2);
     CHECK(feed("!AIVDM,1,1,,B,:5?Per18=HB1U:1@E=B0m<L,0") == NmeaResult::Ignored);             // tipo 10
     CHECK(nm.stats().aisUnsupported == before.aisUnsupported + 1);
-    CHECK(nm.feed("!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5D", Source::Serial, 1, st) == NmeaResult::Bad);
+    CHECK(nm.feed("!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5D", Source::Uart, 1, st) == NmeaResult::Bad);
     CHECK(nm.stats().badChecksum == before.badChecksum + 1);
     CHECK(nm.stats().aisOversized >= 1 && nm.stats().good > 8);
 
@@ -415,9 +415,9 @@ static void testPilot() {
     CHECK(nm.feed(sentence("$APXDR,A,12.500,D,ROLL").c_str(), Source::Tcp, 10, st) == NmeaResult::Data);
     CHECK(st.get(Key::Pitch, 20, v)); NEAR(v, -3.25, 1e-9);
     CHECK(st.get(Key::Roll, 20, v)); NEAR(v, 12.5, 1e-9);
-    CHECK(nm.feed(sentence("$IIXDR,C,19.5,C,AIR,A,4.0,D,PITCH,A,-7.0,D,HEEL").c_str(), Source::Serial, 30, st) == NmeaResult::Data);
+    CHECK(nm.feed(sentence("$IIXDR,C,19.5,C,AIR,A,4.0,D,PITCH,A,-7.0,D,HEEL").c_str(), Source::Uart, 30, st) == NmeaResult::Data);
     CHECK(st.get(Key::Roll, 40, v)); NEAR(v, -7.0, 1e-9);
-    CHECK(nm.feed(sentence("$IIXDR,C,19.5,C,AIR").c_str(), Source::Serial, 30, st) == NmeaResult::Ignored);
+    CHECK(nm.feed(sentence("$IIXDR,C,19.5,C,AIR").c_str(), Source::Uart, 30, st) == NmeaResult::Ignored);
     CHECK(nm.feed(sentence("$APRSA,-4.500,A,,").c_str(), Source::Tcp, 10, st) == NmeaResult::Data);
     CHECK(st.get(Key::RudderAngle, 20, v)); NEAR(v, -4.5, 1e-9);
     CHECK(nm.feed(sentence("$APRSA,-4.500,V,,").c_str(), Source::Tcp, 10, st) == NmeaResult::Ignored);
@@ -587,7 +587,7 @@ static void testRoute() {
 static void testGnss() {
     Nmea0183 nm;
     DataStore st;
-    auto feed = [&](const char* body, uint32_t t) { return nm.feed(sentence(body).c_str(), Source::Serial, t, st); };
+    auto feed = [&](const char* body, uint32_t t) { return nm.feed(sentence(body).c_str(), Source::Uart, t, st); };
     GnssSky& sky = nm.sky();
     // GPS en 3 tramas y GLONASS en 1
     CHECK(feed("$GPGSV,3,1,11,03,03,111,00,04,15,270,00,06,01,010,00,13,06,292,00", 0) == NmeaResult::Data);
@@ -615,7 +615,7 @@ static void testGnss() {
     CHECK(sky.count() == 2);
     // Emisor GN con sistema (NMEA 4.10) y senal al final; SBAS con emisor GP
     Nmea0183 n2;
-    auto feed2 = [&](const char* body, uint32_t t) { return n2.feed(sentence(body).c_str(), Source::Serial, t, st); };
+    auto feed2 = [&](const char* body, uint32_t t) { return n2.feed(sentence(body).c_str(), Source::Uart, t, st); };
     feed2("$GAGSV,1,1,02,05,45,120,38,09,20,300,33,7", 0);
     feed2("$GPGSV,1,1,02,10,50,090,44,36,30,150,37,1", 5);
     feed2("$GNGSA,A,3,10,,,,,,,,,,,,1.5,0.9,1.2,1", 10);

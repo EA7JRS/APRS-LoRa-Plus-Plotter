@@ -18,8 +18,8 @@ enum class Key : uint8_t {
     Gust, Humidity, Visibility, Count
 };
 
-// Orden de prioridad: menor = mejor
-enum class Source : uint8_t { Sensor = 0, Can = 1, Serial = 2, Tcp = 3, Ble = 4, Internet = 5, None = 255 };
+// Orden de prioridad: menor = mejor. "Uart" y no "Serial": Arduino define Serial como macro
+enum class Source : uint8_t { Sensor = 0, Can = 1, Uart = 2, Tcp = 3, Ble = 4, Internet = 5, None = 255 };
 
 enum class Quality : uint8_t { Measured, Computed, Estimated };
 

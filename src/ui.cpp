@@ -191,7 +191,7 @@ static const char* sourceName(Source s) {
     switch (s) {
         case Source::Sensor: return links::status().simulator ? "Simulador" : "Sensor";
         case Source::Can: return "NMEA 2000";
-        case Source::Serial: return "Puerto serie";
+        case Source::Uart: return "Puerto serie";
         case Source::Tcp: return "Red local";
         case Source::Ble: return "Tracker";
         case Source::Internet: return "Internet";

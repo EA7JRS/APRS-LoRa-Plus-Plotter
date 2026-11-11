@@ -50,7 +50,7 @@ void loop() {
         if (!serialLine.push((char)Serial1.read())) continue;
         st.serialLines++;
         st.serialLastMs = now;
-        if (serialNmea.feed(serialLine.line(), Source::Serial, now, *store) == NmeaResult::Ais) {
+        if (serialNmea.feed(serialLine.line(), Source::Uart, now, *store) == NmeaResult::Ais) {
             ais = serialNmea.ais();
             st.aisMessages++;
         }

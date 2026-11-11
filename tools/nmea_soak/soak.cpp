@@ -31,7 +31,7 @@ int main(int argc, char** argv) {
             if (!lb.push(c)) continue;
             lines++;
             now += 50;
-            switch (nm.feed(lb.line(), Source::Serial, now, st)) {
+            switch (nm.feed(lb.line(), Source::Uart, now, st)) {
                 case NmeaResult::Data: data++; break;
                 case NmeaResult::Ais: ais++; break;
                 case NmeaResult::Bad: bad++; break;

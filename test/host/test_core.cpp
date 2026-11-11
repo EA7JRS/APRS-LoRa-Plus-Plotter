@@ -22,6 +22,7 @@
 #include "store.h"
 #include "inputs.h"
 #include "lights.h"
+#include "n2k.h"
 #include "route.h"
 #include "signalk.h"
 #include "sim.h"
@@ -1191,8 +1192,177 @@ static void testAnchor() {
     CHECK(!r.state().hasFix);
 }
 
+// Convierte "00,56,79,..." (formato de canboat) en bytes
+static int hexBytes(const char* txt, uint8_t* out, int max) {
+    int n = 0;
+    for (const char* p = txt; *p && n < max;) {
+        while (*p == ',' || *p == ' ') p++;
+        if (!*p) break;
+        out[n++] = (uint8_t)std::strtoul(p, nullptr, 16);
+        while (*p && *p != ',' && *p != ' ') p++;
+    }
+    return n;
+}
+
+static N2kResult n2kMsg(N2kReader& r, DataStore& st, uint32_t pgn, const char* hex, uint32_t now = 1000) {
+    uint8_t b[223];
+    int n = hexBytes(hex, b, sizeof b);
+    return r.feedMessage(pgn, b, n, Source::Can, now, st);
+}
+
+// Valores de referencia: ejemplos y salidas esperadas de las pruebas de canboat (analyzer/tests)
+static void testN2k() {
+    // Identificador: 09F20101 = prioridad 2, PGN 127489, fuente 1
+    N2kId id = n2kParseId(0x09F20101);
+    CHECK(id.prio == 2 && id.pgn == 127489 && id.src == 1 && id.dst == 255);
+    id = n2kParseId(0x09F8012B);
+    CHECK(id.pgn == 129025 && id.src == 0x2B);
+    id = n2kParseId(0x18EAFF23);                                   // peticion ISO a todos: PGN 59904, destino 255
+    CHECK(id.prio == 6 && id.pgn == 59904 && id.dst == 255 && id.src == 0x23);
+    id = n2kParseId(0x18EA0523);                                   // dirigida a la direccion 5
+    CHECK(id.pgn == 59904 && id.dst == 5);
+    CHECK(n2kIsFastPacket(129038) && n2kIsFastPacket(129029) && !n2kIsFastPacket(129025));
+
+    DataStore st;
+    N2kReader r;
+    double v;
+    // 127250: rumbo 178,0 magnetico, sin declinacion
+    CHECK(n2kMsg(r, st, 127250, "00,56,79,ff,7f,ff,7f,fd") == N2kResult::Data);
+    CHECK(st.get(Key::HeadingMag, 1000, v) && near(v, 178.0, 0.05));
+    CHECK(!st.get(Key::Heading, 1000, v));
+    // con declinacion de -1,0 grados (0xFF51 = -175 x 0,0001 rad): verdadero 177,0
+    CHECK(n2kMsg(r, st, 127250, "00,56,79,ff,7f,51,ff,fd") == N2kResult::Data);
+    CHECK(st.get(Key::Heading, 1000, v) && near(v, 177.0, 0.05));
+    // 129025: 53,1801876 N 5,4284652 E
+    CHECK(n2kMsg(r, st, 129025, "14,a7,b2,1f,6c,51,3c,03") == N2kResult::Data);
+    CHECK(st.get(Key::Lat, 1000, v) && near(v, 53.1801876, 1e-7));
+    CHECK(st.get(Key::Lon, 1000, v) && near(v, 5.4284652, 1e-7));
+    CHECK(n2kMsg(r, st, 129025, "ff,ff,ff,7f,ff,ff,ff,7f") == N2kResult::None);       // sin dato
+    // 129026: COG 124,2 verdadero, SOG 0
+    CHECK(n2kMsg(r, st, 129026, "ff,fc,a6,54,00,00,ff,ff") == N2kResult::Data);
+    CHECK(st.get(Key::Cog, 1000, v) && near(v, 124.2, 0.05));
+    CHECK(st.get(Key::Sog, 1000, v) && near(v, 0, 1e-9));
+    // 130306: viento aparente 3,37 m/s a 112,1 grados
+    CHECK(n2kMsg(r, st, 130306, "07,51,01,74,4c,fa,ff,ff") == N2kResult::Data);
+    CHECK(st.get(Key::Aws, 1000, v) && near(v, 3.37 * 3600 / 1852, 0.001));
+    CHECK(st.get(Key::Awa, 1000, v) && near(v, 112.1, 0.05));
+    // el mismo por babor: 247,9 grados -> -112,1
+    CHECK(n2kMsg(r, st, 130306, "07,51,01,03,a9,fa,ff,ff") == N2kResult::Data);
+    CHECK(st.get(Key::Awa, 1000, v) && near(v, -112.1, 0.05));
+    // 127488: 30 vueltas por segundo = 1800 rpm
+    CHECK(n2kMsg(r, st, 127488, "00,20,1c,ff,ff,7f,ff,ff") == N2kResult::Data);
+    CHECK(st.get(Key::Rpm, 1000, v) && near(v, 1800, 0.01));
+    CHECK(n2kMsg(r, st, 127488, "01,20,1c,ff,ff,7f,ff,ff") == N2kResult::None);        // segundo motor: no se usa
+    // 127508: 12,50 V
+    CHECK(n2kMsg(r, st, 127508, "00,e2,04,00,80,ff,ff,ff") == N2kResult::Data);
+    CHECK(st.get(Key::BatteryV, 1000, v) && near(v, 12.5, 1e-9));
+    // 130312: temperatura del agua 0x728B x 0,01 K = 20,08 C
+    CHECK(n2kMsg(r, st, 130312, "ff,00,00,8b,72,ff,ff,ff") == N2kResult::Data);
+    CHECK(st.get(Key::WaterTemp, 1000, v) && near(v, 293.23 - 273.15, 0.001));
+    // 128267: 12,34 m bajo el transductor y 0,50 m de desfase
+    CHECK(n2kMsg(r, st, 128267, "00,d2,04,00,00,f4,01,ff") == N2kResult::Data);
+    CHECK(st.get(Key::Depth, 1000, v) && near(v, 12.84, 1e-9));
+    // 128259: 2,50 m/s por el agua
+    CHECK(n2kMsg(r, st, 128259, "00,fa,00,ff,ff,00,ff,ff") == N2kResult::Data);
+    CHECK(st.get(Key::Stw, 1000, v) && near(v, 2.5 * 3600 / 1852, 1e-6));
+    // 130314: 101325,0 Pa
+    CHECK(n2kMsg(r, st, 130314, "00,00,00,02,76,0f,00,ff") == N2kResult::Data);
+    CHECK(st.get(Key::Pressure, 1000, v) && near(v, 1013.25, 0.001));
+    // 127245: timon -5,0 grados (-873 x 0,0001 rad)
+    CHECK(n2kMsg(r, st, 127245, "00,ff,ff,7f,97,fc,ff,ff") == N2kResult::Data);
+    CHECK(st.get(Key::RudderAngle, 1000, v) && near(v, -5.0, 0.01));
+    // 129029: 32,1140327 N 138,0258288 E, 4,5 m, 14 satelites, HDOP 0,52
+    DataStore st2;
+    CHECK(n2kMsg(r, st2, 129029, "48,a4,50,d0,c9,df,0d,c0,02,05,f6,6c,eb,74,04,00,a4,65,ae,99,a9,27,13,20,aa,44,00,00,00,00,00,13,fc,0e,34,00,5e,00,1e,0f,00,00,00,ff,ff,ff,ff") == N2kResult::Data);
+    CHECK(st2.get(Key::Lat, 1000, v) && near(v, 32.1140327, 1e-7));
+    CHECK(st2.get(Key::Lon, 1000, v) && near(v, 138.0258288, 1e-7));
+    CHECK(st2.get(Key::Altitude, 1000, v) && near(v, 4.5, 1e-6));
+    CHECK(st2.get(Key::SatsUsed, 1000, v) && near(v, 14, 1e-9));
+    CHECK(st2.get(Key::Hdop, 1000, v) && near(v, 0.52, 1e-9));
+    CHECK(st2.source(Key::Lat, 1000) == Source::Can);
+    CHECK(n2kMsg(r, st, 126992, "00,00,00,00,00,00,00,00") == N2kResult::Unknown);
+
+    // AIS clase A: MMSI 244700322, 53,17006 N 5,412295 E, COG 276,7, parado, estado 13
+    CHECK(n2kMsg(r, st, 129038, "01,a2,d4,95,0e,c6,d9,39,03,78,1b,b1,1f,01,ad,bc,00,00,8e,00,01,ff,ff,ff,7f,cd,f8,ff") == N2kResult::Ais);
+    CHECK(r.ais().mmsi == 244700322u && r.ais().type == 1 && r.ais().hasPos);
+    CHECK(near(r.ais().lat, 53.17006, 1e-7) && near(r.ais().lon, 5.412295, 1e-7));
+    CHECK(r.ais().hasCog && near(r.ais().cogDeg, 276.7, 0.05) && r.ais().hasSog && near(r.ais().sogKn, 0, 1e-9));
+    CHECK(!r.ais().hasHeading && r.ais().navStatus == 13);
+    // AIS clase B: MMSI 244180106, 52,9061666 N 5,3134516 E, COG 171,7, 1,80 m/s
+    CHECK(n2kMsg(r, st, 129039, "12,8a,e4,8d,0e,b4,c4,2a,03,22,d7,88,1f,77,09,75,b4,00,f8,08,00,ff,ff,00,f0,fe,ff") == N2kResult::Ais);
+    CHECK(r.ais().mmsi == 244180106u && r.ais().type == 18);
+    CHECK(near(r.ais().lat, 52.9061666, 1e-7) && near(r.ais().lon, 5.3134516, 1e-7));
+    CHECK(near(r.ais().cogDeg, 171.7, 0.05) && near(r.ais().sogKn, 1.80 * 3600 / 1852, 1e-6) && r.ais().navStatus == -1);
+    AisTargets tg;
+    int ti = tg.update(r.ais(), 1000);
+    CHECK(ti >= 0 && tg.at(ti).classB && tg.at(ti).hasPos);
+    // AIS clase A, datos del buque
+    CHECK(n2kMsg(r, st, 129794, "05,80,26,aa,0e,f8,8e,8c,00,50,43,48,51,20,00,ff,55,4b,31,34,37,20,4d,4f,52,47,45,4e,53,54,45,52,00,ff,ff,ff,1e,a4,01,50,00,28,00,40,01,31,4a,00,00,00,00,e0,01,46,49,53,48,49,4e,47,20,47,52,4f,55,4e,44,53,20,20,20,00,ff,3d,e1,ff") == N2kResult::Ais);
+    CHECK(r.ais().mmsi == 246032000u && r.ais().type == 5 && r.ais().hasStatic);
+    CHECK(!std::strcmp(r.ais().callsign, "PCHQ") && !std::strcmp(r.ais().name, "UK147 MORGENSTER") && r.ais().shipType == 30);
+    CHECK(r.ais().hasDim && r.ais().toBow == 32 && r.ais().toStern == 10 && r.ais().toStarboard == 4 && r.ais().toPort == 4);
+    CHECK(near(r.ais().draughtM, 4.8, 1e-9) && !std::strcmp(r.ais().destination, "FISHING GROUNDS"));
+    // AIS clase B, parte B: tipo 37, DD7558, 13 x 4 m
+    CHECK(n2kMsg(r, st, 129810, "18,f6,b5,9c,0c,25,53,52,54,45,51,23,2d,44,44,37,35,35,38,00,82,00,28,00,0a,00,64,00,00,00,00,00,03,e0,ff") == N2kResult::Ais);
+    CHECK(r.ais().mmsi == 211596790u && r.ais().type == 24 && r.ais().shipType == 37 && !std::strcmp(r.ais().callsign, "DD7558"));
+    CHECK(r.ais().toBow + r.ais().toStern == 13 && r.ais().toPort + r.ais().toStarboard == 4);
+    // AIS clase B, parte A: el nombre
+    CHECK(n2kMsg(r, st, 129809, "18,f6,b5,9c,0c,53,45,41,20,42,52,45,45,5a,45,40,40,40,40,40,40,40,40,40,40,e0,ff") == N2kResult::Ais);
+    CHECK(r.ais().mmsi == 211596790u && !std::strcmp(r.ais().name, "SEA BREEZE"));
+
+    // Mensajes de varias tramas: grabacion real de canboat (samples/candump-fast.txt), 26 bytes en 4 tramas
+    N2kFastPacket fp;
+    uint8_t f[8];
+    hexBytes("60 1A 00 B7 06 67 0D 0B", f, 8); CHECK(!fp.feed(127489, 1, f, 8, 100));
+    hexBytes("61 86 BA 04 26 00 10 5F", f, 8); CHECK(!fp.feed(127489, 1, f, 8, 101));
+    hexBytes("62 09 00 00 00 8F 02 7F", f, 8); CHECK(!fp.feed(127489, 1, f, 8, 102));
+    hexBytes("63 00 00 00 00 7F 7F FF", f, 8); CHECK(fp.feed(127489, 1, f, 8, 103));
+    CHECK(fp.length() == 26 && fp.data()[0] == 0x00 && fp.data()[1] == 0xB7 && fp.data()[6] == 0x86 && fp.data()[25] == 0x7F);
+    CHECK(fp.dropped() == 0);
+    // Falta una trama: el mensaje se descarta y el siguiente entra bien
+    hexBytes("80 1A 00 B7 06 67 0D 0B", f, 8); CHECK(!fp.feed(127489, 1, f, 8, 200));
+    hexBytes("82 09 00 00 00 8F 02 7F", f, 8); CHECK(!fp.feed(127489, 1, f, 8, 201));
+    CHECK(fp.dropped() == 1);
+    hexBytes("83 00 00 00 00 7F 7F FF", f, 8); CHECK(!fp.feed(127489, 1, f, 8, 202));
+    hexBytes("A0 03 11 22 33 FF FF FF", f, 8); CHECK(fp.feed(127489, 1, f, 8, 300));     // cabe en una trama
+    CHECK(fp.length() == 3 && fp.data()[2] == 0x33);
+    // Dos emisores a la vez, tramas mezcladas
+    hexBytes("00 09 01 02 03 04 05 06", f, 8); CHECK(!fp.feed(129038, 7, f, 8, 400));
+    hexBytes("20 09 A1 A2 A3 A4 A5 A6", f, 8); CHECK(!fp.feed(129038, 9, f, 8, 401));
+    hexBytes("01 07 08 09 FF FF FF FF", f, 8); CHECK(fp.feed(129038, 7, f, 8, 402));
+    CHECK(fp.length() == 9 && fp.data()[0] == 0x01 && fp.data()[8] == 0x09);
+    hexBytes("21 A7 A8 A9 FF FF FF FF", f, 8); CHECK(fp.feed(129038, 9, f, 8, 403));
+    CHECK(fp.length() == 9 && fp.data()[0] == 0xA1 && fp.data()[8] == 0xA9);
+    // Continuacion que llega tarde (mas de 750 ms): fuera
+    hexBytes("40 09 01 02 03 04 05 06", f, 8); CHECK(!fp.feed(129038, 7, f, 8, 1000));
+    hexBytes("41 07 08 09 FF FF FF FF", f, 8); CHECK(!fp.feed(129038, 7, f, 8, 1800));
+
+    // De la trama CAN al dato: el AIS de clase B de antes, troceado en tramas
+    N2kReader rr;
+    DataStore st3;
+    uint8_t msg[64];
+    int n = hexBytes("12,8a,e4,8d,0e,b4,c4,2a,03,22,d7,88,1f,77,09,75,b4,00,f8,08,00,ff,ff,00,f0,fe,ff", msg, sizeof msg);
+    uint32_t canId = (4u << 26) | (129039u << 8) | 23;
+    N2kResult res = N2kResult::None;
+    for (int off = 0, fr = 0; off < n; fr++) {
+        uint8_t c[8];
+        std::memset(c, 0xFF, 8);
+        c[0] = (uint8_t)((3 << 5) | fr);
+        int k = 1;
+        if (fr == 0) c[k++] = (uint8_t)n;
+        while (k < 8 && off < n) c[k++] = msg[off++];
+        res = rr.feedFrame(canId, c, 8, Source::Can, 500 + fr, st3);
+        CHECK(res == (off < n ? N2kResult::Pending : N2kResult::Ais));
+    }
+    CHECK(rr.ais().mmsi == 244180106u && rr.stats().frames == 4 && rr.stats().ais == 1);
+    uint8_t one[8];
+    hexBytes("14,a7,b2,1f,6c,51,3c,03", one, 8);
+    CHECK(rr.feedFrame(0x09F8012B, one, 8, Source::Can, 600, st3) == N2kResult::Data);
+    CHECK(st3.get(Key::Lat, 600, v) && near(v, 53.1801876, 1e-7));
+}
+
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

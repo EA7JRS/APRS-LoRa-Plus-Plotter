@@ -5,8 +5,13 @@
 #include "links.h"
 
 #include "board.h"
+#include "n2k.h"
 #include "sim.h"
 #include "stream.h"
+
+#ifdef ESP32
+#include "driver/twai.h"
+#endif
 
 namespace links {
 
@@ -19,6 +24,65 @@ static Nmea0183 simNmea, serialNmea;
 static LineBuffer serialLine;
 static AisTargets tgs;
 static uint32_t simLast = 0;
+static N2kReader n2k;
+[[maybe_unused]] static bool canRunning = false;
+
+// NMEA 2000: el plotter solo escucha. El controlador va en modo normal para dar el acuse de recibo a las tramas de los
+// demas (con un solo equipo mas en la red, sin acuse este repetiria sin parar), pero nunca transmite.
+static void canStart() {
+#ifdef ESP32
+    if (canRunning) return;
+    board::setCanMode(true);                                       // los pines 19 / 20 pasan del USB al transceptor
+    twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)board::PIN_CAN_TX, (gpio_num_t)board::PIN_CAN_RX, TWAI_MODE_NORMAL);
+    g.rx_queue_len = 96;
+    g.tx_queue_len = 0;
+    twai_timing_config_t t = TWAI_TIMING_CONFIG_250KBITS();
+    twai_filter_config_t f = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+    if (twai_driver_install(&g, &t, &f) != ESP_OK) { Serial.println("[links] CAN: no se pudo instalar el controlador"); return; }
+    if (twai_start() != ESP_OK) { twai_driver_uninstall(); Serial.println("[links] CAN: no arranca"); return; }
+    canRunning = true;
+    Serial.printf("[links] NMEA 2000 a 250 kbit/s (TX %d, RX %d), solo escucha\n", board::PIN_CAN_TX, board::PIN_CAN_RX);
+#endif
+}
+
+static void canStop() {
+#ifdef ESP32
+    if (!canRunning) return;
+    twai_stop();
+    twai_driver_uninstall();
+    canRunning = false;
+    board::setCanMode(false);
+#endif
+}
+
+static void canLoop(uint32_t now) {
+#ifdef ESP32
+    if (!canRunning) return;
+    twai_message_t m;
+    int budget = 96;
+    while (budget-- > 0 && twai_receive(&m, 0) == ESP_OK) {
+        if (!m.extd || m.rtr) continue;                            // NMEA 2000 solo usa identificadores de 29 bits
+        st.canFrames++;
+        st.canLastMs = now;
+        if (n2k.feedFrame(m.identifier, m.data, m.data_length_code, Source::Can, now, *store) == N2kResult::Ais) {
+            tgs.update(n2k.ais(), now);
+            st.aisMessages++;
+        }
+    }
+    st.canMessages = n2k.stats().known;
+    static uint32_t tCheck = 0;
+    if (now - tCheck >= 2000) {                                    // si el controlador se ha salido del bus, vuelve a entrar
+        tCheck = now;
+        twai_status_info_t info;
+        if (twai_get_status_info(&info) == ESP_OK) {
+            if (info.state == TWAI_STATE_BUS_OFF) twai_initiate_recovery();
+            else if (info.state == TWAI_STATE_STOPPED) twai_start();
+        }
+    }
+#else
+    (void)now;
+#endif
+}
 
 void begin(DataStore* s) {
     store = s;
@@ -30,6 +94,24 @@ void begin(DataStore* s) {
 }
 
 void setSimulator(bool on) { st.simulator = on; }
+
+void setCan(bool on) {
+    st.can = on;
+    if (on) canStart(); else canStop();
+}
+
+// Para probar sin red: una trama como si llegara del bus
+void injectCanFrame(uint32_t canId, const uint8_t* data, int len) {
+    if (!store) return;
+    uint32_t now = millis();
+    st.canFrames++;
+    st.canLastMs = now;
+    if (n2k.feedFrame(canId, data, len, Source::Can, now, *store) == N2kResult::Ais) {
+        tgs.update(n2k.ais(), now);
+        st.aisMessages++;
+    }
+    st.canMessages = n2k.stats().known;
+}
 
 void setSerialBaud(uint32_t baud) {
     if (baud == st.serialBaud) return;
@@ -56,6 +138,7 @@ void loop() {
         }
     }
     serialNmea.sky().expire(now);
+    canLoop(now);
 
     if (st.simulator && now - simLast >= 1000) {
         simLast = now;

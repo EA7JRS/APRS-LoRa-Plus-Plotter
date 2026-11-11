@@ -69,15 +69,16 @@ void setup() {
     links::begin(&store);
     links::setSimulator(settings::get().simulator);
     links::setSerialBaud(settings::get().serialBaud);
+    links::setCan(settings::get().can);
     board::setBacklight(settings::get().brightness);
     ui::begin(&store);
     if (!ok) Serial.println("La placa no ha arrancado bien: revisar docs/HARDWARE.md");
     if (!sd) Serial.println("[main] sin tarjeta: la carta sale sin mapa de fondo");
 }
 
-// Por el puerto serie del USB (UART0): "APRS-INFO?" como el resto de dispositivos APRS LoRa+, y "SIM 0" / "SIM 1".
+// Por el puerto serie del USB (UART0): "APRS-INFO?" como el resto de dispositivos APRS LoRa+, "SIM 0" / "SIM 1" y "N2K <id> <bytes>".
 static void console() {
-    static char buf[16];
+    static char buf[48];
     static uint8_t n = 0;
     while (Serial.available()) {
         char c = (char)Serial.read();
@@ -90,6 +91,20 @@ static void console() {
                 links::setSimulator(settings::get().simulator);
                 settings::save();
                 Serial.printf("[main] simulador %s\n", buf[4] == '1' ? "encendido" : "apagado");
+            }
+            else if (n > 13 && strncmp(buf, "N2K ", 4) == 0) {      // "N2K 09F8012B 14A7B21F6C513C03": una trama como si llegara del bus
+                char* end = nullptr;
+                uint32_t id = strtoul(buf + 4, &end, 16);
+                uint8_t d[8];
+                int len = 0;
+                while (end && *end == ' ') end++;
+                while (end && len < 8 && isxdigit((unsigned char)end[0]) && isxdigit((unsigned char)end[1])) {
+                    char h[3] = {end[0], end[1], 0};
+                    d[len++] = (uint8_t)strtoul(h, nullptr, 16);
+                    end += 2;
+                }
+                if (len) links::injectCanFrame(id, d, len);
+                Serial.printf("[main] N2K %08X, %d bytes\n", (unsigned)id, len);
             }
             n = 0;
         } else if (n < sizeof(buf) - 1) {

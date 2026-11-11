@@ -191,6 +191,7 @@ static int wpPage = 0, wpSel = -1;
 // Ajustes
 static lv_obj_t* setSimLbl = nullptr;
 static lv_obj_t* setUnitsLbl = nullptr;
+static lv_obj_t* setCanLbl = nullptr;
 static lv_obj_t* setMapLbl = nullptr;
 static lv_obj_t* setBaudLbl = nullptr;
 static lv_obj_t* setBrightLbl = nullptr;
@@ -1631,6 +1632,7 @@ static void onSetting(lv_event_t* e) {
     if (what == 0) { v.simulator = !v.simulator; links::setSimulator(v.simulator); }
     else if (what == 1) { v.serialBaud = v.serialBaud == 38400 ? 4800 : 38400; links::setSerialBaud(v.serialBaud); }
     else if (what == 4) { v.units = (v.units + 1) % 3; applyUnits(); }
+    else if (what == 6) { v.can = !v.can; links::setCan(v.can); }
     else if (what == 5) { v.baseMap = (v.baseMap + 1) % kBaseMapN; setBaseMap(v.baseMap); }
     else {
         v.brightness += what == 2 ? -10 : 10;
@@ -1643,8 +1645,8 @@ static void onSetting(lv_event_t* e) {
 
 static lv_obj_t* settingRow(lv_obj_t* page, int row, const char* title, const char* help) {
     lv_obj_t* r = box(page, C_PANEL, 10);
-    lv_obj_set_size(r, 620, 76);
-    lv_obj_set_pos(r, 0, row * 84);
+    lv_obj_set_size(r, 620, 72);
+    lv_obj_set_pos(r, 0, row * 80);
     lv_obj_t* t = label(r, title, &dejavu_bold_20, C_TEXT);
     lv_obj_align(t, LV_ALIGN_TOP_LEFT, 14, 9);
     lv_obj_t* h = label(r, help, &dejavu_14, C_DIM);
@@ -1676,8 +1678,12 @@ static void makeSettings(lv_obj_t* page) {
     b = textButton(r, "", 170, 52, onSetting, 5);
     lv_obj_align(b, LV_ALIGN_RIGHT_MID, -14, 0);
     setMapLbl = lv_obj_get_child(b, 0);
+    r = settingRow(page, 5, "NMEA 2000", "CAN de la placa, 250 kbit/s, solo escucha");
+    b = textButton(r, "", 170, 52, onSetting, 6);
+    lv_obj_align(b, LV_ALIGN_RIGHT_MID, -14, 0);
+    setCanLbl = lv_obj_get_child(b, 0);
     lv_obj_t* info = box(page, C_PANEL, 10);
-    lv_obj_set_size(info, 374, 412);
+    lv_obj_set_size(info, 374, 472);
     lv_obj_set_pos(info, 630, 0);
     lv_obj_t* t = label(info, "Estado", &dejavu_bold_20, C_TEXT);
     lv_obj_align(t, LV_ALIGN_TOP_LEFT, 14, 12);
@@ -1685,8 +1691,8 @@ static void makeSettings(lv_obj_t* page) {
     lv_obj_align(setInfo, LV_ALIGN_TOP_LEFT, 14, 48);
     lv_obj_set_width(setInfo, 346);
     lv_obj_set_style_text_line_space(setInfo, 8, 0);
-    lv_obj_t* about = label(page, "APRS LoRa+ \xC2\xB7 \xC2\xA9 2026 Manuel - EA7JRS \xC2\xB7 GPL-3.0 \xC2\xB7 mapas \xC2\xA9 OpenStreetMap", &dejavu_14, C_DIM);
-    lv_obj_align(about, LV_ALIGN_BOTTOM_LEFT, 4, -4);
+    lv_obj_t* about = label(info, "APRS LoRa+ \xC2\xB7 \xC2\xA9 2026 Manuel - EA7JRS\nGPL-3.0 \xC2\xB7 mapas \xC2\xA9 OpenStreetMap", &dejavu_14, C_DIM);
+    lv_obj_align(about, LV_ALIGN_BOTTOM_LEFT, 14, -12);
 }
 
 static void updateSettings() {
@@ -1695,21 +1701,23 @@ static void updateSettings() {
     lv_label_set_text(setBaudLbl, v.serialBaud == 38400 ? "38400 (AIS)" : "4800 (NMEA)");
     lv_label_set_text(setUnitsLbl, v.units == 1 ? "M\xC3\xA9trico" : (v.units == 2 ? "Imperial" : "N\xC3\xA1utico"));
     lv_label_set_text(setMapLbl, kBaseMaps[baseMap].name);
-    char b[320];
+    lv_label_set_text(setCanLbl, v.can ? "Encendido" : "Apagado");
+    char b[420];
     snprintf(b, sizeof(b), "%d %%", v.brightness);
     lv_label_set_text(setBrightLbl, b);
     const links::Status& ls = links::status();
     const NmeaStats& ns = links::serialStats();
     uint32_t now = millis();
     snprintf(b, sizeof(b),
-             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nMensajes AIS: %u\nBlancos AIS: %d\nWaypoints: %d de %d\nDerrota: %d puntos",
+             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nNMEA 2000: %u tramas, %u mensajes\n\xC3\x9Altima trama: %s\nMensajes AIS: %u\nBlancos AIS: %d\nWaypoints: %d de %d\nDerrota: %d puntos",
 #ifdef PLOTTER_VERSION
              PLOTTER_VERSION,
 #else
              "(PC)",
 #endif
              (unsigned)ls.serialLines, (unsigned)(ns.badChecksum + ns.malformed),
-             ls.serialLines ? (now - ls.serialLastMs < 5000 ? "ahora" : "hace rato") : "ninguna", (unsigned)ls.aisMessages, links::targets().count(), wpN, kWps,
+             ls.serialLines ? (now - ls.serialLastMs < 5000 ? "ahora" : "hace rato") : "ninguna", (unsigned)ls.canFrames, (unsigned)ls.canMessages,
+             !ls.can ? "apagado" : (ls.canFrames ? (now - ls.canLastMs < 5000 ? "ahora" : "hace rato") : "ninguna"), (unsigned)ls.aisMessages, links::targets().count(), wpN, kWps,
              trackN);
     lv_label_set_text(setInfo, b);
 }

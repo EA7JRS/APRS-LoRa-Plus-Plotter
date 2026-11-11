@@ -12,6 +12,7 @@ struct Values {
     bool simulator = true;          // datos de prueba mientras no haya nada conectado
     uint32_t serialBaud = 38400;    // RS485: 38400 (AIS) o 4800 (NMEA clasico)
     int brightness = 100;           // luz de fondo, 10..100
+    bool can = true;                // NMEA 2000 por el CAN (los pines dejan de ser el USB nativo)
     int units = 0;                  // 0 nautico, 1 metrico, 2 imperial
     int baseMap = 0;                // 0 OpenSeaMap, 1 IHM, 2 IGN, 3 ortofoto (carpetas de la tarjeta)
     bool anchorOn = false;          // fondeo vigilado: sigue tras un reinicio

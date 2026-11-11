@@ -18,6 +18,7 @@ void load() {
     v.simulator = p.getBool("sim", true);
     v.serialBaud = p.getUInt("baud", 38400);
     v.brightness = p.getInt("bright", 100);
+    v.can = p.getBool("can", true);
     v.units = p.getInt("units", 0);
     v.baseMap = p.getInt("map", 0);
     v.anchorOn = p.getBool("anc", false);
@@ -39,6 +40,7 @@ void save() {
     p.putBool("sim", v.simulator);
     p.putUInt("baud", v.serialBaud);
     p.putInt("bright", v.brightness);
+    p.putBool("can", v.can);
     p.putInt("units", v.units);
     p.putInt("map", v.baseMap);
     p.putBool("anc", v.anchorOn);

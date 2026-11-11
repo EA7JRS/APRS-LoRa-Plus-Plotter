@@ -209,7 +209,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `CartaPrevision`. Fase 3, sin programar.
 
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), anchor (vigilancia de fondeo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS). 1369 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), anchor (vigilancia de fondeo), n2k (NMEA 2000), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS). 1461 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - **Firmware, primer paso (2026-11-11)**: `platformio.ini` (misma base que Display: pioarduino `espressif32 @ 8.0.0`, LVGL
   ~9.6.0, ArduinoJson 7.4.3), placa 7B copiada de Display (`src/board.h`, `board_lcd7b.cpp`, `board_common.*`, `lv_defs.h`,
@@ -268,6 +268,17 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   en metros) y Ajustes > *Mapa base* (carpetas de la tarjeta `/charts/osm` PNG, `/charts/ihm` PNG, `/charts/ign` y
   `/charts/pnoa` JPEG, cada una con su atribución en la carta). Se guardan en NVS. Acción `ajuste:n` en el dibujo del PC.
   Falta: sistema «usuario» (cada magnitud por separado) y probar teselas JPEG reales.
+- **NMEA 2000 por el CAN (2026-11-11, rama `nmea2000`)**: núcleo `n2k` propio (sin la librería NMEA2000): identificador →
+  PGN, montaje de mensajes de varias tramas y lectura de 127245 timón, 127250 rumbo, 127488 rpm, 127508 batería, 128259
+  corredera, 128267 sonda, 129025 / 129026 / 129029 posición, 130306 viento, 130310 / 130311 / 130312 / 130314 temperatura,
+  humedad y presión, y AIS 129038, 129039, 129794, 129809, 129810 (a `AisTargets`). Campos contrastados con la base de datos
+  de canboat (Apache-2.0, clonado en la sesión) y probados con sus ejemplos y salidas esperadas. Firmware: controlador TWAI
+  de ESP-IDF a 250 kbit/s en `links.cpp`; **solo escucha**: modo normal para dar el acuse de recibo, pero nunca transmite ni
+  reclama dirección (no es un nodo certificable; si hiciera falta emitir —piloto, waypoints— habrá que reclamar dirección).
+  Ajustes > *NMEA 2000* (encendido por defecto; quita el USB nativo de los pines 19 / 20), contadores en Estado, orden de
+  consola `N2K <id hex> <bytes hex>` para meter una trama sin bus. Con el simulador encendido sus datos mandan sobre el CAN.
+  Sin probar en la placa ni con una red real. Falta: 129040 / 129041 (AIS B ampliado y ayudas), 129540 satélites, 129284
+  navegación, 127489 motor, 127505 depósitos, LSD (129808).
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.
@@ -275,7 +286,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y
-   medir hechos. Fondeo, unidades y mapa base hechos. Lo siguiente: NMEA 2000 por CAN, entradas por WiFi (TCP / UDP), y probar en la placa.
-2. NMEA 2000 por TWAI (librería NMEA2000) y UART / RS485.
+   medir hechos. Fondeo, unidades, mapa base y NMEA 2000 (escucha) hechos. Lo siguiente: WiFi y entradas por TCP / UDP, y probar en la placa.
+2. NMEA 2000: hecho en escucha con decodificador propio; más PGN según lo que haya en la red de Manuel.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático; comprobar pines libres de la 7B para el anemómetro.

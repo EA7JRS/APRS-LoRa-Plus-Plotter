@@ -51,8 +51,18 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `/api/v1/vessels` para cargar la lista al arrancar. Su tabla de PGN AIS (129038, 129039, 129040, 129041, 129802, 129809, 129810)
   es la referencia para NMEA 2000. **Fuera** (Manuel): demodulación SDR, visor web, base de datos y catálogo de puertos.
 
+- OpenPlotter (estudiado el 2026-11-11; Raspberry + Signal K, apps en Python, no se porta código). Aceptado por Manuel: entradas
+  de pulsos genéricas (corredera de paletas, cuentavueltas), sondas DS18B20, entradas digitales con alarma (sentina, puerta),
+  niveles de aviso de Signal K (nominal / normal / alert / warn / alarm / emergency) y más sensores I2C (BME280 / BMP280 / BME680,
+  INA260, BH1750 para el brillo). Núcleo hecho en `inputs`; los drivers I2C y 1-Wire van con el firmware. **Fuera**: gestión de
+  programas de la Raspberry y recepción SDR.
+- Pypilot (pypilot/pypilot, estudiado el 2026-11-11): piloto abierto en Raspberry con IMU y controlador de motor. Servidor NMEA en
+  TCP 20220: manda HDM (rumbo magnético), XDR PTCH / ROLL, RSA (timón) y MWV; acepta APB para seguir la ruta (toma el rumbo a
+  gobernar y el error de rumbo, que limita a 0,15 mn). Puerto de control propio en 23322 (JSON; modos, rumbo, embragar), sin
+  estudiar a fondo. El núcleo ya lee HDM / HDG, XDR y RSA y genera APB (`nmeaApb`). Sirve como compás para la tablilla de desvíos.
+
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas). 699 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso). 966 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

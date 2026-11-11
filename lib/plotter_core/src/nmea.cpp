@@ -5,6 +5,7 @@
  */
 #include "nmea.h"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -177,7 +178,45 @@ NmeaResult Nmea0183::feed(const char* line, Source src, uint32_t now, DataStore&
         st.set(Key::WaterTemp, f.num(1), src, now);
         return NmeaResult::Data;
     }
-    return NmeaResult::Ignored;         // HDG y HDM (magneticos) entran cuando este el modelo de declinacion
+    if (!std::strcmp(id, "HDM") || !std::strcmp(id, "HDG")) {      // rumbo magnetico: el verdadero sale al aplicar desvio y declinacion
+        if (!f.has(1)) return NmeaResult::Ignored;
+        st.set(Key::HeadingMag, norm360(f.num(1)), src, now);
+        return NmeaResult::Data;
+    }
+    if (!std::strcmp(id, "RSA")) {                                 // angulo del timon (estribor positivo)
+        if (f.n < 3 || !f.has(1) || f.f[2][0] != 'A') return NmeaResult::Ignored;
+        st.set(Key::RudderAngle, f.num(1), src, now);
+        return NmeaResult::Data;
+    }
+    if (!std::strcmp(id, "XDR")) {                                 // grupos de tipo, valor, unidad y nombre: cabeceo y escora
+        bool any = false;
+        for (int i = 1; i + 3 < f.n; i += 4) {
+            if (f.f[i][0] != 'A' || !f.has(i + 1)) continue;
+            const char* name = f.f[i + 3];
+            if (!std::strcmp(name, "PTCH") || !std::strcmp(name, "PITCH")) { st.set(Key::Pitch, f.num(i + 1), src, now); any = true; }
+            else if (!std::strcmp(name, "ROLL") || !std::strcmp(name, "HEEL")) { st.set(Key::Roll, f.num(i + 1), src, now); any = true; }
+        }
+        return any ? NmeaResult::Data : NmeaResult::Ignored;
+    }
+    return NmeaResult::Ignored;
+}
+
+int nmeaApb(char* out, int size, double xteNm, bool arrived, bool perp, double brgOD, const char* wpt, double brgPD, double hts,
+            bool magnetic) {
+    char body[96];
+    char m = magnetic ? 'M' : 'T';
+    double x = xteNm < 0 ? -xteNm : xteNm;
+    if (x > 9.99) x = 9.99;
+    char id[10];
+    int k = 0;
+    for (const char* p = wpt ? wpt : ""; *p && k < 9; p++)
+        if (*p != ',' && *p != '*' && *p >= 32 && *p < 127) id[k++] = *p;      // sin separadores dentro del nombre
+    id[k] = 0;
+    int n = std::snprintf(body, sizeof(body), "ECAPB,A,A,%.2f,%c,N,%c,%c,%.1f,%c,%s,%.1f,%c,%.1f,%c", x, xteNm > 0 ? 'L' : 'R',
+                          arrived ? 'A' : 'V', perp ? 'A' : 'V', norm360(brgOD), m, id, norm360(brgPD), m, norm360(hts), m);
+    if (n <= 0 || n >= int(sizeof(body))) return 0;
+    int w = std::snprintf(out, size_t(size), "$%s*%02X\r\n", body, nmeaChecksum(body));
+    return (w > 0 && w < size) ? w : 0;
 }
 
 }  // namespace plotter

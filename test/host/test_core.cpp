@@ -16,6 +16,7 @@
 #include "motion.h"
 #include "nmea.h"
 #include "store.h"
+#include "inputs.h"
 #include "stream.h"
 #include "units.h"
 #include "wind.h"
@@ -321,6 +322,109 @@ static void testAisExtra() {
     CHECK(aisJudgePosition(true, la, lo, false, -60, la + 0.01, lo, false) == AisPosVerdict::Valid);      // hora desordenada
 }
 
+static void testInputs() {
+    // Cuentavueltas: 2 pulsos por vuelta a 100 Hz = 3000 rpm
+    PulseInput tach(2.0, 2000);
+    uint64_t t = 1000000;
+    for (int i = 0; i < 200; i++) { CHECK(tach.pulse(t)); t += 10000; }
+    NEAR(tach.rpm(t), 3000.0, 1.0);
+    CHECK(tach.pulses() == 200); NEAR(tach.revolutions(), 100.0, 1e-9);
+    CHECK(!tach.pulse(t - 10000 + 500));                             // rebote
+    tach.resetCount();
+    CHECK(tach.pulses() == 0);
+    CHECK(tach.rpm(t + 6000000) == 0);                               // parado
+    // Corredera de 20000 pulsos por milla: 5,5556 Hz = 1 nudo
+    NEAR(logSpeedKn(20000.0 / 3600.0, 20000), 1.0, 1e-9);
+    NEAR(logSpeedKn(33.3333333, 20000), 6.0, 1e-6);
+    NEAR(logDistanceNm(50000, 20000), 2.5, 1e-12);
+    CHECK(logSpeedKn(10, 0) == 0);
+    // Rueda de 4 cm de radio a 5 vueltas por segundo: 1,2566 m/s; 100 vueltas = 25,13 m
+    NEAR(wheelSpeedMs(5, 0.04), 1.256637, 1e-6);
+    NEAR(wheelDistanceM(100, 0.04, 1.1), 27.646015, 1e-5);
+
+    // Interruptor de sentina a masa, 50 ms de filtro
+    DigitalInput bilge(true, 50);
+    CHECK(!bilge.update(true, 0) && !bilge.active());
+    CHECK(!bilge.update(false, 100));                                // empieza a cerrar
+    CHECK(!bilge.update(true, 120));                                 // rebote
+    CHECK(!bilge.update(false, 130));
+    CHECK(!bilge.update(false, 170) && !bilge.active());
+    CHECK(bilge.update(false, 180) && bilge.active());
+    CHECK(!bilge.update(false, 500) && bilge.sinceMs(500) == 320);
+    CHECK(!bilge.update(true, 600));
+    CHECK(bilge.update(true, 650) && !bilge.active());
+    DigitalInput door(false, 0);                                     // activo en alto, sin filtro
+    door.update(false, 0);
+    CHECK(door.update(true, 1) && door.active());
+
+    // CRC de Dallas: ejemplo de la nota de aplicacion 27 de Maxim
+    const uint8_t rom[] = {0x02, 0x1C, 0xB8, 0x01, 0x00, 0x00, 0x00};
+    CHECK(dallasCrc8(rom, 7) == 0xA2);
+    // DS18B20: valores de la tabla de la hoja de datos
+    auto sp = [](uint16_t raw, uint8_t cfg) {
+        static uint8_t b[9];
+        uint8_t v[9] = {uint8_t(raw & 0xFF), uint8_t(raw >> 8), 0x4B, 0x46, cfg, 0xFF, 0x0C, 0x10, 0};
+        for (int i = 0; i < 8; i++) b[i] = v[i];
+        b[8] = dallasCrc8(b, 8);
+        return b;
+    };
+    double c = 0;
+    CHECK(ds18b20Celsius(sp(0x0191, 0x7F), c)); NEAR(c, 25.0625, 1e-9);
+    CHECK(ds18b20Celsius(sp(0x07D0, 0x7F), c)); NEAR(c, 125.0, 1e-9);
+    CHECK(ds18b20Celsius(sp(0xFF5E, 0x7F), c)); NEAR(c, -10.125, 1e-9);
+    CHECK(ds18b20Celsius(sp(0xFC90, 0x7F), c)); NEAR(c, -55.0, 1e-9);
+    CHECK(ds18b20Celsius(sp(0x0191, 0x1F), c)); NEAR(c, 25.0, 1e-9);         // a 9 bits solo valen los medios grados
+    uint8_t bad[9];
+    for (int i = 0; i < 9; i++) bad[i] = sp(0x0191, 0x7F)[i];
+    bad[0] ^= 1;
+    CHECK(!ds18b20Celsius(bad, c));
+    const uint8_t none[9] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, shorted[9] = {0};
+    CHECK(!ds18b20Celsius(none, c) && !ds18b20Celsius(shorted, c));
+
+    // Niveles de Signal K
+    CHECK(alertLevelFromSignalK("alarm") == AlertLevel::Alarm && alertLevelFromSignalK("emergency") == AlertLevel::Emergency);
+    CHECK(alertLevelFromSignalK("otra") == AlertLevel::Normal && alertLevelFromSignalK(nullptr) == AlertLevel::Normal);
+    CHECK(!std::strcmp(alertLevelSignalK(AlertLevel::Warn), "warn") && !std::strcmp(alertLevelNameEs(AlertLevel::Warn), "Aviso"));
+    CHECK(!alertSounds(AlertLevel::Alert) && alertSounds(AlertLevel::Warn) && alertSounds(AlertLevel::Emergency));
+    CHECK(AlertLevel::Emergency > AlertLevel::Alarm && AlertLevel::Alarm > AlertLevel::Warn);
+    // Bateria: aviso por debajo de 11,8 V, se quita al pasar de 12,0 V
+    ThresholdAlert batt(11.8, 15.0, 0.2, AlertLevel::Warn);
+    CHECK(batt.update(12.4) == AlertLevel::Normal);
+    CHECK(batt.update(11.7) == AlertLevel::Warn);
+    CHECK(batt.update(11.9) == AlertLevel::Warn);                    // dentro de la histeresis sigue
+    CHECK(batt.update(12.05) == AlertLevel::Normal);
+    CHECK(batt.update(15.3) == AlertLevel::Warn && batt.update(14.9) == AlertLevel::Warn && batt.update(14.7) == AlertLevel::Normal);
+}
+
+static void testPilot() {
+    Nmea0183 nm;
+    DataStore st;
+    double v = 0;
+    // Lo que manda Pypilot por su servidor NMEA (TCP 20220)
+    CHECK(nm.feed(sentence("$APHDM,231.500,M").c_str(), Source::Tcp, 10, st) == NmeaResult::Data);
+    CHECK(st.get(Key::HeadingMag, 20, v)); NEAR(v, 231.5, 1e-9);
+    CHECK(nm.feed(sentence("$APXDR,A,-3.250,D,PTCH").c_str(), Source::Tcp, 10, st) == NmeaResult::Data);
+    CHECK(nm.feed(sentence("$APXDR,A,12.500,D,ROLL").c_str(), Source::Tcp, 10, st) == NmeaResult::Data);
+    CHECK(st.get(Key::Pitch, 20, v)); NEAR(v, -3.25, 1e-9);
+    CHECK(st.get(Key::Roll, 20, v)); NEAR(v, 12.5, 1e-9);
+    CHECK(nm.feed(sentence("$IIXDR,C,19.5,C,AIR,A,4.0,D,PITCH,A,-7.0,D,HEEL").c_str(), Source::Serial, 30, st) == NmeaResult::Data);
+    CHECK(st.get(Key::Roll, 40, v)); NEAR(v, -7.0, 1e-9);
+    CHECK(nm.feed(sentence("$IIXDR,C,19.5,C,AIR").c_str(), Source::Serial, 30, st) == NmeaResult::Ignored);
+    CHECK(nm.feed(sentence("$APRSA,-4.500,A,,").c_str(), Source::Tcp, 10, st) == NmeaResult::Data);
+    CHECK(st.get(Key::RudderAngle, 20, v)); NEAR(v, -4.5, 1e-9);
+    CHECK(nm.feed(sentence("$APRSA,-4.500,V,,").c_str(), Source::Tcp, 10, st) == NmeaResult::Ignored);
+    // APB hacia el piloto
+    char b[100];
+    int n = nmeaApb(b, sizeof(b), 0.034, false, false, 271.4, "CADIZ,1*", 268.9, 265.2, true);
+    CHECK(n > 0 && n == int(std::strlen(b)) && b[n - 2] == '\r' && b[n - 1] == '\n');
+    std::string line(b, size_t(n - 2));
+    CHECK(nmeaChecksumOk(line.c_str()));
+    CHECK(line.rfind("$ECAPB,A,A,0.03,L,N,V,V,271.4,M,CADIZ1,268.9,M,265.2,M*", 0) == 0);
+    n = nmeaApb(b, sizeof(b), -0.5, true, true, -10, nullptr, 370, 0, false);
+    CHECK(std::string(b, size_t(n - 2)).rfind("$ECAPB,A,A,0.50,R,N,A,A,350.0,T,,10.0,T,0.0,T*", 0) == 0);
+    CHECK(nmeaApb(b, 20, 0.1, false, false, 0, "A", 0, 0, true) == 0);     // no cabe
+}
+
 static void testGpx() {
     // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
     const char* in =
@@ -385,7 +489,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

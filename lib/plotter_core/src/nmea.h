@@ -3,7 +3,7 @@
  * This file is part of APRS LoRa+ Plotter.
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-// NMEA 0183: comprobacion, campos y las tramas de la fase 1 (RMC, GLL, VTG, DPT, DBT, MWV, HDG, HDT, HDM, VHW, MTW, VDM, VDO).
+// NMEA 0183: comprobacion, campos y las tramas de la fase 1 (RMC, GLL, VTG, DPT, DBT, MWV, HDG, HDT, HDM, VHW, MTW, XDR, RSA, VDM, VDO).
 #ifndef PLOTTER_NMEA_H_
 #define PLOTTER_NMEA_H_
 
@@ -29,6 +29,12 @@ struct NmeaStats {
     uint32_t aisUnsupported = 0;    // tipo de mensaje que no se usa
     uint32_t aisOversized = 0;      // aceptado, con mas bits de la cuenta
 };
+
+// Trama APB para un piloto automatico (Pypilot y la mayoria de pilotos con entrada NMEA 0183): error de rumbo en millas
+// (positivo = el barco esta a estribor de la ruta, hay que gobernar a babor), demoras verdaderas o magneticas segun "magnetic".
+// Devuelve la longitud escrita (con "*XX\r\n"), 0 si no cabe.
+int nmeaApb(char* out, int size, double xteNm, bool arrived, bool perpendicularPassed, double bearingOriginToDest,
+            const char* waypointId, double bearingToDest, double headingToSteer, bool magnetic);
 
 enum class NmeaResult { Bad, Ignored, Data, Ais };
 

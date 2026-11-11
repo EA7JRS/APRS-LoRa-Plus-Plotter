@@ -13,7 +13,8 @@
 namespace plotter {
 
 enum class Key : uint8_t {
-    Lat, Lon, Sog, Cog, Heading, Stw, Depth, WaterTemp, Awa, Aws, Twd, Tws, Pressure, AirTemp, Rpm, BatteryV, Count
+    Lat, Lon, Sog, Cog, Heading, Stw, Depth, WaterTemp, Awa, Aws, Twd, Tws, Pressure, AirTemp, Rpm, BatteryV,
+    HeadingMag, Pitch, Roll, RudderAngle, Count
 };
 
 // Orden de prioridad: menor = mejor

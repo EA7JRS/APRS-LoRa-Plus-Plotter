@@ -27,6 +27,7 @@ Todavía no hay firmware que compile para la placa.
 | `gnss` | Satélites a la vista y usados (GSV, GSA), DOP; arranque de una fuente gpsd |
 | `gpx` | Lectura y escritura de GPX 1.1 (waypoints, rutas y tracks) |
 | `inputs` | Entradas de pulsos (corredera, cuentavueltas), interruptores, sondas DS18B20 y niveles de aviso de Signal K |
+| `anchor` | Vigilancia de fondeo: círculo de alarma, garreo, sin posición |
 | `lights` | Alcance geográfico y luminoso, ritmos de luces, marcas IALA, radio de borneo |
 | `navwarn` | Radioavisos náuticos en vigor (XML del IHM) y posiciones dentro del texto |
 | `sim` | Simulador: un barco navegando y sus tramas NMEA |

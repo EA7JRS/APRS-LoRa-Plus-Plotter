@@ -18,9 +18,15 @@ void load() {
     v.simulator = p.getBool("sim", true);
     v.serialBaud = p.getUInt("baud", 38400);
     v.brightness = p.getInt("bright", 100);
+    v.anchorOn = p.getBool("anc", false);
+    v.anchorLat = p.getDouble("ancLat", 0);
+    v.anchorLon = p.getDouble("ancLon", 0);
+    v.anchorRadius = p.getInt("ancR", 40);
+    v.anchorRode = p.getInt("ancRode", 30);
     p.end();
     if (v.serialBaud != 4800 && v.serialBaud != 38400) v.serialBaud = 38400;
     if (v.brightness < 10 || v.brightness > 100) v.brightness = 100;
+    if (v.anchorRode < 5 || v.anchorRode > 200) v.anchorRode = 30;
 }
 
 void save() {
@@ -29,6 +35,11 @@ void save() {
     p.putBool("sim", v.simulator);
     p.putUInt("baud", v.serialBaud);
     p.putInt("bright", v.brightness);
+    p.putBool("anc", v.anchorOn);
+    p.putDouble("ancLat", v.anchorLat);
+    p.putDouble("ancLon", v.anchorLon);
+    p.putInt("ancR", v.anchorRadius);
+    p.putInt("ancRode", v.anchorRode);
     p.end();
 }
 

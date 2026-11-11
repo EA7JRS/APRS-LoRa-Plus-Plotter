@@ -15,4 +15,6 @@ struct Preferences {
     void putBool(const char*, bool) {}
     void putUInt(const char*, uint32_t) {}
     void putInt(const char*, int) {}
+    double getDouble(const char*, double d) { return d; }
+    void putDouble(const char*, double) {}
 };

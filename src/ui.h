@@ -15,6 +15,7 @@ void showPage(int tab);
 void testTapChart(int x, int y);   // toque en la carta, en pixeles de la carta
 void testPanelButton(int b);       // boton 0, 1 o 2 del panel de la carta
 void testMob();
+void testAnchor();                  // boton Fondeo de la carta
 void testRoutes(int action);       // botones de la pestana Rutas (4 a la ruta, 6 navegar, 8 vaciar)
 void testSelectWaypoint(int i);
 void testMark();     // 0 Instrumentos ... 7 Ajustes (para las pruebas en el PC)

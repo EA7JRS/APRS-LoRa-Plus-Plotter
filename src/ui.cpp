@@ -8,6 +8,8 @@
 #include <lvgl.h>
 
 #include "board.h"
+#include "anchor.h"
+#include "lights.h"
 #include "aistargets.h"
 #include "chartui.h"
 #include "gpx.h"
@@ -73,7 +75,7 @@ static lv_obj_t* lblAisBadge = nullptr;
 static uint32_t rowMmsi[kRows] = {};
 
 // Ventana centrada sobre cualquier pantalla: ficha de un blanco o alerta de abordaje (la misma que las emergencias de la app)
-enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB };
+enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR };
 static lv_obj_t* modalBack = nullptr;
 static lv_obj_t* modalHead = nullptr;
 static lv_obj_t* modalTitle = nullptr;
@@ -128,6 +130,15 @@ static bool selOn = false;
 static LatLon selPos{0, 0};
 static lv_obj_t* selMark = nullptr;
 static RouteFollower nav;
+// Fondeo: vigilancia del ancla, panel de la carta y circulo de alarma
+static AnchorWatch anchorW;
+static bool anchorPanel = false;
+static double anchorRode = 30;                            // cadena filada, m
+static uint32_t anchorQuietMs = 0;                        // la alerta no vuelve a abrirse hasta entonces
+static bool anchorQuiet = false;
+static lv_obj_t* anchorCircle = nullptr;
+static lv_obj_t* anchorMark = nullptr;
+static lv_obj_t* anchorBtnLbl = nullptr;
 static const int kRoute = 12;
 static LatLon navPts[kRoute];
 static char navNames[kRoute][20];
@@ -435,6 +446,7 @@ static void updateRadar() {
 
 // ---------- Ventana centrada ----------
 static void updateMobModal();
+static void updateAnchorModal();
 
 static void closeModal() {
     modalMode = M_NONE;
@@ -444,6 +456,12 @@ static void closeModal() {
 
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
     if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta
+    if (modalMode == M_ANCHOR) {                           // silenciar: 10 min sin volver a abrirse
+        anchorQuiet = true;
+        anchorQuietMs = millis() + 10 * 60000u;
+        closeModal();
+        return;
+    }
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i >= 0) tg.silence(modalMmsi, modalMode == M_COLLISION ? true : !tg.at(i).silenced);
@@ -451,6 +469,12 @@ static void onModalA(lv_event_t*) {                       // silenciar la alarma
 }
 
 static void onModalB(lv_event_t*) {                       // cerrar
+    if (modalMode == M_ANCHOR) {                           // cerrar: si sigue garreando vuelve en 2 min
+        anchorQuiet = true;
+        anchorQuietMs = millis() + 2 * 60000u;
+        closeModal();
+        return;
+    }
     if (modalMode == M_COLLISION) {
         int slot = 0;
         uint32_t now = millis();
@@ -542,10 +566,38 @@ static void updateMobModal() {
     lv_label_set_text(modalBtnBLbl, "CLOSE");
 }
 
+// Garreo: el barco ha salido del circulo de fondeo (o no hay posicion)
+static void updateAnchorModal() {
+    if (!anchorW.alarm()) { closeModal(); return; }
+    const AnchorState& a = anchorW.state();
+    char b[260], head[48];
+    lv_obj_set_style_bg_color(modalHead, lv_color_hex(C_RED), 0);
+    if (a.noFix && !a.dragging) {
+        lv_label_set_text(modalTitle, "ANCHOR WATCH");
+        lv_label_set_text(modalSub, "No position \xC2\xB7 the anchor watch cannot see the boat");
+        lv_label_set_text(modalName, "NO GPS FIX");
+        snprintf(b, sizeof(b), "Last distance to the anchor:  %d m\nAlarm radius:  %d m", (int)lround(a.distanceM), (int)lround(anchorW.radiusM()));
+    } else {
+        lv_label_set_text(modalTitle, "ANCHOR DRAG");
+        lv_label_set_text(modalSub, "Anchor watch \xC2\xB7 boat outside the alarm circle");
+        snprintf(head, sizeof(head), "%d m \xC2\xB7 %03d\xC2\xB0", (int)lround(a.distanceM), (int)lround(a.bearing) % 360);
+        lv_label_set_text(modalName, head);
+        char sogTxt[24] = "--";
+        double sog;
+        if (store->get(Key::Sog, millis(), sog)) { snprintf(sogTxt, sizeof(sogTxt), "%.1f kn", sog); comma(sogTxt); }
+        snprintf(b, sizeof(b), "Distance / bearing from the anchor\nAlarm radius:  %d m\nMaximum distance:  %d m\nSpeed:  %s",
+                 (int)lround(anchorW.radiusM()), (int)lround(a.maxDistanceM), sogTxt);
+    }
+    lv_label_set_text(modalBody, b);
+    lv_label_set_text(modalBtnALbl, "SILENCE 10 MIN");
+    lv_label_set_text(modalBtnBLbl, "CLOSE");
+}
+
 // Rellena la ventana con el estado actual del blanco; la cierra si el blanco ya no existe o (alerta) ya no hay riesgo
 static void updateModal() {
     if (modalMode == M_NONE) return;
     if (modalMode == M_MOB) { updateMobModal(); return; }
+    if (modalMode == M_ANCHOR) { updateAnchorModal(); return; }
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i < 0) { closeModal(); return; }
@@ -586,7 +638,10 @@ static void updateModal() {
 
 // Abre la alerta del primer blanco con riesgo que no este silenciado ni cerrado hace poco
 static void checkCollision() {
-    if (modalMode == M_COLLISION || modalMode == M_MOB) return;
+    if (modalMode == M_COLLISION || modalMode == M_MOB || modalMode == M_ANCHOR) return;
+    if (anchorQuiet && (int32_t)(anchorQuietMs - millis()) <= 0) anchorQuiet = false;
+    if (!anchorW.alarm()) anchorQuiet = false;             // al volver al circulo, la siguiente salida avisa otra vez
+    else if (!anchorQuiet) { openModal(M_ANCHOR, 0); return; }
     AisTargets& tg = links::targets();
     if (tg.dangerousCount() == 0) return;
     uint32_t now = millis();
@@ -825,8 +880,53 @@ static const char* nearWaypoint(LatLon p) {
     return nullptr;
 }
 
+static double anchorSuggested() {
+    double depth = 0;
+    if (!store->get(Key::Depth, millis(), depth)) depth = 0;
+    return AnchorWatch::suggestedRadiusM(anchorRode, depth);
+}
+
+static void saveAnchor() {
+    settings::Values& v = settings::get();
+    v.anchorOn = anchorW.state().set;
+    v.anchorLat = anchorW.anchor().lat;
+    v.anchorLon = anchorW.anchor().lon;
+    v.anchorRadius = (int)lround(anchorW.radiusM());
+    v.anchorRode = (int)lround(anchorRode);
+    settings::save();
+}
+
+static void onAnchorBtn(lv_event_t*) {
+    anchorPanel = !anchorPanel;
+    if (anchorPanel) { selOn = false; measOn = false; measN = 0; }
+}
+
 static void onPanelBtn(lv_event_t* e) {
     int b = (int)(intptr_t)lv_event_get_user_data(e);
+    if (anchorPanel && !measOn && !selOn) {
+        if (anchorW.state().set) {                        // - 5 m / + 5 m (radio) / Levar / Cerrar
+            if (b == 0) anchorW.setRadius(anchorW.radiusM() - 5);
+            else if (b == 1) anchorW.setRadius(anchorW.radiusM() + 5);
+            else if (b == 2) { anchorW.weigh(); anchorPanel = false; }
+            else anchorPanel = false;
+            if (b <= 2) saveAnchor();
+        } else {                                          // - 5 m / + 5 m (cadena) / Fondear / Cerrar
+            if (b == 0) { if (anchorRode > 5) anchorRode -= 5; }
+            else if (b == 1) { if (anchorRode < 200) anchorRode += 5; }
+            else if (b == 2) {
+                uint32_t now = millis();
+                double la, lo;
+                if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) {
+                    anchorW.drop({la, lo}, anchorSuggested(), now);
+                    anchorQuiet = false;
+                    saveAnchor();
+                    if (chZoom < 17) chZoom = 17;          // que se vea el circulo
+                    chFollow = true;
+                }
+            } else anchorPanel = false;
+        }
+        return;
+    }
     if (measOn) {                                         // Deshacer / A ruta / Salir
         if (b == 0) { if (measN > 0) measN--; }
         else if (b == 1) {
@@ -967,6 +1067,23 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_align(plus, LV_ALIGN_TOP_RIGHT, -8, 8);
     lv_obj_t* minus = textButton(chart, "-", 52, 52, onZoom, -1);
     lv_obj_align(minus, LV_ALIGN_TOP_RIGHT, -8, 68);
+    anchorCircle = lv_obj_create(chart);
+    lv_obj_remove_style_all(anchorCircle);
+    lv_obj_set_style_radius(anchorCircle, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(anchorCircle, 3, 0);
+    lv_obj_set_style_bg_color(anchorCircle, lv_color_hex(0x2ECC71), 0);
+    lv_obj_set_style_bg_opa(anchorCircle, 30, 0);
+    lv_obj_set_hidden(anchorCircle, true);
+    anchorMark = box(chart, C_INK, 3);
+    lv_obj_set_size(anchorMark, 12, 12);
+    lv_obj_set_style_border_color(anchorMark, lv_color_hex(0x2ECC71), 0);
+    lv_obj_set_style_border_width(anchorMark, 3, 0);
+    lv_obj_set_hidden(anchorMark, true);
+    lv_obj_set_clickable(anchorCircle, false);            // los toques pasan a la carta
+    lv_obj_set_scrollable(anchorCircle, false);
+    lv_obj_t* ab = textButton(chart, "Fondeo", 110, 46, onAnchorBtn, 0);
+    lv_obj_align(ab, LV_ALIGN_TOP_RIGHT, -68, 68);
+    anchorBtnLbl = lv_obj_get_child(ab, 0);
     chCenterBtn = textButton(chart, "Centrar barco", 170, 46, onCenter, 0);
     lv_obj_align(chCenterBtn, LV_ALIGN_TOP_RIGHT, -68, 8);
     chScaleBar = box(chart, C_TEXT);
@@ -1161,8 +1278,58 @@ static void updateChart() {
         lv_obj_set_pos(selMark, (int)lround(x) - 13, (int)lround(y) - 13);
     }
     lv_obj_set_hidden(selMark, !selOn);
+    // Fondeo: circulo de alarma y ancla
+    {
+        const AnchorState& a = anchorW.state();
+        if (a.set) {
+            double x, y;
+            toScreen(anchorW.anchor(), x, y);
+            int r = (int)lround(anchorW.radiusM() / mpp);
+            bool vis = r >= 4 && r <= 1500 && x > -r && y > -r && x < 1100 + r && y < 600 + r;
+            uint32_t col = anchorW.alarm() ? C_RED : 0x2ECC71;
+            lv_obj_set_size(anchorCircle, 2 * r, 2 * r);
+            lv_obj_set_pos(anchorCircle, (int)lround(x) - r, (int)lround(y) - r);
+            lv_obj_set_style_border_color(anchorCircle, lv_color_hex(col), 0);
+            lv_obj_set_style_bg_color(anchorCircle, lv_color_hex(col), 0);
+            lv_obj_set_hidden(anchorCircle, !vis);
+            lv_obj_set_pos(anchorMark, (int)lround(x) - 6, (int)lround(y) - 6);
+            lv_obj_set_style_border_color(anchorMark, lv_color_hex(col), 0);
+            lv_obj_set_hidden(anchorMark, !inside(x, y));
+        } else {
+            lv_obj_set_hidden(anchorCircle, true);
+            lv_obj_set_hidden(anchorMark, true);
+        }
+        lv_obj_set_style_text_color(anchorBtnLbl, lv_color_hex(anchorW.alarm() ? C_RED : (a.set ? 0x2ECC71 : C_TEXT)), 0);
+    }
+    bool anchorShow = anchorPanel && !measOn && !selOn;
     char pt[200];
-    if (measOn) {
+    if (anchorShow) {
+        const AnchorState& a = anchorW.state();
+        if (a.set) {
+            const char* stTxt = a.dragging ? "GARREO" : (a.noFix ? "SIN POSICI\xC3\x93N" : "Fondeado");
+            snprintf(pt, sizeof(pt), "%s \xC2\xB7 a %d m del ancla \xC2\xB7 %03d\xC2\xB0\nRadio de alarma %d m \xC2\xB7 m\xC3\xA1ximo %d m", stTxt,
+                     (int)lround(a.distanceM), (int)lround(a.bearing) % 360, (int)lround(anchorW.radiusM()), (int)lround(a.maxDistanceM));
+            lv_label_set_text(chPanelBtnLbl[2], "Levar");
+        } else {
+            double depth = 0;
+            bool hasDepth = store->get(Key::Depth, now, depth) && depth > 0;
+            char l1[96];
+            if (hasDepth) {
+                char dp[16], sc[16];
+                snprintf(dp, sizeof(dp), "%.1f", depth); comma(dp);
+                snprintf(sc, sizeof(sc), "%.1f", scopeRatio(anchorRode, depth, 1.0)); comma(sc);
+                snprintf(l1, sizeof(l1), "Cadena %d m \xC2\xB7 fondo %s m \xC2\xB7 relaci\xC3\xB3n %s", (int)lround(anchorRode), dp, sc);
+            } else snprintf(l1, sizeof(l1), "Cadena %d m \xC2\xB7 sin sonda", (int)lround(anchorRode));
+            snprintf(pt, sizeof(pt), "%s\nRadio de alarma %d m \xC2\xB7 pulsa al largar el ancla", l1, (int)lround(anchorSuggested()));
+            lv_label_set_text(chPanelBtnLbl[2], "Fondear");
+        }
+        lv_label_set_text(chPanelTxt, pt);
+        lv_label_set_text(chPanelBtnLbl[0], "- 5 m");
+        lv_label_set_text(chPanelBtnLbl[1], "+ 5 m");
+        lv_label_set_text(chPanelBtnLbl[3], "Cerrar");
+        for (int i = 0; i < 4; i++) lv_obj_set_hidden(chPanelBtn[i], false);
+        lv_obj_set_style_border_color(chPanel, lv_color_hex(anchorW.alarm() ? C_RED : 0x2ECC71), 0);
+    } else if (measOn) {
         double total = pathLengthNm(measPts, measN, true);
         char tt[24], l2[96] = "Toca la carta para a\xC3\xB1" "adir puntos";
         snprintf(tt, sizeof(tt), "%.2f mn", total); comma(tt);
@@ -1249,7 +1416,7 @@ static void updateChart() {
         }
         lv_obj_set_width(chPanelTxt, 744 - 24 - slot * 102 - 8);
     }
-    lv_obj_set_hidden(chPanel, !(measOn || selOn || navOn));
+    lv_obj_set_hidden(chPanel, !(anchorShow || measOn || selOn || navOn));
 
     // Escala: la distancia redonda mas larga que quepa en 180 px
     static const double kSteps[] = {0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200};
@@ -1269,10 +1436,14 @@ static void updateChart() {
 
 // El seguimiento del destino va aunque la carta no este a la vista
 static void updateNav() {
-    if (!navOn) return;
     uint32_t now = millis();
     double la, lo;
-    if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) nav.update({la, lo}, now);
+    bool own = store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo);
+    if (anchorW.state().set) {
+        if (own) anchorW.update({la, lo}, now);
+        anchorW.tick(now);
+    }
+    if (navOn && own) nav.update({la, lo}, now);
 }
 
 // ---------- Pestana Rutas ----------
@@ -1639,6 +1810,11 @@ void begin(DataStore* s) {
     }
     makeModal();
     loadWaypoints();
+    {                                                     // fondeo que estaba vigilado antes de apagar o reiniciar
+        const settings::Values& v = settings::get();
+        anchorRode = v.anchorRode;
+        if (v.anchorOn) anchorW.drop({v.anchorLat, v.anchorLon}, v.anchorRadius, millis());
+    }
     showTab(0);
 }
 
@@ -1768,5 +1944,6 @@ void testRoutes(int action) {                              // 2 ir a, 3 ver, 4 a
 }
 void testSelectWaypoint(int i) { wpSel = (i >= 0 && i < wpN) ? i : -1; }
 void testMark() { onMark(nullptr); }
+void testAnchor() { onAnchorBtn(nullptr); }
 
 }

@@ -10,6 +10,7 @@
 #include <string>
 
 #include "ais.h"
+#include "anchor.h"
 #include "aistargets.h"
 #include "astro.h"
 #include "chartui.h"
@@ -36,6 +37,7 @@ static int total = 0, failed = 0;
 #define CHECK(c) do { total++; if (!(c)) { failed++; std::printf("FALLO %s:%d  %s\n", __FILE__, __LINE__, #c); } } while (0)
 #define NEAR(a, b, tol) do { total++; double _a = (a), _b = (b); if (!(std::fabs(_a - _b) <= (tol))) { failed++; std::printf("FALLO %s:%d  %s = %.6f, esperado %.6f +-%g\n", __FILE__, __LINE__, #a, _a, _b, double(tol)); } } while (0)
 
+static bool near(double a, double b, double tol) { return std::fabs(a - b) <= tol; }
 static double dms(double d, double m, double s) { return d + m / 60 + s / 3600; }
 
 static std::string sentence(const std::string& body) {       // anade '$' o '!' y la suma
@@ -1129,8 +1131,68 @@ static void testStream() {
     CHECK(df.seen("linea 99", 9500) && !df.seen("linea 0", 9500));  // solo recuerda las 64 ultimas
 }
 
+static void testAnchor() {
+    AnchorWatch w;
+    CHECK(!w.state().set && !w.alarm());
+    // Radio recomendado: 30 m de cadena en 5 m de agua con la roldana a 1 m: borneo sqrt(900 - 36) = 29,4 m, mas 10 m
+    CHECK(near(AnchorWatch::suggestedRadiusM(30, 5, 1, 10), 39.39, 0.02));
+    CHECK(near(AnchorWatch::suggestedRadiusM(30, 0), 40, 1e-9));          // sin sonda: toda la cadena
+    CHECK(near(AnchorWatch::suggestedRadiusM(10, 20), 20, 1e-9));         // la cadena no llega: toda la cadena
+    LatLon a{36.53, -6.28};
+    w.drop(a, 40, 1000);
+    CHECK(w.state().set && !w.state().hasFix && !w.alarm());
+    LatLon in = gcDestination(a, 90, 25.0 / kMetersPerNm);
+    w.update(in, 2000);
+    CHECK(w.state().hasFix && near(w.state().distanceM, 25, 0.05) && near(w.state().bearing, 90, 0.1));
+    CHECK(!w.state().dragging);
+    // Sale del circulo: no avisa hasta llevar 10 s fuera
+    LatLon out = gcDestination(a, 200, 55.0 / kMetersPerNm);
+    w.update(out, 3000);
+    CHECK(!w.state().dragging && near(w.state().maxDistanceM, 55, 0.05));
+    w.update(out, 12000);
+    CHECK(!w.state().dragging);
+    w.update(out, 13000);
+    CHECK(w.state().dragging && w.alarm());
+    // Un salto suelto del GPS no dispara: fuera, dentro, fuera
+    w.update(in, 14000);
+    CHECK(!w.state().dragging && !w.alarm());
+    w.update(out, 15000);
+    w.update(in, 20000);
+    w.update(out, 26000);
+    CHECK(!w.state().dragging);
+    CHECK(near(w.state().maxDistanceM, 55, 0.05));
+    // Agrandar el circulo quita el aviso
+    w.update(out, 40000);
+    CHECK(w.state().dragging);
+    w.setRadius(60);
+    w.update(out, 41000);
+    CHECK(!w.state().dragging && near(w.radiusM(), 60, 1e-9));
+    w.setRadius(1);
+    CHECK(near(w.radiusM(), 5, 1e-9));
+    w.setRadius(9999);
+    CHECK(near(w.radiusM(), 500, 1e-9));
+    // Sin posicion durante un minuto
+    w.setRadius(60);
+    w.tick(41000 + 59000);
+    CHECK(!w.state().noFix);
+    w.tick(41000 + 60000);
+    CHECK(w.state().noFix && w.alarm());
+    w.update(in, 41000 + 61000);
+    CHECK(!w.state().noFix && !w.alarm());
+    // El contador de milisegundos da la vuelta
+    AnchorWatch r;
+    r.drop(a, 40, 0xFFFFF000u);
+    r.update(out, 0xFFFFF800u);
+    r.update(out, 0x00002000u);
+    CHECK(r.state().dragging);
+    r.weigh();
+    CHECK(!r.state().set && !r.alarm());
+    r.update(out, 0x00009000u);
+    CHECK(!r.state().hasFix);
+}
+
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

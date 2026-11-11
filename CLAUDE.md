@@ -209,7 +209,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `CartaPrevision`. Fase 3, sin programar.
 
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS). 1346 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), anchor (vigilancia de fondeo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS). 1369 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - **Firmware, primer paso (2026-11-11)**: `platformio.ini` (misma base que Display: pioarduino `espressif32 @ 8.0.0`, LVGL
   ~9.6.0, ArduinoJson 7.4.3), placa 7B copiada de Display (`src/board.h`, `board_lcd7b.cpp`, `board_common.*`, `lv_defs.h`,
@@ -257,6 +257,12 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   cambio por el través, botón «Siguiente», «A P2 (2 de 4)», ruta dibujada en la carta). **Medir** en la carta (botón «Medir»
   del punto tocado: tramos encadenados, total, último tramo con demora, tiempo a la velocidad actual; «Deshacer», «A ruta»,
   «Salir»). Dibujado en el PC (acciones `wp:n`, `rutas:n`). Falta: renombrar waypoints, varias rutas con nombre, invertir ruta.
+- **Fondeo y alarma de garreo (2026-11-11, rama `fondeo`)**: núcleo `anchor` (`AnchorWatch`: círculo alrededor del ancla,
+  garreo tras 10 s seguidos fuera —un salto suelto del GPS no avisa—, sin posición a los 60 s, distancia máxima, radio
+  recomendado = borneo con la cadena y la sonda + 10 m). Carta: botón «Fondeo» → panel (cadena ± 5 m, fondo, relación,
+  «Fondear» en la posición del barco; fondeado: distancia y demora al ancla, radio ± 5 m, «Levar»), círculo verde / rojo,
+  zoom 17 al fondear. Ventana «ANCHOR DRAG» / «ANCHOR WATCH · NO GPS FIX» (SILENCE 10 MIN, CLOSE = 2 min). El fondeo se guarda
+  en NVS y sigue tras un reinicio. Acción `fondeo` en el dibujo del PC. Falta: marcar el ancla tocando la carta, sonido.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.
@@ -264,7 +270,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y
-   medir hechos. Lo siguiente: unidades, elegir mapa base, pantalla de fondeo (garreo), y probar en la placa.
+   medir hechos. Fondeo hecho. Lo siguiente: unidades, elegir mapa base, y probar en la placa.
 2. NMEA 2000 por TWAI (librería NMEA2000) y UART / RS485.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático; comprobar pines libres de la 7B para el anemómetro.

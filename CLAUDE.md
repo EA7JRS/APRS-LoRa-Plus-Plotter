@@ -164,6 +164,16 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   (POEM, WMS) y praderas de fanerógamas marinas. Posible capa «Zonas protegidas» de la carta (fase 3) y aviso al fondear
   sobre pradera o reserva; propuesto a Manuel, sin decidir. Sin comprobar: direcciones de las capas de posidonia y licencia.
 
+- Catálogo de la IDEE (`www.idee.es/csw-inspire-idee`, enlace de Manuel, 2026-11-11): buscador nacional de datos y servicios
+  geográficos (GeoNetwork, CSW); su interfaz es JavaScript, pero las fichas `.../srv/api/records/<id>` sí se leen. Fichas del
+  IHM encontradas, todas CC-BY 4.0 y «sin limitaciones al acceso público»: límites marítimos (`spaihmwms_unidadesmaritimas`,
+  y los datos en GML `spaihmMU`), **línea de costa** por WMS (`spaihmwms_hidrografia_costa`,
+  `http://ideihm.covam.es/ihm-inspire/wms-hidrografia-p`, pleamar y bajamar, «no válido para la navegación») y por **WFS**
+  (`spaihmwfs_regionesmarinas_costa`). La costa en vectores del IHM es candidata a la costa de reserva de España en la
+  microSD (la carta sin teselas), mejor que una costa mundial genérica; pendiente de ver tamaño y formato. También está la ficha
+  de zonas de servicio portuarias de Puertos del Estado (`spa_puertos_estado`). El IHM tiene una herramienta «Faros y Señales
+  de Niebla» con los datos del libro de faros (misma fuente que `lucesIHM`).
+
 ## Estado (2026-11-11)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1226 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).

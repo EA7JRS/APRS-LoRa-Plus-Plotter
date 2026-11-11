@@ -8,6 +8,8 @@
 #include "board.h"
 #if defined(BOARD_LCD7B)
 #include "board_common.h"
+#include <SD.h>
+#include <SPI.h>
 #include <Wire.h>
 
 #ifndef LCD_PCLK_HZ
@@ -111,6 +113,22 @@ void setBacklight(int percent) {
 
 bool setCanMode(bool can) { return ioxSet(EXIO_USB_CAN, can); }
 bool sdSelect(bool selected) { return ioxSet(EXIO_SD_CS, !selected); }
+
+// GPIO que la libreria SD mueve como si fuera el CS (el de verdad va por el expansor). Sin verificar que el 6 este libre
+// en todas las revisiones de la 7B: se cambia con -DSD_DUMMY_CS=n.
+#ifndef SD_DUMMY_CS
+#define SD_DUMMY_CS 6
+#endif
+bool sdBegin() {
+    if (!sdSelect(true)) return false;                            // la tarjeta es lo unico en ese bus SPI
+    SPI.begin(PIN_SD_SCK, PIN_SD_MISO, PIN_SD_MOSI, -1);
+    if (!SD.begin(SD_DUMMY_CS, SPI, 20000000)) {
+        Serial.println("[board] sin tarjeta TF (o no se puede leer)");
+        return false;
+    }
+    Serial.printf("[board] tarjeta TF: %llu MB\n", (unsigned long long)(SD.cardSize() / (1024ULL * 1024ULL)));
+    return true;
+}
 
 }
 #endif

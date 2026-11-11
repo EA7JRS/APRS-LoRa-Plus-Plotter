@@ -232,9 +232,15 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   blanco (tipo, MMSI, clase, distancia, CPA, velocidad, eslora, silenciar / activar alarma). Pestaña **Carta**, primer paso,
   **sin teselas**: proyección de `tiles`, barco con vector de 6 min, derrota (`TrackSampler`, 240 puntos que se van
   aclarando), blancos AIS con nombre y vector, escala, zoom 5 a 18 con + / −, arrastrar para mover y «Centrar barco».
-  Dibujadas en el PC (`tools/ui_preview/build.sh <lvgl> salida.ppm <pestaña> <segundos> [cerrar]`). Falta: teselas de la
-  microSD y costa de reserva, waypoints y rutas, medir, alarma sonora (zumbador externo, pin por decidir), rumbo arriba,
-  zona de guarda y estelas en el radar.
+  Dibujadas en el PC (`tools/ui_preview/build.sh <lvgl> salida.ppm <pestaña> <segundos> [cerrar]`). Fusionado en `main` el 2026-11-11.
+- **Teselas de la tarjeta en la Carta (2026-11-11, rama `carta-teselas`)**: fondo con las teselas PNG de
+  `/charts/osm/<z>/<x>/<y>.png` (`docs/CARTAS.md`): 24 imágenes de LVGL recolocadas al mover o cambiar el zoom, lista de
+  teselas que faltan (se olvida cada 30 s), decodificador PNG (lodepng) y JPEG (tjpgd) de LVGL, caché de imágenes de 8 MB,
+  tarjeta por el sistema de ficheros de LVGL (`S:`; Arduino SD en la placa, carpeta `/tmp/plotter_sd` en el PC). Sobre mapa
+  claro las líneas pasan a oscuras y las etiquetas llevan fondo. `board::sdBegin` (CS por el expansor, GPIO 6 de pega para
+  la librería SD: **sin verificar**). Comprobado en el PC con teselas de prueba (`tools/ui_preview/fake_tiles.py`): encajan
+  entre sí y con el barco. Falta: elegir mapa base, bajar teselas por WiFi, costa de reserva, waypoints y rutas, medir,
+  alarma sonora (zumbador externo, pin por decidir), rumbo arriba, zona de guarda y estelas en el radar.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.
 
 ## Siguiente

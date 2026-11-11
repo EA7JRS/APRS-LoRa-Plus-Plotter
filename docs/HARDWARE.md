@@ -23,6 +23,8 @@ funciona en la 7B. Lo que el plotter añade está sin probar en la placa.
 | WiFi (TCP, UDP, Signal K, gpsd) | Pendiente |
 
 Dudas a comprobar con la placa delante:
+- Tarjeta TF: `board::sdBegin` deja el CS activo por el expansor y da a la librería SD el GPIO 6 como CS de pega. Si la
+  tarjeta no monta, probar otro pin libre con `-DSD_DUMMY_CS=n` o bajar la velocidad del SPI (20 MHz).
 - Un receptor AIS con salida RS-232 o RS-422 (Comar SLR200G) necesita adaptador a RS485 / nivel correcto: no conectarlo directo.
 - Pines libres para el anemómetro de pulsos y las sondas DS18B20: mirar el conector de expansión de la 7B.
 - Con el CAN activo no hay USB nativo; la consola y la carga del firmware van por el puerto del CH343.

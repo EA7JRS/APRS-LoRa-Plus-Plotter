@@ -44,6 +44,7 @@ void setup() {
     Serial.begin(115200);
     Serial.println("\n=== APRS LoRa+ Plotter " PLOTTER_VERSION " (" BOARD_ENV ") ===");
     bool ok = board::begin();
+    bool sd = board::sdBegin();                 // cartas en /charts/<mapa>/<z>/<x>/<y>.png
 
     lv_init();
     lv_tick_set_cb(tickMs);
@@ -66,6 +67,7 @@ void setup() {
     links::begin(&store);
     ui::begin(&store);
     if (!ok) Serial.println("La placa no ha arrancado bien: revisar docs/HARDWARE.md");
+    if (!sd) Serial.println("[main] sin tarjeta: la carta sale sin mapa de fondo");
 }
 
 // Por el puerto serie del USB (UART0): "APRS-INFO?" como el resto de dispositivos APRS LoRa+, y "SIM 0" / "SIM 1".

@@ -104,6 +104,15 @@ static int trackN = 0;
 static TrackSampler trackSampler;
 static Dot chDots[kChartDots];
 static int chZoom = 14;
+// Teselas de la tarjeta: S:/charts/<mapa>/<z>/<x>/<y>.png (S: es la tarjeta, por el sistema de ficheros de LVGL)
+static const int kTileImgs = 24;
+struct TileImg { lv_obj_t* img = nullptr; int z = -1, x = 0, y = 0; bool used = false; };
+static TileImg tileImgs[kTileImgs];
+struct Missing { int z = -1, x = 0, y = 0; };
+static Missing missing[96];                       // teselas que no estan en la tarjeta, para no preguntar cada vez
+static int missingNext = 0;
+static uint32_t missingClearedMs = 0;
+static const char* chartFolder = "S:/charts/osm";
 static bool chFollow = true;
 static LatLon chCenter{36.53, -6.29};
 
@@ -533,6 +542,63 @@ static void onChartDrag(lv_event_t*) {                    // arrastrar mueve la 
     chFollow = false;
 }
 
+static bool tileExists(int z, int x, int y, char* path, int size) {
+    for (const Missing& m : missing)
+        if (m.z == z && m.x == x && m.y == y) return false;
+    if (!tilePath(path, size, chartFolder, z, x, y, "png")) return false;
+    lv_fs_file_t f;
+    if (lv_fs_open(&f, path, LV_FS_MODE_RD) == LV_FS_RES_OK) {
+        lv_fs_close(&f);
+        return true;
+    }
+    missing[missingNext] = {z, x, y};
+    missingNext = (missingNext + 1) % (int)(sizeof(missing) / sizeof(missing[0]));
+    return false;
+}
+
+// Coloca las teselas que cubren la vista. Devuelve cuantas hay en pantalla.
+static int layoutTiles(double cx, double cy) {
+    uint32_t now = millis();
+    if (now - missingClearedMs > 30000) {                 // por si se cambia la tarjeta o se copian cartas nuevas
+        missingClearedMs = now;
+        for (Missing& m : missing) m.z = -1;
+    }
+    int max = (1 << chZoom) - 1;
+    int tx0 = (int)floor((cx - CH_W / 2.0) / kTileSize), tx1 = (int)floor((cx + CH_W / 2.0) / kTileSize);
+    int ty0 = (int)floor((cy - CH_H / 2.0) / kTileSize), ty1 = (int)floor((cy + CH_H / 2.0) / kTileSize);
+    for (TileImg& t : tileImgs) t.used = false;
+    int shown = 0;
+    // Primero las que ya estan cargadas; despues las nuevas, en los huecos que queden
+    for (int pass = 0; pass < 2; pass++) {
+        for (int ty = ty0; ty <= ty1; ty++) {
+            for (int tx = tx0; tx <= tx1; tx++) {
+                if (tx < 0 || ty < 0 || tx > max || ty > max) continue;
+                TileImg* slot = nullptr;
+                for (TileImg& t : tileImgs)
+                    if (t.z == chZoom && t.x == tx && t.y == ty) { slot = &t; break; }
+                if (pass == 0 && !slot) continue;
+                if (pass == 1) {
+                    if (slot) continue;
+                    char path[64];
+                    if (!tileExists(chZoom, tx, ty, path, sizeof(path))) continue;
+                    for (TileImg& t : tileImgs)
+                        if (!t.used) { slot = &t; break; }
+                    if (!slot) continue;
+                    lv_image_set_src(slot->img, path);
+                    slot->z = chZoom; slot->x = tx; slot->y = ty;
+                }
+                slot->used = true;
+                lv_obj_set_pos(slot->img, (int)lround(CH_W / 2.0 + tx * (double)kTileSize - cx), (int)lround(CH_H / 2.0 + ty * (double)kTileSize - cy));
+                lv_obj_set_hidden(slot->img, false);
+                shown++;
+            }
+        }
+    }
+    for (TileImg& t : tileImgs)
+        if (!t.used) { lv_obj_set_hidden(t.img, true); t.z = -1; }
+    return shown;
+}
+
 static void makeChart(lv_obj_t* page) {
     chart = box(page, 0x0E2A44, 10);
     lv_obj_set_size(chart, CH_W, CH_H);
@@ -540,6 +606,11 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_set_style_clip_corner(chart, true, 0);
     lv_obj_set_clickable(chart, true);
     lv_obj_add_event_cb(chart, onChartDrag, LV_EVENT_PRESSING, nullptr);
+    for (TileImg& t : tileImgs) {                         // lo primero: quedan debajo de todo lo demas
+        t.img = lv_image_create(chart);
+        lv_obj_set_size(t.img, kTileSize, kTileSize);
+        lv_obj_set_hidden(t.img, true);
+    }
     chTrack = lv_line_create(chart);
     lv_obj_set_style_line_color(chTrack, lv_color_hex(0xFF9F43), 0);
     lv_obj_set_style_line_width(chTrack, 3, 0);
@@ -552,6 +623,13 @@ static void makeChart(lv_obj_t* page) {
         chDots[i].dot = box(chart, C_ACC, LV_RADIUS_CIRCLE);
         lv_obj_set_size(chDots[i].dot, 14, 14);
         chDots[i].num = label(chart, "", &dejavu_12, C_TEXT);
+        lv_obj_set_style_bg_color(chDots[i].num, lv_color_hex(C_BAR), 0);
+        lv_obj_set_style_bg_opa(chDots[i].num, 200, 0);
+        lv_obj_set_style_pad_hor(chDots[i].num, 4, 0);
+        lv_obj_set_style_pad_ver(chDots[i].num, 1, 0);
+        lv_obj_set_style_radius(chDots[i].num, 4, 0);
+        lv_obj_set_style_border_color(chDots[i].dot, lv_color_hex(C_INK), 0);
+        lv_obj_set_style_border_width(chDots[i].dot, 2, 0);
         lv_obj_set_hidden(chDots[i].dot, true);
         lv_obj_set_hidden(chDots[i].vec, true);
         lv_obj_set_hidden(chDots[i].num, true);
@@ -571,9 +649,19 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_set_height(chScaleBar, 3);
     lv_obj_align(chScaleBar, LV_ALIGN_BOTTOM_LEFT, 16, -14);
     chScaleLbl = label(chart, "", &dejavu_14, C_TEXT);
-    lv_obj_align(chScaleLbl, LV_ALIGN_BOTTOM_LEFT, 16, -22);
-    chInfo = label(chart, "", &dejavu_12, C_SOFT);
-    lv_obj_align(chInfo, LV_ALIGN_TOP_LEFT, 12, 10);
+    lv_obj_align(chScaleLbl, LV_ALIGN_BOTTOM_LEFT, 12, -22);
+    lv_obj_set_style_bg_color(chScaleLbl, lv_color_hex(C_BAR), 0);
+    lv_obj_set_style_bg_opa(chScaleLbl, 200, 0);
+    lv_obj_set_style_pad_hor(chScaleLbl, 5, 0);
+    lv_obj_set_style_pad_ver(chScaleLbl, 2, 0);
+    lv_obj_set_style_radius(chScaleLbl, 5, 0);
+    chInfo = label(chart, "", &dejavu_12, C_TEXT);
+    lv_obj_align(chInfo, LV_ALIGN_TOP_LEFT, 8, 8);
+    lv_obj_set_style_bg_color(chInfo, lv_color_hex(C_BAR), 0);
+    lv_obj_set_style_bg_opa(chInfo, 200, 0);
+    lv_obj_set_style_pad_hor(chInfo, 6, 0);
+    lv_obj_set_style_pad_ver(chInfo, 3, 0);
+    lv_obj_set_style_radius(chInfo, 6, 0);
 }
 
 static void updateChart() {
@@ -591,6 +679,7 @@ static void updateChart() {
     };
     auto inside = [](double x, double y) { return x > -20 && x < CH_W + 20 && y > -20 && y < CH_H + 20; };
     double mpp = metersPerPixel(chCenter.lat, chZoom);
+    int tilesShown = layoutTiles(cx, cy);
 
     // Barco y vector de 6 minutos
     bool boatVis = false;
@@ -609,6 +698,10 @@ static void updateChart() {
         lv_line_set_points(chVec, chVecPts, 2);
     }
     lv_obj_set_hidden(chVec, !vec);
+    // Sobre un mapa claro, lineas oscuras
+    lv_obj_set_style_line_color(chVec, lv_color_hex(tilesShown ? C_INK : C_TEXT), 0);
+    lv_obj_set_style_line_width(chVec, tilesShown ? 3 : 2, 0);
+    lv_obj_set_style_bg_color(chScaleBar, lv_color_hex(tilesShown ? C_INK : C_TEXT), 0);
 
     // Derrota
     int np = 0;
@@ -636,6 +729,7 @@ static void updateChart() {
                 if (inside(x, y)) {
                     vis = true;
                     uint32_t col = t.dangerous ? C_WARN : (t.lost ? 0x5B6B7A : (t.kind == AisKind::Aton ? 0xF2D43D : C_ACC));
+                    uint32_t lineCol = !tilesShown ? col : (t.dangerous ? 0xD9480F : 0x1F5FBF);
                     lv_obj_set_style_bg_color(d.dot, lv_color_hex(col), 0);
                     lv_obj_set_pos(d.dot, (int)lround(x) - 7, (int)lround(y) - 7);
                     char b[40];
@@ -650,7 +744,7 @@ static void updateChart() {
                         d.pts[0] = {(lv_value_precise_t)x, (lv_value_precise_t)y};
                         d.pts[1] = {(lv_value_precise_t)(x + len * sin(deg2rad(t.cogDeg))), (lv_value_precise_t)(y - len * cos(deg2rad(t.cogDeg)))};
                         lv_line_set_points(d.vec, d.pts, 2);
-                        lv_obj_set_style_line_color(d.vec, lv_color_hex(col), 0);
+                        lv_obj_set_style_line_color(d.vec, lv_color_hex(lineCol), 0);
                     }
                     lv_obj_set_hidden(d.vec, !tv);
                 }
@@ -671,7 +765,8 @@ static void updateChart() {
     snprintf(b, sizeof(b), best < 1 ? "%.2g mn" : "%.0f mn", best);
     comma(b);
     lv_label_set_text(chScaleLbl, b);
-    snprintf(b, sizeof(b), "Norte arriba \xC2\xB7 zoom %d \xC2\xB7 sin cartas en la tarjeta%s", chZoom, chFollow ? "" : " \xC2\xB7 carta movida");
+    snprintf(b, sizeof(b), "Norte arriba \xC2\xB7 zoom %d \xC2\xB7 %s%s", chZoom,
+             tilesShown ? "OpenSeaMap \xC2\xB7 \xC2\xA9 OpenStreetMap" : "sin cartas en la tarjeta para esta zona", chFollow ? "" : " \xC2\xB7 carta movida");
     lv_label_set_text(chInfo, b);
     lv_obj_set_hidden(chCenterBtn, chFollow);
 }

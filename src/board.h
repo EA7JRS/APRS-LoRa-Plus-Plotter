@@ -47,4 +47,7 @@ void setBacklight(int percent);
 bool setCanMode(bool can);
 // CS de la tarjeta TF (activo a nivel bajo) por el expansor.
 bool sdSelect(bool selected);
+// Monta la tarjeta TF (SPI). El CS va por el expansor y se deja activo; la libreria SD necesita un pin propio y se le da
+// uno sin usar (SD_DUMMY_CS). false si no hay tarjeta o no se puede leer.
+bool sdBegin();
 }

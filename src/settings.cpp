@@ -41,7 +41,7 @@ void load() {
     p.end();
     if (v.serialBaud != 4800 && v.serialBaud != 38400) v.serialBaud = 38400;
     if (v.brightness < 10 || v.brightness > 100) v.brightness = 100;
-    if (v.tcpKind < 0 || v.tcpKind > 2) v.tcpKind = 0;
+    if (v.tcpKind < 0 || v.tcpKind > 3) v.tcpKind = 0;
     if (v.tcpPort < 1 || v.tcpPort > 65535) v.tcpPort = 10110;
     if (v.udpPort < 0 || v.udpPort > 65535) v.udpPort = 0;
     if (v.pilotOut < 0 || v.pilotOut > 2) v.pilotOut = 0;

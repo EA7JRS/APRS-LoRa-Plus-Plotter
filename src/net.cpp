@@ -16,6 +16,7 @@
 #include <freertos/task.h>
 
 #include "gnss.h"
+#include "signalk.h"
 #endif
 
 namespace net {
@@ -142,6 +143,11 @@ static void task(void*) {
                     if (ok) {
                         client.setNoDelay(true);
                         if (c.tcpKind == TCP_GPSD) client.print(plotter::kGpsdWatchNmea);   // gpsd: que mande el NMEA tal cual
+                        if (c.tcpKind == TCP_SIGNALK) {                 // Signal K: todo lo del barco propio, una vez por segundo
+                            char sub[120];
+                            int n = plotter::skSubscribe(sub, sizeof(sub), 1000);
+                            if (n) client.write((const uint8_t*)sub, (size_t)n);
+                        }
                         st.tcp = true;
                     }
                 }

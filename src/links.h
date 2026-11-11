@@ -29,6 +29,11 @@ struct Status {
     uint32_t netLastMs = 0;
     char wxPlace[32] = "";              // ultima observacion de internet: lugar y cuando (0 = ninguna)
     uint32_t wxMs = 0;
+    uint32_t skValues = 0;              // Signal K: valores aplicados a la tabla
+    char skKey[48] = "";                // ultimo aviso de Signal K (notifications.*): clave, estado y mensaje
+    char skState[12] = "";
+    char skMessage[96] = "";
+    uint32_t skSeq = 0;                 // cambia con cada aviso recibido
     uint32_t bleLines = 0;              // lineas NMEA recibidas por BLE
     uint32_t pilotSent = 0;             // tramas enviadas al piloto
 };

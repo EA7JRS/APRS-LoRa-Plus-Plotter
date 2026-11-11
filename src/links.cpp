@@ -10,6 +10,7 @@
 #include "net.h"
 #include "settings.h"
 #include "sim.h"
+#include "sk_link.h"
 #include "stream.h"
 
 #include <cmath>
@@ -177,7 +178,39 @@ static void internetLoop(uint32_t now) {
 // Bytes de la red -> lineas -> lector NMEA / AIS, como fuente "red"
 static void netLoop(uint32_t now) {
     static uint8_t buf[512];
-    for (int pass = 0; pass < 2; pass++) {
+    if (settings::get().tcpKind == net::TCP_SIGNALK) {             // Signal K: lineas JSON, mucho mas largas que una sentencia
+        static char sk[4096];
+        static int skLen = 0;
+        static bool skOver = false;
+        for (int round = 0; round < 8; round++) {
+            int n = net::readTcp(buf, sizeof(buf));
+            if (n <= 0) break;
+            for (int i = 0; i < n; i++) {
+                char c = (char)buf[i];
+                if (c == '\n') {
+                    if (!skOver && skLen > 0) {
+                        sk[skLen] = 0;
+                        sk::Notice nt;
+                        st.skValues += (uint32_t)sk::feedLine(sk, now, *store, nt);
+                        st.tcpLines++;
+                        st.netLastMs = now;
+                        if (nt.present) {
+                            snprintf(st.skKey, sizeof(st.skKey), "%s", nt.key);
+                            snprintf(st.skState, sizeof(st.skState), "%s", nt.state);
+                            snprintf(st.skMessage, sizeof(st.skMessage), "%s", nt.message);
+                            st.skSeq++;
+                        }
+                    }
+                    skLen = 0;
+                    skOver = false;
+                } else if (c != '\r') {
+                    if (skLen < (int)sizeof(sk) - 1) sk[skLen++] = c;
+                    else skOver = true;                            // linea demasiado larga: se descarta entera
+                }
+            }
+        }
+    }
+    for (int pass = settings::get().tcpKind == net::TCP_SIGNALK ? 1 : 0; pass < 2; pass++) {
         LineBuffer& lb = pass ? udpLine : tcpLine;
         Nmea0183& rd = pass ? udpNmea : tcpNmea;
         uint32_t& lines = pass ? st.udpLines : st.tcpLines;

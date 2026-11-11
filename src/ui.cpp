@@ -9,6 +9,7 @@
 
 #include "board.h"
 #include "anchor.h"
+#include "signalk.h"
 #include "units.h"
 #include "lights.h"
 #include "aistargets.h"
@@ -80,7 +81,7 @@ static lv_obj_t* lblAisBadge = nullptr;
 static uint32_t rowMmsi[kRows] = {};
 
 // Ventana centrada sobre cualquier pantalla: ficha de un blanco o alerta de abordaje (la misma que las emergencias de la app)
-enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485 };
+enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK };
 static lv_obj_t* modalBack = nullptr;
 static lv_obj_t* modalHead = nullptr;
 static lv_obj_t* modalTitle = nullptr;
@@ -489,6 +490,8 @@ static void updateRadar() {
 static void updateMobModal();
 static void updateAnchorModal();
 static void updateRs485Modal();
+static void updateSkModal();
+static uint32_t skSeen = 0;                               // ultimo aviso de Signal K ya atendido
 static bool rs485Warned = false;                          // el aviso de choque en el RS485 ya se ha mostrado
 
 static void closeModal() {
@@ -499,6 +502,7 @@ static void closeModal() {
 
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
     if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta
+    if (modalMode == M_SIGNALK) { closeModal(); return; }  // el aviso sigue en el servidor; aqui solo se cierra
     if (modalMode == M_RS485) {                            // apagar la salida al piloto
         settings::get().pilotOut = 0;
         settings::save();
@@ -615,6 +619,24 @@ static void updateMobModal() {
     lv_label_set_text(modalBtnBLbl, "CLOSE");
 }
 
+// Aviso del servidor Signal K (notifications.*) en estado de alarma o emergencia
+static bool skAlarmState(const char* s) { return !strcmp(s, "alarm") || !strcmp(s, "emergency"); }
+
+static void updateSkModal() {
+    const links::Status& ls = links::status();
+    if (!skAlarmState(ls.skState)) { closeModal(); return; }       // el servidor lo ha dado por resuelto
+    const char* title = skNotificationTitleEs(ls.skKey);
+    char b[220];
+    lv_obj_set_style_bg_color(modalHead, lv_color_hex(!strcmp(ls.skState, "emergency") ? C_RED : C_WARN), 0);
+    lv_label_set_text(modalTitle, !strcmp(ls.skState, "emergency") ? "SIGNAL K EMERGENCY" : "SIGNAL K ALARM");
+    lv_label_set_text(modalSub, "Signal K \xC2\xB7 notification from the server");
+    lv_label_set_text(modalName, title ? title : ls.skKey);
+    snprintf(b, sizeof(b), "%s\n%s", ls.skMessage[0] ? ls.skMessage : "(sin mensaje)", ls.skKey);
+    lv_label_set_text(modalBody, b);
+    lv_label_set_text(modalBtnALbl, "SILENCE ALARM");
+    lv_label_set_text(modalBtnBLbl, "CLOSE");
+}
+
 // La salida al piloto y la entrada de datos comparten el RS485: avisar de que pueden pisarse
 static bool rs485Busy() {
     const links::Status& ls = links::status();
@@ -669,6 +691,7 @@ static void updateModal() {
     if (modalMode == M_MOB) { updateMobModal(); return; }
     if (modalMode == M_ANCHOR) { updateAnchorModal(); return; }
     if (modalMode == M_RS485) { updateRs485Modal(); return; }
+    if (modalMode == M_SIGNALK) { updateSkModal(); return; }
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i < 0) { closeModal(); return; }
@@ -710,6 +733,13 @@ static void updateModal() {
 // Abre la alerta del primer blanco con riesgo que no este silenciado ni cerrado hace poco
 static void checkCollision() {
     if (modalMode == M_COLLISION || modalMode == M_MOB || modalMode == M_ANCHOR) return;
+    {                                                     // aviso nuevo de Signal K en alarma o emergencia
+        const links::Status& ls = links::status();
+        if (ls.skSeq != skSeen) {
+            skSeen = ls.skSeq;
+            if (skAlarmState(ls.skState) && (modalMode == M_NONE || modalMode == M_DETAIL || modalMode == M_RS485)) { openModal(M_SIGNALK, 0); return; }
+        }
+    }
     // Aviso (una vez) si la salida al piloto va por el RS485 y por ese puerto estan entrando datos
     if (settings::get().pilotOut != 1) rs485Warned = false;
     else if (!rs485Warned && rs485Busy() && modalMode == M_NONE) { rs485Warned = true; openModal(M_RS485, 0); return; }
@@ -1664,7 +1694,7 @@ static void updateRoutes() {
 }
 
 // ---------- Red: WiFi, servidor TCP y escucha UDP ----------
-static const char* const kTcpKinds[] = {"TCP apagado", "TCP: NMEA 0183", "TCP: gpsd"};
+static const char* const kTcpKinds[] = {"TCP apagado", "TCP: NMEA 0183", "TCP: gpsd", "TCP: Signal K"};
 
 static void onNetField(lv_event_t* e) { lv_keyboard_set_textarea(netKb, (lv_obj_t*)lv_event_get_target(e)); }
 
@@ -1692,6 +1722,7 @@ static void onNetBtn(lv_event_t* e) {
         netKind = (netKind + 1) % net::TCP_KINDS;
         if (netKind == net::TCP_GPSD) lv_textarea_set_text(netTa[3], "2947");
         else if (netKind == net::TCP_NMEA) lv_textarea_set_text(netTa[3], "10110");
+        else if (netKind == net::TCP_SIGNALK) lv_textarea_set_text(netTa[3], "8375");
     } else if (a == 1) {                                  // guardar y conectar
         settings::Values& v = settings::get();
         snprintf(v.wifiSsid, sizeof(v.wifiSsid), "%s", lv_textarea_get_text(netTa[0]));

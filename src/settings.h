@@ -16,7 +16,7 @@ struct Values {
     char wifiSsid[33] = "";        // red: WiFi, servidor TCP de datos y escucha UDP
     char wifiPass[65] = "";
     char tcpHost[40] = "";
-    int tcpKind = 0;                // 0 apagado, 1 NMEA 0183, 2 gpsd
+    int tcpKind = 0;                // 0 apagado, 1 NMEA 0183, 2 gpsd, 3 Signal K
     int tcpPort = 10110;
     int udpPort = 0;                // 0 = sin escucha
     char owmKey[40] = "";          // clave de OpenWeatherMap (datos de reserva de internet)

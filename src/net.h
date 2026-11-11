@@ -10,7 +10,7 @@
 
 namespace net {
 
-enum TcpKind { TCP_OFF = 0, TCP_NMEA = 1, TCP_GPSD = 2, TCP_KINDS = 3 };
+enum TcpKind { TCP_OFF = 0, TCP_NMEA = 1, TCP_GPSD = 2, TCP_SIGNALK = 3, TCP_KINDS = 4 };
 
 struct Config {
     char ssid[33] = "";

@@ -364,6 +364,13 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   Manuel la pruebe en la Supreme): tabla de 2 enlaces en `ble_control.cpp` (emparejamiento, MTU y suscripción NMEA por
   conexión; notificaciones solo a los emparejados), el tracker sigue anunciándose con un equipo conectado, y las
   suscripciones / OTA / configuración son del enlace que mandó la última orden. El plotter no necesita cambios.
+- **Signal K nativo (2026-11-12, rama `signalk`)**: tipo de servidor «TCP: Signal K» en Ajustes > Red (puerto 8375): al
+  conectar se suscribe a `vessels.self` (1 s); `src/sk_link.*` lee cada línea JSON con ArduinoJson (saludo con `self`,
+  deltas del barco propio, `navigation.position` como objeto) y la pasa a la tabla con `skApply` del núcleo (fuente `Tcp`).
+  Los avisos `notifications.*` en estado `alarm` o `emergency` abren la ventana «SIGNAL K ALARM / EMERGENCY» con el título
+  en español del núcleo; se cierra sola cuando el servidor los baja de nivel. Líneas de hasta 4 KB. Compila en la CI; el
+  lector JSON **no se ha ejecutado nunca** (en el PC no hay ArduinoJson) ni se ha probado con un servidor. Falta: otros
+  barcos del servidor como blancos AIS, mDNS para encontrarlo solo, y publicar datos del plotter.
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
@@ -372,7 +379,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y
-   medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Relevo por internet y pestaña Meteo hechos. BLE con la pasarela hecho (lado plotter). Lo siguiente: Signal K nativo, zumbador, AEMET, y probar en la placa.
+   medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Relevo por internet y pestaña Meteo hechos. BLE con la pasarela hecho (lado plotter). Signal K nativo hecho. Lo siguiente: zumbador (pin por decidir), AEMET, lista de equipos BLE, y probar en la placa.
 2. NMEA 2000: hecho en escucha con decodificador propio; más PGN según lo que haya en la red de Manuel.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático. Viento: entra por la pasarela XIAO (CAN, UDP por WiFi o BLE); el plotter ya tiene el BLE (docs/BLE_NMEA.md); falta readaptar el firmware de la XIAO.

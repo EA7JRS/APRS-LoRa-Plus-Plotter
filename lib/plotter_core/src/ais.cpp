@@ -33,10 +33,11 @@ static int32_t sbits(const uint8_t* six, int start, int len) {
 static void text(const uint8_t* six, int start, int chars, char* out) {
     for (int i = 0; i < chars; i++) {
         int c = ubits(six, start + i * 6, 6);
+        if (c == 0) { chars = i; break; }                         // '@' = fin del texto (como gpsd); lo que sigue es relleno
         out[i] = char(c < 32 ? c + 64 : c);
     }
     out[chars] = 0;
-    for (int i = chars - 1; i >= 0 && (out[i] == '@' || out[i] == ' '); i--) out[i] = 0;      // relleno
+    for (int i = chars - 1; i >= 0 && out[i] == ' '; i--) out[i] = 0;
 }
 
 static void position(const uint8_t* six, int lonBit, AisReport& r) {

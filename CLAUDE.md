@@ -193,6 +193,18 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   bordo manda), texto «Estación de tierra a 4,2 mn al NE · hace 25 min». Da dirección de viento real al anemómetro sin veleta.
   Los nombres de campo del JSON de AEMET están puestos de memoria: comprobar con una respuesta real. Maqueta `Meteo` actualizada.
 
+- Dos conjuntos de AEMET en el catálogo del MITECO (enlaces de Manuel, 2026-11-11; el catálogo no deja leerse, identificados
+  por búsqueda):
+  - `471b4014-…` **Datos de radares**: «Observación Radar» (API con descarga de datos georreferenciados), imagen del radar
+    regional e imagen de la composición nacional. Los datos georreferenciados resolverían el encaje del radar sobre la carta y
+    los colores (hasta ahora, imagen con escala aproximada). Formato y tamaño sin ver.
+  - `46e25cfb-…` **Modelo HARMONIE-AROME**: 2,5 km de resolución, hasta 48 h; campos temperatura, presión, nubosidad, viento,
+    precipitación, descargas eléctricas y racha máxima; descarga en GeoTIFF o GeoJSON:
+    `https://www.aemet.es/es/api-eltiempo/modelos/download/harmonie/PB` (Península y Baleares) y `.../CAN` (Canarias).
+    Candidato a la capa de **previsión de viento y racha** de la carta (lo que se descartó hacer con Windy). Duda: una malla de
+    2,5 km de toda la Península es demasiado para que la baje y la lea el ESP32; habrá que recortar (en la app Android, que
+    pasa la zona por BLE o WiFi, o pidiendo solo un recuadro si la API lo permite). Sin comprobar parámetros, tamaño ni licencia.
+
 ## Estado (2026-11-11)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana). 1274 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).

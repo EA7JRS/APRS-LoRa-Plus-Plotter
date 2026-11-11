@@ -85,6 +85,12 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   (`gnss`, vale para cualquier fuente NMEA, también gpsd), GGA (altitud, HDOP, satélites), orden `?WATCH` de gpsd, y el lector
   NMEA pasado por sus 201 grabaciones de receptores reales con ASan / UBSan sin fallos (`tools/nmea_soak`). Posible más adelante: meteorología por AIS (mensaje 8).
 
+- Avisos meteorológicos (pedido 2026-11-11: «como los recibidos de internet, Google»; fase 3): avisos de AEMET por zonas
+  (OpenData, formato CAP; niveles amarillo / naranja / rojo). Pantalla Meteo > Avisos (lista con filtro «mi zona y ruta», zonas
+  en un mapa, vigencia, texto tal cual) y ventana de alerta como la de emergencias cuando entra uno nuevo para la zona del barco
+  o de la ruta activa. Maquetas `AvisosMeteo` y `AlertaMeteo`. Sin programar. Por decidir: sonido por nivel y otros países
+  (Meteoalarm, sin comprobar).
+
 ## Estado (2026-11-11)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites). 1080 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).

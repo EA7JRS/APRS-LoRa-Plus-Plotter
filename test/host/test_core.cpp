@@ -16,6 +16,7 @@
 #include "motion.h"
 #include "nmea.h"
 #include "store.h"
+#include "stream.h"
 #include "units.h"
 #include "wind.h"
 
@@ -291,8 +292,33 @@ static void testGpx() {
     CHECK(gpxParse("<gpx></gpx>", d2) && d2.waypoints.empty());
 }
 
+static void testStream() {
+    // Un datagrama con dos tramas, lineas vacias y un trozo que se completa despues
+    LineBuffer lb;
+    std::string got[4];
+    int n = 0;
+    const char* dgram = "!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C\r\n\r\n$GPGLL,3631.84,N,00617.02,W,112500,A*";
+    for (const char* p = dgram; *p; p++) if (lb.push(*p) && n < 4) got[n++] = lb.line();
+    CHECK(n == 1 && got[0] == "!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C");
+    for (const char* p = "3A\n"; *p; p++) if (lb.push(*p) && n < 4) got[n++] = lb.line();
+    CHECK(n == 2 && got[1].rfind("$GPGLL", 0) == 0 && got[1].size() == 39);
+    // Linea demasiado larga: se descarta entera y la siguiente entra bien
+    for (int i = 0; i < 300; i++) CHECK(!lb.push('x'));
+    CHECK(!lb.push('\n') && lb.dropped() == 1);
+    for (const char* p = "$OK*00\r\n"; *p; p++) if (lb.push(*p) && n < 4) got[n++] = lb.line();
+    CHECK(n == 3 && got[2] == "$OK*00");
+
+    DupFilter df(3000);
+    CHECK(!df.seen("!AIVDM,1,1,,B,AAA,0*00", 1000));
+    CHECK(df.seen("!AIVDM,1,1,,B,AAA,0*00", 2000));               // repetida por otra via
+    CHECK(!df.seen("!AIVDM,1,1,,B,BBB,0*00", 2000));
+    CHECK(!df.seen("!AIVDM,1,1,,B,AAA,0*00", 1000 + 3001));       // pasada la ventana vuelve a valer
+    for (int i = 0; i < 100; i++) { char b[24]; std::snprintf(b, sizeof b, "linea %d", i); CHECK(!df.seen(b, 9000)); }
+    CHECK(df.seen("linea 99", 9500) && !df.seen("linea 0", 9500));  // solo recuerda las 64 ultimas
+}
+
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testGpx();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

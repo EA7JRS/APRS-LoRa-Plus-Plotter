@@ -21,6 +21,7 @@ Todavía no hay firmware que compile para la placa.
 | `nmea` | NMEA 0183: RMC, GLL, VTG, DPT, DBT, MWV, HDT, VHW, MTW, VDM, VDO |
 | `ais` | Mensajes AIS 1, 2, 3, 5, 18, 19 y 24 |
 | `gpx` | Lectura y escritura de GPX 1.1 (waypoints, rutas y tracks) |
+| `stream` | Troceo en líneas para serie, TCP y UDP; filtro de tramas repetidas |
 
 ## Pruebas
 

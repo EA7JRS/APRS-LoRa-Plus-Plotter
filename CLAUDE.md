@@ -41,8 +41,12 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   y sin alarma de colisión. Alarma de garreo con pantalla de fondeo. Tablilla de desvíos (automática con compás electrónico;
   pendiente saber si Manuel tiene uno).
 
+- AIS Dispatcher de AISHub (estudiado el 2026-11-11): va en la Raspberry para ser estación y obtener la clave de la API (el Comar
+  saca a la vez NMEA para la pantalla y RS-232 para la Raspberry). El plotter añade entrada por UDP en la fase 1; reenviar él mismo
+  a AISHub queda como opción secundaria (una estación debe estar siempre encendida).
+
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx. 235 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas). 644 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

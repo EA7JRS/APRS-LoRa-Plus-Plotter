@@ -17,6 +17,7 @@
 #include "nmea.h"
 #include "store.h"
 #include "inputs.h"
+#include "route.h"
 #include "signalk.h"
 #include "stream.h"
 #include "units.h"
@@ -481,6 +482,102 @@ static void testSignalK() {
     NEAR(v, 12.0, 1e-9);
 }
 
+static void testRoute() {
+    // Ruta en L: al norte 1 mn y luego al este 1 mn
+    const LatLon A{36.50, -6.30}, B{36.50 + 1.0 / 60, -6.30}, C = gcDestination(B, 90, 1.0);
+    const LatLon pts[] = {B, C};
+    auto at = [&](double northNm, double eastNm) { return gcDestination(gcDestination(A, 0, northNm), 90, eastNm); };
+
+    RouteFollower rf;
+    rf.setArrivalRadiusNm(0.05);
+    rf.setMode(WpSwitch::Abeam);
+    rf.start(pts, 2, A);
+    const RouteStatus& s = rf.update(at(0.5, 0.02), 0);
+    CHECK(s.active && s.target == 0 && !s.inArrival && !s.abeam && !s.switched);
+    NEAR(s.distanceNm, 0.5004, 1e-3); NEAR(s.xteNm, 0.02, 1e-3); NEAR(s.legBearing, 0.0, 0.01);
+    rf.update(at(0.97, 0.02), 1000);
+    CHECK(s.inArrival && s.target == 0);                             // alarma de llegada, aun no cambia
+    rf.update(at(1.01, 0.02), 2000);
+    CHECK(s.switched && s.target == 1 && !s.finished);               // pasado el traves
+    NEAR(s.legBearing, 90.0, 0.05); NEAR(s.distanceNm, 0.98, 2e-3);
+    rf.update(at(1.0, 0.5), 3000);
+    CHECK(!s.switched && s.target == 1 && !s.finished);
+    rf.update(at(1.0, 0.98), 4000);
+    CHECK(s.inArrival && s.finished && s.target == 1);
+
+    // Pasa lejos del waypoint sin entrar en el circulo: por el traves cambia igual
+    rf.start(pts, 2, A);
+    rf.update(at(0.9, 0.3), 0);
+    CHECK(s.target == 0);
+    rf.update(at(1.02, 0.3), 1000);
+    CHECK(s.switched && s.target == 1);
+
+    // Pronto: 10 s despues de entrar en el circulo
+    rf.setMode(WpSwitch::Early, 10);
+    rf.start(pts, 2, A);
+    rf.update(at(0.96, 0), 0);
+    CHECK(s.inArrival && s.target == 0);
+    rf.update(at(0.97, 0), 9000);
+    CHECK(s.target == 0);
+    rf.update(at(0.98, 0), 10000);
+    CHECK(s.switched && s.target == 1);
+
+    // Tardio: dentro del circulo, cuando la distancia vuelve a crecer
+    rf.setMode(WpSwitch::Late);
+    rf.start(pts, 2, A);
+    rf.update(at(0.96, 0.01), 0);
+    rf.update(at(0.99, 0.01), 1000);
+    CHECK(s.target == 0);
+    rf.update(at(1.02, 0.01), 2000);
+    CHECK(s.switched && s.target == 1);
+    rf.start(pts, 2, A);                                             // sin entrar en el circulo no cambia
+    rf.update(at(1.1, 0.3), 0);
+    CHECK(s.target == 0 && s.abeam);
+
+    // A mano, y empezar por un waypoint intermedio
+    rf.start(pts, 2, A);
+    CHECK(rf.skip(A) && rf.status().target == 1 && !rf.skip(A));
+    rf.start(pts, 2, A, 1);
+    rf.update(at(1.0, 0.5), 0);
+    CHECK(s.target == 1); NEAR(s.legBearing, 90.0, 0.05); NEAR(s.xteNm, 0.0, 2e-3);
+    rf.stop();
+    CHECK(!rf.update(A, 0).active);
+    rf.start(nullptr, 0, A);
+    CHECK(!rf.status().active);
+
+    // Loxodromica frente a ortodromica en un tramo largo
+    const LatLon far[] = {{40.0, -30.0}};
+    rf.setMode(WpSwitch::Abeam);
+    rf.setRhumbLine(false);
+    rf.start(far, 1, LatLon{36.5, -6.3});
+    double gcB = rf.update(LatLon{36.5, -6.3}, 0).bearing;
+    rf.setRhumbLine(true);
+    rf.start(far, 1, LatLon{36.5, -6.3});
+    double rhB = rf.update(LatLon{36.5, -6.3}, 0).bearing;
+    CHECK(gcB > rhB + 3 && rhB > 270 && rhB < 290);                  // la ortodromica sale mas al norte
+
+    // Derrota: cada 10 s y solo si hay mas de 25 m
+    TrackSampler ts;
+    CHECK(ts.sample(A, 0));
+    CHECK(!ts.sample(at(0.1, 0), 5000));                             // aun no toca
+    CHECK(!ts.sample(at(0.005, 0), 10000));                          // 9 m: fondeado
+    CHECK(ts.sample(at(0.02, 0), 20000));                            // 37 m
+    CHECK(!ts.sample(at(0.05, 0), 25000));
+    CHECK(ts.sample(at(0.05, 0), 30000));
+    NEAR(ts.distanceNm(), 0.05, 1e-4);
+    ts.reset();
+    CHECK(ts.sample(A, 31000));
+
+    char b[80];
+    int n = depthLogLine(b, sizeof(b), "2026-11-11T17:06:00Z", LatLon{36.5297, -6.2927}, 7.44);
+    CHECK(n > 0 && !std::strcmp(b, "2026-11-11T17:06:00Z,36.529700,-6.292700,7.4\n"));
+    CHECK(depthLogLine(b, 10, "x", A, 1) == 0);
+
+    CHECK(alertSound(AlertLevel::Normal).beeps == 0 && alertSound(AlertLevel::Alert).beeps == 1 && !alertSound(AlertLevel::Alert).needsAck);
+    CHECK(alertSound(AlertLevel::Alarm).needsAck && alertSound(AlertLevel::Emergency).repeatS < alertSound(AlertLevel::Alarm).repeatS);
+    CHECK(alertSound(AlertLevel::Emergency).beeps > alertSound(AlertLevel::Warn).beeps);
+}
+
 static void testGpx() {
     // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
     const char* in =
@@ -545,7 +642,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

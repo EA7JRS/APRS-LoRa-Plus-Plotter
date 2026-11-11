@@ -69,8 +69,14 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   suscripción, títulos de avisos, deltas de salida); el JSON lo lee el firmware con ArduinoJson. Las API REST no se han leído
   a fondo. **Fuera**: el servidor, sus webapps y complementos. Todo depende de tener una Raspberry con Signal K a bordo.
 
+- AvNav (wellenvogel/avnav, estudiado el 2026-11-11; Manuel: «solo lo rentable»). Hecho en el núcleo (`route`): paso al siguiente
+  waypoint (pronto / por el través / tardío), ruta loxodrómica u ortodrómica, registro de la derrota (10 s y 25 m), registro de
+  sonda (CSV) y sonido de los avisos por nivel. Para después de que la carta funcione con teselas sueltas: cartas en un solo
+  archivo (GEMF; formato sin comprobar) si la microSD se queda corta. **Aparcado**: páginas configurables y control remoto desde
+  la app. **Fuera**: su servidor, el visor web y su app Android.
+
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk. 1018 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda). 1056 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

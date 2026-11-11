@@ -10,6 +10,7 @@
 
 #include "board.h"
 #include "links.h"
+#include "net.h"
 #include "settings.h"
 #include "store.h"
 #include "ui.h"
@@ -70,6 +71,8 @@ void setup() {
     links::setSimulator(settings::get().simulator);
     links::setSerialBaud(settings::get().serialBaud);
     links::setCan(settings::get().can);
+    net::begin();
+    links::applyNetwork();
     board::setBacklight(settings::get().brightness);
     ui::begin(&store);
     if (!ok) Serial.println("La placa no ha arrancado bien: revisar docs/HARDWARE.md");

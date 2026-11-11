@@ -17,4 +17,6 @@ struct Preferences {
     void putInt(const char*, int) {}
     double getDouble(const char*, double d) { return d; }
     void putDouble(const char*, double) {}
+    size_t getString(const char*, char* b, size_t n) { if (n) b[0] = 0; return 0; }
+    void putString(const char*, const char*) {}
 };

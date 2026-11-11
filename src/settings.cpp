@@ -19,6 +19,12 @@ void load() {
     v.serialBaud = p.getUInt("baud", 38400);
     v.brightness = p.getInt("bright", 100);
     v.can = p.getBool("can", true);
+    p.getString("ssid", v.wifiSsid, sizeof(v.wifiSsid));
+    p.getString("wpass", v.wifiPass, sizeof(v.wifiPass));
+    p.getString("host", v.tcpHost, sizeof(v.tcpHost));
+    v.tcpKind = p.getInt("tcpKind", 0);
+    v.tcpPort = p.getInt("tcpPort", 10110);
+    v.udpPort = p.getInt("udpPort", 0);
     v.units = p.getInt("units", 0);
     v.baseMap = p.getInt("map", 0);
     v.anchorOn = p.getBool("anc", false);
@@ -29,6 +35,9 @@ void load() {
     p.end();
     if (v.serialBaud != 4800 && v.serialBaud != 38400) v.serialBaud = 38400;
     if (v.brightness < 10 || v.brightness > 100) v.brightness = 100;
+    if (v.tcpKind < 0 || v.tcpKind > 2) v.tcpKind = 0;
+    if (v.tcpPort < 1 || v.tcpPort > 65535) v.tcpPort = 10110;
+    if (v.udpPort < 0 || v.udpPort > 65535) v.udpPort = 0;
     if (v.units < 0 || v.units > 2) v.units = 0;
     if (v.baseMap < 0 || v.baseMap > 3) v.baseMap = 0;
     if (v.anchorRode < 5 || v.anchorRode > 200) v.anchorRode = 30;
@@ -41,6 +50,12 @@ void save() {
     p.putUInt("baud", v.serialBaud);
     p.putInt("bright", v.brightness);
     p.putBool("can", v.can);
+    p.putString("ssid", v.wifiSsid);
+    p.putString("wpass", v.wifiPass);
+    p.putString("host", v.tcpHost);
+    p.putInt("tcpKind", v.tcpKind);
+    p.putInt("tcpPort", v.tcpPort);
+    p.putInt("udpPort", v.udpPort);
     p.putInt("units", v.units);
     p.putInt("map", v.baseMap);
     p.putBool("anc", v.anchorOn);

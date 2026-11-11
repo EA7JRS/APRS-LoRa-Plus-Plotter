@@ -15,6 +15,7 @@ void showPage(int tab);
 void testTapChart(int x, int y);   // toque en la carta, en pixeles de la carta
 void testPanelButton(int b);       // boton 0, 1 o 2 del panel de la carta
 void testMob();
+void testNet();                     // abre la pantalla de red
 void testSetting(int what);         // 4 cambia de unidades, 5 de mapa base
 void testAnchor();                  // boton Fondeo de la carta
 void testRoutes(int action);       // botones de la pestana Rutas (4 a la ruta, 6 navegar, 8 vaciar)

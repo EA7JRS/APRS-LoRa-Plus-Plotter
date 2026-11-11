@@ -25,11 +25,14 @@ struct Status {
     uint32_t canFrames = 0;             // tramas CAN recibidas
     uint32_t canMessages = 0;           // mensajes NMEA 2000 reconocidos
     uint32_t canLastMs = 0;
+    uint32_t tcpLines = 0, udpLines = 0;   // lineas NMEA recibidas por la red
+    uint32_t netLastMs = 0;
 };
 
 void begin(plotter::DataStore* store);
 void loop();                            // llamar a menudo
 void setSimulator(bool on);
+void applyNetwork();                    // WiFi, TCP y UDP segun los ajustes guardados
 void setCan(bool on);                   // NMEA 2000 (250 kbit/s, solo escucha); quita el USB nativo de los pines 19 / 20
 void injectCanFrame(uint32_t canId, const uint8_t* data, int len);   // pruebas
 void setSerialBaud(uint32_t baud);      // 4800 (NMEA clasico) o 38400 (AIS)

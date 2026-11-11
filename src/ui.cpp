@@ -18,6 +18,7 @@
 #include "motion.h"
 #include "route.h"
 #include "settings.h"
+#include "net.h"
 #include "tiles.h"
 #include "wind.h"
 
@@ -192,6 +193,13 @@ static int wpPage = 0, wpSel = -1;
 static lv_obj_t* setSimLbl = nullptr;
 static lv_obj_t* setUnitsLbl = nullptr;
 static lv_obj_t* setCanLbl = nullptr;
+// Pantalla de red (WiFi, TCP, UDP) con teclado
+static lv_obj_t* netScr = nullptr;
+static lv_obj_t* netTa[5] = {};                        // red, clave, servidor, puerto TCP, puerto UDP
+static lv_obj_t* netKb = nullptr;
+static lv_obj_t* netKindLbl = nullptr;
+static lv_obj_t* netStatus = nullptr;
+static int netKind = 0;
 static lv_obj_t* setMapLbl = nullptr;
 static lv_obj_t* setBaudLbl = nullptr;
 static lv_obj_t* setBrightLbl = nullptr;
@@ -1619,6 +1627,146 @@ static void updateRoutes() {
     lv_label_set_text(rtNavLbl, running ? "Parar" : "Navegar");
 }
 
+// ---------- Red: WiFi, servidor TCP y escucha UDP ----------
+static const char* const kTcpKinds[] = {"TCP apagado", "TCP: NMEA 0183", "TCP: gpsd"};
+
+static void onNetField(lv_event_t* e) { lv_keyboard_set_textarea(netKb, (lv_obj_t*)lv_event_get_target(e)); }
+
+static void openNet() {
+    const settings::Values& v = settings::get();
+    char b[12];
+    lv_textarea_set_text(netTa[0], v.wifiSsid);
+    lv_textarea_set_text(netTa[1], v.wifiPass);
+    lv_textarea_set_text(netTa[2], v.tcpHost);
+    snprintf(b, sizeof(b), "%d", v.tcpPort);
+    lv_textarea_set_text(netTa[3], b);
+    snprintf(b, sizeof(b), "%d", v.udpPort);
+    lv_textarea_set_text(netTa[4], v.udpPort ? b : "");
+    netKind = v.tcpKind;
+    lv_keyboard_set_textarea(netKb, netTa[0]);
+    lv_obj_set_hidden(netScr, false);
+}
+
+static void onNetBtn(lv_event_t* e) {
+    int a = (int)(intptr_t)lv_event_get_user_data(e);
+    if (a == 0) {                                         // tipo de servidor; gpsd lleva su puerto
+        netKind = (netKind + 1) % net::TCP_KINDS;
+        if (netKind == net::TCP_GPSD) lv_textarea_set_text(netTa[3], "2947");
+        else if (netKind == net::TCP_NMEA) lv_textarea_set_text(netTa[3], "10110");
+    } else if (a == 1) {                                  // guardar y conectar
+        settings::Values& v = settings::get();
+        snprintf(v.wifiSsid, sizeof(v.wifiSsid), "%s", lv_textarea_get_text(netTa[0]));
+        snprintf(v.wifiPass, sizeof(v.wifiPass), "%s", lv_textarea_get_text(netTa[1]));
+        snprintf(v.tcpHost, sizeof(v.tcpHost), "%s", lv_textarea_get_text(netTa[2]));
+        v.tcpKind = netKind;
+        int port = atoi(lv_textarea_get_text(netTa[3]));
+        v.tcpPort = (port >= 1 && port <= 65535) ? port : 10110;
+        port = atoi(lv_textarea_get_text(netTa[4]));
+        v.udpPort = (port >= 1 && port <= 65535) ? port : 0;
+        settings::save();
+        links::applyNetwork();
+    } else lv_obj_set_hidden(netScr, true);
+}
+
+static lv_obj_t* netField(int idx, int x, int y, int w, const char* hint, int maxLen, bool digits) {
+    lv_obj_t* ta = lv_textarea_create(netScr);
+    lv_obj_remove_style_all(ta);
+    lv_obj_set_pos(ta, x, y);
+    lv_obj_set_size(ta, w, 48);
+    lv_textarea_set_one_line(ta, true);
+    lv_textarea_set_max_length(ta, (uint32_t)maxLen);
+    lv_textarea_set_placeholder_text(ta, hint);
+    if (digits) lv_textarea_set_accepted_chars(ta, "0123456789");
+    lv_obj_set_style_bg_color(ta, lv_color_hex(C_BAR), 0);
+    lv_obj_set_style_bg_opa(ta, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(ta, 8, 0);
+    lv_obj_set_style_border_color(ta, lv_color_hex(C_LINE), 0);
+    lv_obj_set_style_border_width(ta, 1, 0);
+    lv_obj_set_style_border_color(ta, lv_color_hex(C_ACC), LV_STATE_FOCUSED);
+    lv_obj_set_style_border_width(ta, 2, LV_STATE_FOCUSED);
+    lv_obj_set_style_pad_hor(ta, 12, 0);
+    lv_obj_set_style_pad_ver(ta, 12, 0);
+    lv_obj_set_style_text_font(ta, &dejavu_16, 0);
+    lv_obj_set_style_text_color(ta, lv_color_hex(C_TEXT), 0);
+    lv_obj_set_style_text_color(ta, lv_color_hex(C_DIM), LV_PART_TEXTAREA_PLACEHOLDER);
+    lv_obj_set_style_bg_color(ta, lv_color_hex(C_TEXT), LV_PART_CURSOR | LV_STATE_FOCUSED);
+    lv_obj_set_style_bg_opa(ta, LV_OPA_COVER, LV_PART_CURSOR | LV_STATE_FOCUSED);
+    lv_obj_set_style_width(ta, 2, LV_PART_CURSOR);
+    lv_obj_add_event_cb(ta, onNetField, LV_EVENT_FOCUSED, nullptr);
+    lv_obj_add_event_cb(ta, onNetField, LV_EVENT_CLICKED, nullptr);
+    netTa[idx] = ta;
+    return ta;
+}
+
+static void makeNet() {
+    netScr = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(netScr);
+    lv_obj_set_size(netScr, board::W, board::H);
+    lv_obj_set_style_bg_color(netScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(netScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(netScr, false);
+    lv_obj_set_clickable(netScr, true);
+    lv_obj_t* t = label(netScr, "Red", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    netStatus = label(netScr, "", &dejavu_14, C_SOFT);
+    lv_obj_set_pos(netStatus, 80, 12);
+    lv_obj_set_width(netStatus, 540);
+    lv_obj_t* b = textButton(netScr, "Guardar y conectar", 220, 48, onNetBtn, 1);
+    lv_obj_set_pos(b, 648, 8);
+    b = textButton(netScr, "Cerrar", 124, 48, onNetBtn, 2);
+    lv_obj_set_pos(b, 884, 8);
+    netField(0, 16, 68, 488, "Red WiFi", 32, false);
+    netField(1, 520, 68, 488, "Clave de la red", 64, false);
+    b = textButton(netScr, "", 200, 48, onNetBtn, 0);
+    lv_obj_set_pos(b, 16, 126);
+    netKindLbl = lv_obj_get_child(b, 0);
+    netField(2, 232, 126, 420, "Servidor (direcci\xC3\xB3n IP o nombre)", 39, false);
+    netField(3, 668, 126, 140, "Puerto", 5, true);
+    netField(4, 824, 126, 184, "Puerto UDP", 5, true);
+    lv_obj_t* h = label(netScr, "TCP: NMEA 0183 de un multiplexor o de Signal K (puerto 10110), o gpsd (2947). UDP: AIS o NMEA que otro equipo env\xC3\xAD" "e a este puerto.", &dejavu_14, C_DIM);
+    lv_obj_set_pos(h, 16, 184);
+    lv_obj_set_width(h, 992);
+    netKb = lv_keyboard_create(netScr);
+    lv_obj_set_size(netKb, board::W, 360);
+    lv_obj_align(netKb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(netKb, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(netKb, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(netKb, 6, 0);
+    lv_obj_set_style_pad_gap(netKb, 6, 0);
+    lv_obj_set_style_border_width(netKb, 0, 0);
+    lv_obj_set_style_bg_color(netKb, lv_color_hex(C_PANEL), LV_PART_ITEMS);
+    lv_obj_set_style_bg_opa(netKb, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(netKb, lv_color_hex(C_LINE), LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(netKb, lv_color_hex(C_ACC), LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(netKb, lv_color_hex(C_TEXT), LV_PART_ITEMS);
+    lv_obj_set_style_text_color(netKb, lv_color_hex(C_TEXT), LV_PART_ITEMS | LV_STATE_CHECKED);   // las teclas de control
+    lv_obj_set_style_radius(netKb, 8, LV_PART_ITEMS);
+    lv_obj_set_style_border_width(netKb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_width(netKb, 0, LV_PART_ITEMS);
+    lv_obj_set_hidden(netScr, true);
+}
+
+static void netSummary(char* b, size_t n, bool full) {
+    const settings::Values& v = settings::get();
+    const net::Status& ns = net::status();
+    const links::Status& ls = links::status();
+    if (!v.wifiSsid[0]) { snprintf(b, n, full ? "WiFi sin configurar" : "sin configurar"); return; }
+    if (!ns.wifi) { snprintf(b, n, full ? "WiFi: conectando a %s..." : "conectando a %s", v.wifiSsid); return; }
+    if (!full) { snprintf(b, n, "%s \xC2\xB7 %u l\xC3\xADneas", ns.ip, (unsigned)(ls.tcpLines + ls.udpLines)); return; }
+    char tcp[64] = "", udp[40] = "";
+    if (v.tcpKind) snprintf(tcp, sizeof(tcp), " \xC2\xB7 TCP %s, %u l\xC3\xADneas", ns.tcp ? "conectado" : "sin conexi\xC3\xB3n", (unsigned)ls.tcpLines);
+    if (v.udpPort) snprintf(udp, sizeof(udp), " \xC2\xB7 UDP %u l\xC3\xADneas", (unsigned)ls.udpLines);
+    snprintf(b, n, "WiFi: %s \xC2\xB7 %s \xC2\xB7 %d dBm\n%s%s", v.wifiSsid, ns.ip, ns.rssi, tcp[0] ? tcp + 4 : "", tcp[0] ? udp : (udp[0] ? udp + 4 : ""));
+}
+
+static void updateNet() {
+    if (!netScr || lv_obj_is_hidden(netScr)) return;
+    char b[220];
+    netSummary(b, sizeof(b), true);
+    lv_label_set_text(netStatus, b);
+    lv_label_set_text(netKindLbl, kTcpKinds[netKind]);
+}
+
 // ---------- Ajustes ----------
 static void setBaseMap(int i) {
     baseMap = (i >= 0 && i < kBaseMapN) ? i : 0;
@@ -1633,6 +1781,7 @@ static void onSetting(lv_event_t* e) {
     else if (what == 1) { v.serialBaud = v.serialBaud == 38400 ? 4800 : 38400; links::setSerialBaud(v.serialBaud); }
     else if (what == 4) { v.units = (v.units + 1) % 3; applyUnits(); }
     else if (what == 6) { v.can = !v.can; links::setCan(v.can); }
+    else if (what == 7) { openNet(); return; }
     else if (what == 5) { v.baseMap = (v.baseMap + 1) % kBaseMapN; setBaseMap(v.baseMap); }
     else {
         v.brightness += what == 2 ? -10 : 10;
@@ -1683,14 +1832,16 @@ static void makeSettings(lv_obj_t* page) {
     lv_obj_align(b, LV_ALIGN_RIGHT_MID, -14, 0);
     setCanLbl = lv_obj_get_child(b, 0);
     lv_obj_t* info = box(page, C_PANEL, 10);
-    lv_obj_set_size(info, 374, 472);
+    lv_obj_set_size(info, 374, 404);
+    b = textButton(page, "Red: WiFi, TCP y UDP", 374, 60, onSetting, 7);
+    lv_obj_set_pos(b, 630, 412);
     lv_obj_set_pos(info, 630, 0);
     lv_obj_t* t = label(info, "Estado", &dejavu_bold_20, C_TEXT);
     lv_obj_align(t, LV_ALIGN_TOP_LEFT, 14, 12);
     setInfo = label(info, "", &dejavu_16, C_SOFT);
     lv_obj_align(setInfo, LV_ALIGN_TOP_LEFT, 14, 48);
     lv_obj_set_width(setInfo, 346);
-    lv_obj_set_style_text_line_space(setInfo, 8, 0);
+    lv_obj_set_style_text_line_space(setInfo, 6, 0);
     lv_obj_t* about = label(info, "APRS LoRa+ \xC2\xB7 \xC2\xA9 2026 Manuel - EA7JRS\nGPL-3.0 \xC2\xB7 mapas \xC2\xA9 OpenStreetMap", &dejavu_14, C_DIM);
     lv_obj_align(about, LV_ALIGN_BOTTOM_LEFT, 14, -12);
 }
@@ -1702,14 +1853,15 @@ static void updateSettings() {
     lv_label_set_text(setUnitsLbl, v.units == 1 ? "M\xC3\xA9trico" : (v.units == 2 ? "Imperial" : "N\xC3\xA1utico"));
     lv_label_set_text(setMapLbl, kBaseMaps[baseMap].name);
     lv_label_set_text(setCanLbl, v.can ? "Encendido" : "Apagado");
-    char b[420];
+    char b[520], netTxt[80];
+    netSummary(netTxt, sizeof(netTxt), false);
     snprintf(b, sizeof(b), "%d %%", v.brightness);
     lv_label_set_text(setBrightLbl, b);
     const links::Status& ls = links::status();
     const NmeaStats& ns = links::serialStats();
     uint32_t now = millis();
     snprintf(b, sizeof(b),
-             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nNMEA 2000: %u tramas, %u mensajes\n\xC3\x9Altima trama: %s\nMensajes AIS: %u\nBlancos AIS: %d\nWaypoints: %d de %d\nDerrota: %d puntos",
+             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nNMEA 2000: %u tramas, %u mensajes\n\xC3\x9Altima trama: %s\nRed: %s\nMensajes AIS: %u\nBlancos AIS: %d\nWaypoints: %d de %d\nDerrota: %d puntos",
 #ifdef PLOTTER_VERSION
              PLOTTER_VERSION,
 #else
@@ -1717,7 +1869,7 @@ static void updateSettings() {
 #endif
              (unsigned)ls.serialLines, (unsigned)(ns.badChecksum + ns.malformed),
              ls.serialLines ? (now - ls.serialLastMs < 5000 ? "ahora" : "hace rato") : "ninguna", (unsigned)ls.canFrames, (unsigned)ls.canMessages,
-             !ls.can ? "apagado" : (ls.canFrames ? (now - ls.canLastMs < 5000 ? "ahora" : "hace rato") : "ninguna"), (unsigned)ls.aisMessages, links::targets().count(), wpN, kWps,
+             !ls.can ? "apagado" : (ls.canFrames ? (now - ls.canLastMs < 5000 ? "ahora" : "hace rato") : "ninguna"), netTxt, (unsigned)ls.aisMessages, links::targets().count(), wpN, kWps,
              trackN);
     lv_label_set_text(setInfo, b);
 }
@@ -1863,6 +2015,7 @@ void begin(DataStore* s) {
         lv_obj_add_event_cb(b, onTab, LV_EVENT_CLICKED, (void*)(intptr_t)i);
         tabBtn[i] = b;
     }
+    makeNet();                                            // antes que las alertas: estas quedan por encima
     makeModal();
     loadWaypoints();
     applyUnits();
@@ -1924,6 +2077,7 @@ void update() {
     if (active == 1) updateChart();
     if (active == 2) updateRoutes();
     if (active == 7) updateSettings();
+    updateNet();
     if (active == 3) updateRadar();
     checkCollision();
     updateModal();
@@ -2011,6 +2165,7 @@ void testRoutes(int action) {                              // 2 ir a, 3 ver, 4 a
 void testSelectWaypoint(int i) { wpSel = (i >= 0 && i < wpN) ? i : -1; }
 void testMark() { onMark(nullptr); }
 void testAnchor() { onAnchorBtn(nullptr); }
+void testNet() { openNet(); }
 void testSetting(int what) {                               // 4 unidades, 5 mapa base
     settings::Values& v = settings::get();
     if (what == 4) { v.units = (v.units + 1) % 3; applyUnits(); }

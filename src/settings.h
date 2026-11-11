@@ -13,6 +13,12 @@ struct Values {
     uint32_t serialBaud = 38400;    // RS485: 38400 (AIS) o 4800 (NMEA clasico)
     int brightness = 100;           // luz de fondo, 10..100
     bool can = true;                // NMEA 2000 por el CAN (los pines dejan de ser el USB nativo)
+    char wifiSsid[33] = "";        // red: WiFi, servidor TCP de datos y escucha UDP
+    char wifiPass[65] = "";
+    char tcpHost[40] = "";
+    int tcpKind = 0;                // 0 apagado, 1 NMEA 0183, 2 gpsd
+    int tcpPort = 10110;
+    int udpPort = 0;                // 0 = sin escucha
     int units = 0;                  // 0 nautico, 1 metrico, 2 imperial
     int baseMap = 0;                // 0 OpenSeaMap, 1 IHM, 2 IGN, 3 ortofoto (carpetas de la tarjeta)
     bool anchorOn = false;          // fondeo vigilado: sigue tras un reinicio

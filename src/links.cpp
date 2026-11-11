@@ -6,6 +6,8 @@
 
 #include "board.h"
 #include "n2k.h"
+#include "net.h"
+#include "settings.h"
 #include "sim.h"
 #include "stream.h"
 
@@ -25,6 +27,8 @@ static LineBuffer serialLine;
 static AisTargets tgs;
 static uint32_t simLast = 0;
 static N2kReader n2k;
+static Nmea0183 tcpNmea, udpNmea;
+static LineBuffer tcpLine, udpLine;
 [[maybe_unused]] static bool canRunning = false;
 
 // NMEA 2000: el plotter solo escucha. El controlador va en modo normal para dar el acuse de recibo a las tramas de los
@@ -95,6 +99,41 @@ void begin(DataStore* s) {
 
 void setSimulator(bool on) { st.simulator = on; }
 
+void applyNetwork() {
+    const settings::Values& v = settings::get();
+    net::Config c;
+    snprintf(c.ssid, sizeof(c.ssid), "%s", v.wifiSsid);
+    snprintf(c.pass, sizeof(c.pass), "%s", v.wifiPass);
+    snprintf(c.host, sizeof(c.host), "%s", v.tcpHost);
+    c.tcpKind = v.tcpKind;
+    c.tcpPort = v.tcpPort;
+    c.udpPort = v.udpPort;
+    net::apply(c);
+}
+
+// Bytes de la red -> lineas -> lector NMEA / AIS, como fuente "red"
+static void netLoop(uint32_t now) {
+    static uint8_t buf[512];
+    for (int pass = 0; pass < 2; pass++) {
+        LineBuffer& lb = pass ? udpLine : tcpLine;
+        Nmea0183& rd = pass ? udpNmea : tcpNmea;
+        uint32_t& lines = pass ? st.udpLines : st.tcpLines;
+        for (int round = 0; round < 4; round++) {
+            int n = pass ? net::readUdp(buf, sizeof(buf)) : net::readTcp(buf, sizeof(buf));
+            if (n <= 0) break;
+            for (int i = 0; i < n; i++) {
+                if (!lb.push((char)buf[i])) continue;
+                lines++;
+                st.netLastMs = now;
+                if (rd.feed(lb.line(), Source::Tcp, now, *store) == NmeaResult::Ais) {
+                    tgs.update(rd.ais(), now);
+                    st.aisMessages++;
+                }
+            }
+        }
+    }
+}
+
 void setCan(bool on) {
     st.can = on;
     if (on) canStart(); else canStop();
@@ -139,6 +178,7 @@ void loop() {
     }
     serialNmea.sky().expire(now);
     canLoop(now);
+    netLoop(now);
 
     if (st.simulator && now - simLast >= 1000) {
         simLast = now;

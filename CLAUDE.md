@@ -131,6 +131,9 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `pnoa-ma`, `mapa-raster` y el geocodificador inverso de CartoCiudad. Añadidas como bases «IGN» y «Ortofoto» (fase 3; la app
   Android ya usa PNOA y MTN, CC BY 4.0). Núcleo: `tiles` (posición ↔ tesela y píxel, metros por píxel, zoom para una anchura,
   direcciones con `{z}{x}{y}{-y}`, rutas en la microSD). Sin comprobar: condiciones de uso exactas y zoom máximo de cada servicio.
+  De sus complementos (Manuel: «sí», 2026-11-11), a la fase 1: **medir** en la carta (tramos encadenados, demora e inversa,
+  tiempo a la velocidad actual, pasar a ruta), **datos del punto tocado** (posición, distancia y demora desde el barco) e
+  historial de vistas; núcleo en `chartui`, maqueta `CartaMedir`. Fuera: comparador de capas; perfil de fondo, más adelante.
 
 - API de mareas del IHM (`https://ideihm.covam.es/portal/api-mareas/`, enlace de Manuel, 2026-11-11): oficial, «predicciones
   de marea por puerto y fecha», página modificada el 2026-02-27. Desde la sesión no se pudo leer la documentación (la página
@@ -141,7 +144,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   pegue el texto de la página o una respuesta de ejemplo antes de escribir el lector.
 
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa). 1184 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1207 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

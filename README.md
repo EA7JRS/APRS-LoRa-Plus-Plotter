@@ -12,6 +12,7 @@ Todavía no hay firmware que compile para la placa.
 
 | Módulo | Contenido |
 |---|---|
+| `chartui` | Medir en la carta, texto de posiciones y duraciones, historial de vistas |
 | `geo` | Círculo máximo, loxodrómica, Vincenty (WGS84), desvío de ruta |
 | `motion` | CPA / TCPA, viento real y aparente, VMG, corriente |
 | `wind` | Escala Beaufort, anemómetro de cazoletas por pulsos |

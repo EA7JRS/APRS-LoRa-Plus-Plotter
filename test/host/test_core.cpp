@@ -11,6 +11,7 @@
 
 #include "ais.h"
 #include "astro.h"
+#include "chartui.h"
 #include "geo.h"
 #include "gpx.h"
 #include "motion.h"
@@ -811,6 +812,43 @@ static void testTiles() {
     CHECK(tilePath(u, sizeof(u), "/charts/osm", 12, 1976, 1600, "png") > 0 && !std::strcmp(u, "/charts/osm/12/1976/1600.png"));
 }
 
+static void testChartUi() {
+    const LatLon a{36.5, -6.3};
+    Measure m = measure(a, gcDestination(a, 90, 6.0), false, 6.0);
+    NEAR(m.distanceNm, 6.0, 1e-6); NEAR(m.bearing, 90.0, 1e-6); NEAR(m.hours, 1.0, 1e-6); NEAR(m.reciprocal, 270.0, 0.2);
+    m = measure(a, LatLon{37.5, -6.3});
+    NEAR(m.distanceNm, 60.0, 0.1); NEAR(m.bearing, 0.0, 1e-9); NEAR(m.reciprocal, 180.0, 1e-9); CHECK(m.hours < 0);
+    const LatLon path[] = {a, LatLon{36.5 + 1.0 / 60, -6.3}, LatLon{36.5 + 3.0 / 60, -6.3}};
+    NEAR(pathLengthNm(path, 3), 3.0, 0.01); CHECK(pathLengthNm(path, 1) == 0);
+
+    char b[48];
+    CHECK(formatLatLon(b, sizeof(b), LatLon{36.0 + 31.84 / 60, -(6.0 + 17.02 / 60)}) > 0);
+    CHECK(!std::strcmp(b, "36\xC2\xB0" "31,840\xE2\x80\xB2N 006\xC2\xB0" "17,020\xE2\x80\xB2W"));
+    formatLatLon(b, sizeof(b), LatLon{-(12.0 + 5.5 / 60), 77.0 + 10.0 / 60}, 1, false);
+    CHECK(!std::strcmp(b, "12\xC2\xB0" "05.5\xE2\x80\xB2S 077\xC2\xB0" "10.0\xE2\x80\xB2" "E"));
+    formatLatLon(b, sizeof(b), LatLon{36.99999999, -5.99999999}, 2);                 // el redondeo no deja "60,00"
+    CHECK(!std::strcmp(b, "37\xC2\xB0" "00,00\xE2\x80\xB2N 006\xC2\xB0" "00,00\xE2\x80\xB2W"));
+    formatLatLon(b, sizeof(b), LatLon{36.5, -6.25}, 0);
+    CHECK(!std::strcmp(b, "36\xC2\xB0" "30\xE2\x80\xB2N 006\xC2\xB0" "15\xE2\x80\xB2W"));
+    CHECK(formatLatLon(b, 12, a) == 0);
+    CHECK(formatDuration(b, sizeof(b), 0.75) > 0 && !std::strcmp(b, "45 min"));
+    formatDuration(b, sizeof(b), 2.5834);
+    CHECK(!std::strcmp(b, "02 h 35 min"));
+    formatDuration(b, sizeof(b), 76.2);
+    CHECK(!std::strcmp(b, "3 d 04 h") && formatDuration(b, sizeof(b), -1) == 0);
+
+    ViewHistory h;
+    ChartView v;
+    CHECK(!h.back(v));
+    h.push({{36.5, -6.3}, 12});
+    h.push({{36.5, -6.3}, 12});                                      // repetida: no cuenta
+    h.push({{36.6, -6.2}, 14});
+    CHECK(h.size() == 2 && h.back(v) && v.zoom == 14 && h.back(v) && v.zoom == 12 && !h.back(v));
+    for (int i = 0; i < 20; i++) h.push({{36.0 + i * 0.01, -6.0}, 10});
+    CHECK(h.size() == 12 && h.back(v));
+    NEAR(v.center.lat, 36.19, 1e-9);
+}
+
 static void testGpx() {
     // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
     const char* in =
@@ -875,7 +913,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

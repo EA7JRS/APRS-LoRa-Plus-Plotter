@@ -1758,7 +1758,7 @@ static void makeNet() {
     b = textButton(netScr, "", 200, 48, onNetBtn, 0);
     lv_obj_set_pos(b, 16, 126);
     netKindLbl = lv_obj_get_child(b, 0);
-    netField(2, 232, 126, 420, "Servidor (direcci\xC3\xB3n IP o nombre)", 39, false);
+    netField(2, 232, 126, 420, "Servidor (vac\xC3\xADo: el tel\xC3\xA9" "fono que da la WiFi)", 39, false);
     netField(3, 668, 126, 140, "Puerto", 5, true);
     netField(4, 824, 126, 184, "Puerto UDP", 5, true);
     netField(5, 16, 184, 992, "Clave de OpenWeatherMap: tiempo de internet, de reserva si falla un sensor de a bordo", 39, false);
@@ -2470,7 +2470,14 @@ static void updateSettings() {
         else snprintf(t, sizeof(t), v.bleAddr[0] ? "Bluetooth: buscando la pasarela" : "Bluetooth: buscando pasarela nueva");
         lv_label_set_text(setBleLbl, t);
     }
-    char b[520], netTxt[80];
+    char b[520], netTxt[80], gpsTxt[64];
+    {                                                     // de donde sale la posicion ahora mismo
+        uint32_t t = millis();
+        double la, sats;
+        if (!store->get(Key::Lat, t, la)) snprintf(gpsTxt, sizeof(gpsTxt), "sin posici\xC3\xB3n");
+        else if (store->get(Key::SatsUsed, t, sats)) snprintf(gpsTxt, sizeof(gpsTxt), "%s, %d sat\xC3\xA9lites", sourceName(store->source(Key::Lat, t)), (int)lround(sats));
+        else snprintf(gpsTxt, sizeof(gpsTxt), "%s", sourceName(store->source(Key::Lat, t)));
+    }
     netSummary(netTxt, sizeof(netTxt), false);
     snprintf(b, sizeof(b), "%d %%", v.brightness);
     lv_label_set_text(setBrightLbl, b);
@@ -2478,7 +2485,7 @@ static void updateSettings() {
     const NmeaStats& ns = links::serialStats();
     uint32_t now = millis();
     snprintf(b, sizeof(b),
-             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nNMEA 2000: %u tramas, %u mensajes\n\xC3\x9Altima trama: %s\nRed: %s\nMensajes AIS: %u\nBlancos AIS: %d\nWaypoints: %d de %d\nBluetooth: %u l\xC3\xADneas",
+             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nNMEA 2000: %u tramas, %u mensajes\n\xC3\x9Altima trama: %s\nRed: %s\nGPS: %s\nAIS: %u mensajes, %d blancos\nWaypoints: %d de %d\nBluetooth: %u l\xC3\xADneas",
 #ifdef PLOTTER_VERSION
              PLOTTER_VERSION,
 #else
@@ -2486,7 +2493,7 @@ static void updateSettings() {
 #endif
              (unsigned)ls.serialLines, (unsigned)(ns.badChecksum + ns.malformed),
              ls.serialLines ? (now - ls.serialLastMs < 5000 ? "ahora" : "hace rato") : "ninguna", (unsigned)ls.canFrames, (unsigned)ls.canMessages,
-             !ls.can ? "apagado" : (ls.canFrames ? (now - ls.canLastMs < 5000 ? "ahora" : "hace rato") : "ninguna"), netTxt, (unsigned)ls.aisMessages, links::targets().count(), wpN, kWps,
+             !ls.can ? "apagado" : (ls.canFrames ? (now - ls.canLastMs < 5000 ? "ahora" : "hace rato") : "ninguna"), netTxt, gpsTxt, (unsigned)ls.aisMessages, links::targets().count(), wpN, kWps,
              (unsigned)ls.bleLines);
     lv_label_set_text(setInfo, b);
 }

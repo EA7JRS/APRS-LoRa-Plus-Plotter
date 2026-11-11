@@ -132,12 +132,14 @@ static void task(void*) {
             }
         }
         // TCP: un servidor de la red local
-        if (c.tcpKind != TCP_OFF && c.host[0] && c.tcpPort > 0) {
+        if (c.tcpKind != TCP_OFF && c.tcpPort > 0) {
             if (!client.connected()) {
                 st.tcp = false;
                 if (lastTry == 0 || now - lastTry > 10000) {       // reintento cada 10 s
                     lastTry = now ? now : 1;
-                    if (client.connect(c.host, (uint16_t)c.tcpPort, 3000)) {
+                    // Sin servidor escrito: el equipo que da la WiFi (el telefono con la app, que sirve NMEA en el 10110)
+                    bool ok = c.host[0] ? client.connect(c.host, (uint16_t)c.tcpPort, 3000) : client.connect(WiFi.gatewayIP(), (uint16_t)c.tcpPort, 3000);
+                    if (ok) {
                         client.setNoDelay(true);
                         if (c.tcpKind == TCP_GPSD) client.print(plotter::kGpsdWatchNmea);   // gpsd: que mande el NMEA tal cual
                         st.tcp = true;

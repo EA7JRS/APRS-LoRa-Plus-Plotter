@@ -335,6 +335,16 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `docs/BLE_NMEA.md` (**borrador**: UUID y formato propuestos por Claude, a confirmar cuando Manuel readapte la XIAO). Sin
   emparejamiento (solo lectura). Compila en la CI; **sin probar con ningún equipo**: no existe todavía el otro extremo.
   Falta: lista de equipos para elegir, escribir órdenes (piloto por la pasarela), y el enlace BLE con el tracker APRS LoRa+.
+- **Fuentes de GPS (Manuel, 2026-11-11)**: la posición puede venir del punto de acceso WiFi del teléfono, del tracker
+  APRS LoRa+ (BLE / WiFi), de gpsd (TCP / UDP), de la salida NMEA de las emisoras VHF y del receptor AIS Comar SLR200G.
+  Estado: **ya entran** el Comar y cualquier NMEA por el RS485 (RMC, GLL, GGA, GSV / GSA), gpsd por TCP, NMEA por UDP, NMEA
+  2000 y la pasarela por BLE; **teléfono**: con el servidor de Ajustes > Red vacío, el plotter se conecta al equipo que da
+  la WiFi (puerta de enlace) en el puerto 10110, que es donde la app Android sirve NMEA (`NmeaServer`; sin probar);
+  **emisoras VHF**: van a 4800 y el RS485 está a 38400 para el AIS: por la pasarela XIAO, como el viento; **tracker
+  directo: falta** (su servicio BLE de control va cifrado con PIN; por WiFi no consta que sirva NMEA). Si llegan varias,
+  gana la de más prioridad (CAN, puerto serie, red, BLE) y a los 10 s sin ella entra la siguiente; Ajustes > Estado dice
+  de dónde sale la posición. Sin hacer: elegir a mano la fuente preferida, y evitar saltos entre dos fuentes de la misma
+  clase (gpsd por TCP y otra por UDP).
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables

@@ -22,6 +22,7 @@
 #include "lights.h"
 #include "route.h"
 #include "signalk.h"
+#include "sim.h"
 #include "stream.h"
 #include "tiles.h"
 #include "units.h"
@@ -944,6 +945,40 @@ static void testWxStation() {
     CHECK(describeObservation(b, 20, ob[0], here, now) == 0);
 }
 
+static void testSim() {
+    NmeaSimulator sim;
+    Nmea0183 nm;
+    DataStore st;
+    char line[100];
+    LatLon start = sim.position();
+    uint32_t now = 1000;
+    for (int sec = 0; sec <= 600; sec++, now += 1000) {
+        sim.step(now);
+        for (int i = 0; i < NmeaSimulator::count(); i++) {
+            int n = sim.sentence(i, line, sizeof(line));
+            if (sec == 0 || sec == 600) { CHECK(n > 0 && n <= 82 && nmeaChecksumOk(line)); }
+            NmeaResult r = nm.feed(line, Source::Sensor, now, st);
+            if (sec == 600) CHECK(r == NmeaResult::Data);
+        }
+    }
+    CHECK(nm.stats().badChecksum == 0 && nm.stats().malformed == 0);
+    // 10 minutos a unos 6,2 nudos: alrededor de 1,03 millas hacia el WSW
+    double d = gcDistanceNm(start, sim.position()), b = gcInitialBearing(start, sim.position());
+    CHECK(d > 0.95 && d < 1.12 && b > 240 && b < 255);
+    double v = 0, la = 0, lo = 0;
+    CHECK(st.get(Key::Lat, now, la) && st.get(Key::Lon, now, lo));
+    NEAR(la, sim.position().lat, 2e-6); NEAR(lo, sim.position().lon, 2e-6);       // lo leido es donde esta el barco
+    CHECK(st.get(Key::Sog, now, v) && v > 5.7 && v < 6.7);
+    CHECK(st.get(Key::Cog, now, v) && v > 242 && v < 252);
+    CHECK(st.get(Key::Heading, now, v) && v > 238 && v < 256);
+    CHECK(st.get(Key::Depth, now, v) && v > 9.8 && v < 15.0);
+    CHECK(st.get(Key::Aws, now, v) && v > 6 && v < 20);
+    CHECK(st.get(Key::Awa, now, v) && v > 10 && v < 80);                          // viento del WNW con rumbo WSW: por estribor
+    CHECK(st.get(Key::Stw, now, v) && st.get(Key::WaterTemp, now, v) && v == 18.5);
+    CHECK(st.get(Key::SatsUsed, now, v) && v == 9);
+    CHECK(sim.sentence(99, line, sizeof(line)) == 0 && sim.sentence(0, line, 10) == 0);
+}
+
 static void testGpx() {
     // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
     const char* in =
@@ -1008,7 +1043,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

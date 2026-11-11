@@ -209,13 +209,22 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `CartaPrevision`. Fase 3, sin programar.
 
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana). 1274 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA). 1309 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
-- Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
+- **Firmware, primer paso (2026-11-11)**: `platformio.ini` (misma base que Display: pioarduino `espressif32 @ 8.0.0`, LVGL
+  ~9.6.0, ArduinoJson 7.4.3), placa 7B copiada de Display (`src/board.h`, `board_lcd7b.cpp`, `board_common.*`, `lv_defs.h`,
+  fuentes DejaVu en `src/fonts`; los números grandes regenerados con coma y dos puntos: `tools/make_fonts.sh`) más
+  `setCanMode` y `sdSelect`; `src/links.*` (simulador + RS485 a 38400 con el lector NMEA / AIS), `src/ui.*` (barra superior,
+  8 pestañas, Instrumentos con 8 casillas, fuente y antigüedad de cada dato, viento real calculado), `src/main.cpp`
+  (consola: `APRS-INFO?`, `SIM 0` / `SIM 1`). Simulador en el núcleo (`sim`). **Sin compilar con PlatformIO**: en la sesión
+  no hay acceso a su registro; lo compila la CI (`.github/workflows/tests.yml`, trabajo `firmware`) cuando exista el
+  repositorio. Sí comprobado: `ui.cpp`, `links.cpp` y `main.cpp` compilan contra LVGL 9.6.0 con `-Werror`, y la interfaz se
+  ha dibujado en el PC con LVGL real (`tools/ui_preview/build.sh <lvgl> salida.ppm`). Sin probar en la placa. `docs/HARDWARE.md`.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.
 
 ## Siguiente
-1. Esqueleto del firmware: `platformio.ini`, drivers de la 7B copiados de Display, LVGL, pantalla de Instrumentos con simulador NMEA.
+1. Hecho el esqueleto (ver Estado). Lo siguiente en la interfaz: Carta (teselas de la microSD, barco, ruta), Radar AIS con la
+   lista de blancos, ventana de alarmas, Ajustes (fuentes, unidades, simulador).
 2. NMEA 2000 por TWAI (librería NMEA2000) y UART / RS485.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático; comprobar pines libres de la 7B para el anemómetro.

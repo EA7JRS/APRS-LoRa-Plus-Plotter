@@ -10,9 +10,11 @@
 #include "board.h"
 #include "aistargets.h"
 #include "chartui.h"
+#include "gpx.h"
 #include "links.h"
 #include "motion.h"
 #include "route.h"
+#include "settings.h"
 #include "tiles.h"
 #include "wind.h"
 
@@ -71,7 +73,7 @@ static lv_obj_t* lblAisBadge = nullptr;
 static uint32_t rowMmsi[kRows] = {};
 
 // Ventana centrada sobre cualquier pantalla: ficha de un blanco o alerta de abordaje (la misma que las emergencias de la app)
-enum ModalMode { M_NONE, M_DETAIL, M_COLLISION };
+enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB };
 static lv_obj_t* modalBack = nullptr;
 static lv_obj_t* modalHead = nullptr;
 static lv_obj_t* modalTitle = nullptr;
@@ -113,6 +115,37 @@ static Missing missing[96];                       // teselas que no estan en la 
 static int missingNext = 0;
 static uint32_t missingClearedMs = 0;
 static const char* chartFolder = "S:/charts/osm";
+
+// Navegacion: punto tocado, waypoints, "ir a" y hombre al agua
+static const int kWps = 50, kWpMarks = 20;
+struct Wp { LatLon p{0, 0}; char name[20] = ""; };
+static Wp wps[kWps];
+static int wpN = 0;
+static lv_obj_t* wpDot[kWpMarks] = {};
+static lv_obj_t* wpLbl[kWpMarks] = {};
+static const char* kWpFile = "S:/waypoints.gpx";
+static bool selOn = false;
+static LatLon selPos{0, 0};
+static lv_obj_t* selMark = nullptr;
+static RouteFollower nav;
+static LatLon navPts[1];
+static bool navOn = false, navMob = false;
+static char navName[16] = "";
+static uint32_t mobMs = 0;
+static lv_obj_t* navLine = nullptr;
+static lv_point_precise_t navLinePts[2];
+static lv_obj_t* navMark = nullptr;
+static lv_obj_t* chPanel = nullptr;
+static lv_obj_t* chPanelTxt = nullptr;
+static lv_obj_t* chPanelBtn[3] = {};
+static lv_obj_t* chPanelBtnLbl[3] = {};
+static int dragDist = 0;
+
+// Ajustes
+static lv_obj_t* setSimLbl = nullptr;
+static lv_obj_t* setBaudLbl = nullptr;
+static lv_obj_t* setBrightLbl = nullptr;
+static lv_obj_t* setInfo = nullptr;
 static bool chFollow = true;
 static LatLon chCenter{36.53, -6.29};
 
@@ -375,6 +408,8 @@ static void updateRadar() {
 }
 
 // ---------- Ventana centrada ----------
+static void updateMobModal();
+
 static void closeModal() {
     modalMode = M_NONE;
     modalMmsi = 0;
@@ -382,6 +417,7 @@ static void closeModal() {
 }
 
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
+    if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i >= 0) tg.silence(modalMmsi, modalMode == M_COLLISION ? true : !tg.at(i).silenced);
@@ -455,9 +491,35 @@ static void openModal(ModalMode mode, uint32_t mmsi) {
     lv_obj_set_hidden(modalBack, false);
 }
 
+// Hombre al agua: distancia y demora al punto donde se pulso MOB, y el tiempo transcurrido
+static void updateMobModal() {
+    if (!navMob) { closeModal(); return; }
+    uint32_t now = millis();
+    char b[260], pos[48] = "", dist[40] = "--";
+    formatLatLon(pos, sizeof(pos), navPts[0], 3, true);
+    String p(pos);
+    p.replace("\xE2\x80\xB2", "'");
+    double la, lo;
+    if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) {
+        Measure m = measure({la, lo}, navPts[0], true);
+        if (m.distanceNm < 0.1) snprintf(dist, sizeof(dist), "%d m \xC2\xB7 %03d\xC2\xB0", (int)lround(m.distanceNm * kMetersPerNm), (int)lround(m.bearing) % 360);
+        else { snprintf(dist, sizeof(dist), "%.2f mn \xC2\xB7 %03d\xC2\xB0", m.distanceNm, (int)lround(m.bearing) % 360); comma(dist); }
+    }
+    uint32_t secs = (now - mobMs) / 1000;
+    lv_obj_set_style_bg_color(modalHead, lv_color_hex(C_RED), 0);
+    lv_label_set_text(modalTitle, "MAN OVERBOARD");
+    lv_label_set_text(modalSub, "MOB \xC2\xB7 steer back to the marked position");
+    lv_label_set_text(modalName, dist);
+    snprintf(b, sizeof(b), "Distance / bearing to the MOB position\nElapsed:  %u min %02u s\nPosition:  %s", (unsigned)(secs / 60), (unsigned)(secs % 60), p.c_str());
+    lv_label_set_text(modalBody, b);
+    lv_label_set_text(modalBtnALbl, "SILENCE ALARM");
+    lv_label_set_text(modalBtnBLbl, "CLOSE");
+}
+
 // Rellena la ventana con el estado actual del blanco; la cierra si el blanco ya no existe o (alerta) ya no hay riesgo
 static void updateModal() {
     if (modalMode == M_NONE) return;
+    if (modalMode == M_MOB) { updateMobModal(); return; }
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i < 0) { closeModal(); return; }
@@ -498,7 +560,7 @@ static void updateModal() {
 
 // Abre la alerta del primer blanco con riesgo que no este silenciado ni cerrado hace poco
 static void checkCollision() {
-    if (modalMode == M_COLLISION) return;
+    if (modalMode == M_COLLISION || modalMode == M_MOB) return;
     AisTargets& tg = links::targets();
     if (tg.dangerousCount() == 0) return;
     uint32_t now = millis();
@@ -536,6 +598,8 @@ static void onChartDrag(lv_event_t*) {                    // arrastrar mueve la 
     lv_point_t v;
     lv_indev_get_vect(in, &v);
     if (v.x == 0 && v.y == 0) return;
+    dragDist += abs(v.x) + abs(v.y);
+    if (dragDist <= 12) return;                           // un toque con el dedo algo movido no arrastra
     double px, py;
     lonLatToWorldPx(chCenter, chZoom, px, py);
     chCenter = worldPxToLonLat(px - v.x, py - v.y, chZoom);
@@ -599,6 +663,121 @@ static int layoutTiles(double cx, double cy) {
     return shown;
 }
 
+// ---------- Waypoints, "ir a" y hombre al agua ----------
+static void saveWaypoints() {
+    GpxData d;
+    for (int i = 0; i < wpN; i++) {
+        GpxPoint g;
+        g.lat = wps[i].p.lat; g.lon = wps[i].p.lon; g.name = wps[i].name;
+        d.waypoints.push_back(g);
+    }
+    std::string xml = gpxWrite(d);
+    lv_fs_file_t f;
+    if (lv_fs_open(&f, kWpFile, LV_FS_MODE_WR) != LV_FS_RES_OK) return;        // sin tarjeta: se quedan en memoria
+    uint32_t bw = 0;
+    lv_fs_write(&f, xml.data(), (uint32_t)xml.size(), &bw);
+    lv_fs_close(&f);
+}
+
+static void loadWaypoints() {
+    lv_fs_file_t f;
+    if (lv_fs_open(&f, kWpFile, LV_FS_MODE_RD) != LV_FS_RES_OK) return;
+    std::string xml;
+    char buf[512];
+    uint32_t br = 0;
+    while (xml.size() < 64000 && lv_fs_read(&f, buf, sizeof(buf), &br) == LV_FS_RES_OK && br > 0) xml.append(buf, br);
+    lv_fs_close(&f);
+    GpxData d;
+    if (!gpxParse(xml, d)) return;
+    wpN = 0;
+    for (const GpxPoint& g : d.waypoints) {
+        if (wpN >= kWps) break;
+        wps[wpN].p = {g.lat, g.lon};
+        snprintf(wps[wpN].name, sizeof(wps[wpN].name), "%s", g.name.c_str());
+        wpN++;
+    }
+}
+
+static void addWaypoint(LatLon p) {
+    if (wpN >= kWps) return;
+    int num = 1;                                          // primer numero libre: WPT 01, WPT 02...
+    for (bool again = true; again;) {
+        again = false;
+        char n[20];
+        snprintf(n, sizeof(n), "WPT %02d", num % 1000);
+        for (int i = 0; i < wpN; i++)
+            if (!strcmp(wps[i].name, n)) { num++; again = true; break; }
+    }
+    wps[wpN].p = p;
+    snprintf(wps[wpN].name, sizeof(wps[wpN].name), "WPT %02d", num % 1000);
+    wpN++;
+    saveWaypoints();
+}
+
+static void startGoTo(LatLon dest, const char* name, bool mob) {
+    uint32_t now = millis();
+    double la, lo;
+    LatLon here = dest;
+    if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) here = {la, lo};
+    navPts[0] = dest;
+    nav.setRhumbLine(true);
+    nav.setArrivalRadiusNm(mob ? 0.01 : 0.05);
+    nav.start(navPts, 1, here);
+    navOn = true;
+    navMob = mob;
+    snprintf(navName, sizeof(navName), "%s", name);
+}
+
+static void stopGoTo() {
+    nav.stop();
+    navOn = navMob = false;
+    if (modalMode == M_MOB) closeModal();
+}
+
+// Punto tocado: el waypoint que este a menos de 20 px, o la posicion tal cual
+static void selectPoint(LatLon p) {
+    selPos = p;
+    selOn = true;
+}
+
+static const char* nearWaypoint(LatLon p) {
+    double mpp = metersPerPixel(p.lat, chZoom);
+    for (int i = 0; i < wpN; i++)
+        if (gcDistanceNm(p, wps[i].p) * kMetersPerNm / mpp < 20) { selPos = wps[i].p; return wps[i].name; }
+    return nullptr;
+}
+
+static void onPanelBtn(lv_event_t* e) {
+    int b = (int)(intptr_t)lv_event_get_user_data(e);
+    if (selOn) {                                          // Ir a / Marcar / Cerrar
+        if (b == 0) {
+            const char* n = nearWaypoint(selPos);
+            startGoTo(selPos, n ? n : "Punto", false);
+        } else if (b == 1) {
+            if (!nearWaypoint(selPos)) addWaypoint(selPos);
+        }
+        selOn = false;
+    } else if (navOn) {                                   // Parar / Centrar destino
+        if (b == 0) stopGoTo();
+        else if (b == 1) { chCenter = navPts[0]; chFollow = false; }
+    }
+}
+
+static void onChartPressed(lv_event_t*) { dragDist = 0; }
+
+static void onChartClicked(lv_event_t*) {
+    if (dragDist > 12) return;                            // era un arrastre, no un toque
+    lv_indev_t* in = lv_indev_active();
+    if (!in) return;
+    lv_point_t pt;
+    lv_indev_get_point(in, &pt);
+    lv_area_t a;
+    lv_obj_get_coords(chart, &a);
+    double cx, cy;
+    lonLatToWorldPx(chCenter, chZoom, cx, cy);
+    selectPoint(worldPxToLonLat(cx + (pt.x - a.x1) - CH_W / 2.0, cy + (pt.y - a.y1) - CH_H / 2.0, chZoom));
+}
+
 static void makeChart(lv_obj_t* page) {
     chart = box(page, 0x0E2A44, 10);
     lv_obj_set_size(chart, CH_W, CH_H);
@@ -606,6 +785,8 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_set_style_clip_corner(chart, true, 0);
     lv_obj_set_clickable(chart, true);
     lv_obj_add_event_cb(chart, onChartDrag, LV_EVENT_PRESSING, nullptr);
+    lv_obj_add_event_cb(chart, onChartPressed, LV_EVENT_PRESSED, nullptr);
+    lv_obj_add_event_cb(chart, onChartClicked, LV_EVENT_CLICKED, nullptr);
     for (TileImg& t : tileImgs) {                         // lo primero: quedan debajo de todo lo demas
         t.img = lv_image_create(chart);
         lv_obj_set_size(t.img, kTileSize, kTileSize);
@@ -634,6 +815,35 @@ static void makeChart(lv_obj_t* page) {
         lv_obj_set_hidden(chDots[i].vec, true);
         lv_obj_set_hidden(chDots[i].num, true);
     }
+    navLine = lv_line_create(chart);
+    lv_obj_set_style_line_color(navLine, lv_color_hex(0xFF9F43), 0);
+    lv_obj_set_style_line_width(navLine, 3, 0);
+    lv_obj_set_style_line_dash_width(navLine, 10, 0);
+    lv_obj_set_style_line_dash_gap(navLine, 6, 0);
+    for (int i = 0; i < kWpMarks; i++) {
+        wpDot[i] = box(chart, 0xFF9F43, 3);
+        lv_obj_set_size(wpDot[i], 12, 12);
+        lv_obj_set_style_border_color(wpDot[i], lv_color_hex(C_INK), 0);
+        lv_obj_set_style_border_width(wpDot[i], 2, 0);
+        wpLbl[i] = label(chart, "", &dejavu_12, 0xFFD3A1);
+        lv_obj_set_style_bg_color(wpLbl[i], lv_color_hex(C_BAR), 0);
+        lv_obj_set_style_bg_opa(wpLbl[i], 200, 0);
+        lv_obj_set_style_pad_hor(wpLbl[i], 4, 0);
+        lv_obj_set_style_radius(wpLbl[i], 4, 0);
+        lv_obj_set_hidden(wpDot[i], true);
+        lv_obj_set_hidden(wpLbl[i], true);
+    }
+    navMark = box(chart, 0xFF9F43, LV_RADIUS_CIRCLE);
+    lv_obj_set_size(navMark, 20, 20);
+    lv_obj_set_style_border_color(navMark, lv_color_hex(C_INK), 0);
+    lv_obj_set_style_border_width(navMark, 3, 0);
+    selMark = lv_obj_create(chart);
+    lv_obj_remove_style_all(selMark);
+    lv_obj_set_size(selMark, 26, 26);
+    lv_obj_set_style_radius(selMark, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_color(selMark, lv_color_hex(C_WARN), 0);
+    lv_obj_set_style_border_width(selMark, 3, 0);
+    lv_obj_set_scrollable(selMark, false);
     chBoat = box(chart, C_TEXT, LV_RADIUS_CIRCLE);
     lv_obj_set_size(chBoat, 16, 16);
     lv_obj_set_style_border_color(chBoat, lv_color_hex(C_INK), 0);
@@ -644,7 +854,7 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_t* minus = textButton(chart, "-", 52, 52, onZoom, -1);
     lv_obj_align(minus, LV_ALIGN_TOP_RIGHT, -8, 68);
     chCenterBtn = textButton(chart, "Centrar barco", 170, 46, onCenter, 0);
-    lv_obj_align(chCenterBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
+    lv_obj_align(chCenterBtn, LV_ALIGN_TOP_RIGHT, -68, 8);
     chScaleBar = box(chart, C_TEXT);
     lv_obj_set_height(chScaleBar, 3);
     lv_obj_align(chScaleBar, LV_ALIGN_BOTTOM_LEFT, 16, -14);
@@ -655,6 +865,21 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_set_style_pad_hor(chScaleLbl, 5, 0);
     lv_obj_set_style_pad_ver(chScaleLbl, 2, 0);
     lv_obj_set_style_radius(chScaleLbl, 5, 0);
+    chPanel = box(chart, C_PANEL, 10);
+    lv_obj_set_size(chPanel, 640, 62);
+    lv_obj_align(chPanel, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_set_style_border_width(chPanel, 2, 0);
+    lv_obj_set_clickable(chPanel, true);                  // tocar el panel no marca un punto en la carta
+    chPanelTxt = label(chPanel, "", &dejavu_14, C_TEXT);
+    lv_obj_align(chPanelTxt, LV_ALIGN_LEFT_MID, 12, 0);
+    lv_obj_set_width(chPanelTxt, 308);
+    lv_obj_set_style_text_line_space(chPanelTxt, 4, 0);
+    for (int i = 0; i < 3; i++) {
+        chPanelBtn[i] = textButton(chPanel, "Cerrar", 96, 46, onPanelBtn, i);
+        lv_obj_align(chPanelBtn[i], LV_ALIGN_RIGHT_MID, -8 - (2 - i) * 102, 0);
+        chPanelBtnLbl[i] = lv_obj_get_child(chPanelBtn[i], 0);
+    }
+    lv_obj_set_hidden(chPanel, true);
     chInfo = label(chart, "", &dejavu_12, C_TEXT);
     lv_obj_align(chInfo, LV_ALIGN_TOP_LEFT, 8, 8);
     lv_obj_set_style_bg_color(chInfo, lv_color_hex(C_BAR), 0);
@@ -755,6 +980,100 @@ static void updateChart() {
         if (!vis) lv_obj_set_hidden(d.vec, true);
     }
 
+    // Waypoints a la vista
+    int wm = 0;
+    for (int i = 0; i < wpN && wm < kWpMarks; i++) {
+        double x, y;
+        toScreen(wps[i].p, x, y);
+        if (!inside(x, y)) continue;
+        lv_obj_set_pos(wpDot[wm], (int)lround(x) - 6, (int)lround(y) - 6);
+        lv_label_set_text(wpLbl[wm], wps[i].name);
+        lv_obj_set_pos(wpLbl[wm], (int)lround(x) + 9, (int)lround(y) - 8);
+        lv_obj_set_hidden(wpDot[wm], false);
+        lv_obj_set_hidden(wpLbl[wm], false);
+        wm++;
+    }
+    for (int i = wm; i < kWpMarks; i++) { lv_obj_set_hidden(wpDot[i], true); lv_obj_set_hidden(wpLbl[i], true); }
+
+    // Destino y linea desde el barco
+    if (navOn) {
+        double x, y;
+        toScreen(navPts[0], x, y);
+        lv_obj_set_pos(navMark, (int)lround(x) - 10, (int)lround(y) - 10);
+        lv_obj_set_style_bg_color(navMark, lv_color_hex(navMob ? C_RED : 0xFF9F43), 0);
+        lv_obj_set_style_line_color(navLine, lv_color_hex(navMob ? C_RED : 0xFF9F43), 0);
+        if (own) {
+            navLinePts[0] = {(lv_value_precise_t)bx, (lv_value_precise_t)by};
+            navLinePts[1] = {(lv_value_precise_t)x, (lv_value_precise_t)y};
+            lv_line_set_points(navLine, navLinePts, 2);
+        }
+        lv_obj_set_hidden(navMark, !inside(x, y));
+        lv_obj_set_hidden(navLine, !own);
+    } else {
+        lv_obj_set_hidden(navMark, true);
+        lv_obj_set_hidden(navLine, true);
+    }
+
+    // Punto tocado y panel de abajo
+    if (selOn) {
+        double x, y;
+        toScreen(selPos, x, y);
+        lv_obj_set_pos(selMark, (int)lround(x) - 13, (int)lround(y) - 13);
+    }
+    lv_obj_set_hidden(selMark, !selOn);
+    char pt[200];
+    if (selOn) {
+        char pos[48] = "";
+        formatLatLon(pos, sizeof(pos), selPos, 3, true);
+        String p(pos);
+        p.replace("\xE2\x80\xB2", "'");
+        const char* wn = nullptr;
+        for (int i = 0; i < wpN; i++)
+            if (fabs(wps[i].p.lat - selPos.lat) < 1e-9 && fabs(wps[i].p.lon - selPos.lon) < 1e-9) wn = wps[i].name;
+        if (!wn) {                                        // el toque cae sobre un waypoint: se elige el waypoint
+            LatLon keep = selPos;
+            wn = nearWaypoint(selPos);
+            if (!wn) selPos = keep;
+        }
+        if (own) {
+            Measure m = measure({la, lo}, selPos, true, sog);
+            char d[24], t[24] = "";
+            snprintf(d, sizeof(d), "%.2f mn", m.distanceNm); comma(d);
+            if (m.hours >= 0) formatDuration(t, sizeof(t), m.hours);
+            snprintf(pt, sizeof(pt), "%s%s%s\n%s \xC2\xB7 %03d\xC2\xB0%s%s", wn ? wn : "", wn ? " \xC2\xB7 " : "", p.c_str(), d, (int)lround(m.bearing) % 360,
+                     t[0] ? " \xC2\xB7 " : "", t);
+        } else {
+            snprintf(pt, sizeof(pt), "%s%s%s\nSin posici\xC3\xB3n propia", wn ? wn : "", wn ? " \xC2\xB7 " : "", p.c_str());
+        }
+        lv_label_set_text(chPanelTxt, pt);
+        lv_label_set_text(chPanelBtnLbl[0], "Ir a");
+        lv_label_set_text(chPanelBtnLbl[1], "Marcar");
+        lv_label_set_text(chPanelBtnLbl[2], "Cerrar");
+        lv_obj_set_hidden(chPanelBtn[1], wn != nullptr);
+        lv_obj_set_hidden(chPanelBtn[2], false);
+        lv_obj_set_style_border_color(chPanel, lv_color_hex(C_WARN), 0);
+    } else if (navOn) {
+        const RouteStatus& st = nav.status();
+        char d[24], t[24] = "--", x[64];
+        if (st.distanceNm < 0.1) snprintf(d, sizeof(d), "%d m", (int)lround(st.distanceNm * kMetersPerNm));
+        else { snprintf(d, sizeof(d), "%.2f mn", st.distanceNm); comma(d); }
+        if (sog > 0.5) formatDuration(t, sizeof(t), st.distanceNm / sog);
+        if (navMob) {
+            uint32_t secs = (now - mobMs) / 1000;
+            snprintf(x, sizeof(x), "Hombre al agua hace %u min %02u s", (unsigned)(secs / 60), (unsigned)(secs % 60));
+        } else if (fabs(st.xteNm) < 0.005) snprintf(x, sizeof(x), "En la derrota");
+        else { snprintf(x, sizeof(x), "Desv\xC3\xADo %.2f mn a %s", fabs(st.xteNm), st.xteNm > 0 ? "estribor" : "babor"); comma(x); }
+        snprintf(pt, sizeof(pt), "%s%s \xC2\xB7 %s \xC2\xB7 %03d\xC2\xB0 \xC2\xB7 %s\n%s", (st.inArrival && !navMob) ? "LLEGADA \xC2\xB7 " : "A ", navName, d,
+                 (int)lround(st.bearing) % 360, t, x);
+        lv_label_set_text(chPanelTxt, pt);
+        lv_label_set_text(chPanelBtnLbl[0], "Parar");
+        lv_label_set_text(chPanelBtnLbl[1], "Destino");
+        lv_obj_set_hidden(chPanelBtn[1], false);
+        lv_obj_set_hidden(chPanelBtn[2], true);
+        lv_obj_set_style_border_color(chPanel, lv_color_hex(navMob ? C_RED : 0xFF9F43), 0);
+    }
+    lv_obj_set_hidden(chPanel, !(selOn || navOn));
+
     // Escala: la distancia redonda mas larga que quepa en 180 px
     static const double kSteps[] = {0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200};
     double best = kSteps[0];
@@ -769,6 +1088,92 @@ static void updateChart() {
              tilesShown ? "OpenSeaMap \xC2\xB7 \xC2\xA9 OpenStreetMap" : "sin cartas en la tarjeta para esta zona", chFollow ? "" : " \xC2\xB7 carta movida");
     lv_label_set_text(chInfo, b);
     lv_obj_set_hidden(chCenterBtn, chFollow);
+}
+
+// El seguimiento del destino va aunque la carta no este a la vista
+static void updateNav() {
+    if (!navOn) return;
+    uint32_t now = millis();
+    double la, lo;
+    if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) nav.update({la, lo}, now);
+}
+
+// ---------- Ajustes ----------
+static void onSetting(lv_event_t* e) {
+    int what = (int)(intptr_t)lv_event_get_user_data(e);
+    settings::Values& v = settings::get();
+    if (what == 0) { v.simulator = !v.simulator; links::setSimulator(v.simulator); }
+    else if (what == 1) { v.serialBaud = v.serialBaud == 38400 ? 4800 : 38400; links::setSerialBaud(v.serialBaud); }
+    else {
+        v.brightness += what == 2 ? -10 : 10;
+        if (v.brightness < 10) v.brightness = 10;
+        if (v.brightness > 100) v.brightness = 100;
+        board::setBacklight(v.brightness);
+    }
+    settings::save();
+}
+
+static lv_obj_t* settingRow(lv_obj_t* page, int row, const char* title, const char* help) {
+    lv_obj_t* r = box(page, C_PANEL, 10);
+    lv_obj_set_size(r, 620, 84);
+    lv_obj_set_pos(r, 0, row * 94);
+    lv_obj_t* t = label(r, title, &dejavu_bold_20, C_TEXT);
+    lv_obj_align(t, LV_ALIGN_TOP_LEFT, 14, 12);
+    lv_obj_t* h = label(r, help, &dejavu_14, C_DIM);
+    lv_obj_align(h, LV_ALIGN_BOTTOM_LEFT, 14, -12);
+    return r;
+}
+
+static void makeSettings(lv_obj_t* page) {
+    lv_obj_t* r = settingRow(page, 0, "Simulador", "Datos de prueba mientras no haya nada conectado");
+    lv_obj_t* b = textButton(r, "", 170, 52, onSetting, 0);
+    lv_obj_align(b, LV_ALIGN_RIGHT_MID, -14, 0);
+    setSimLbl = lv_obj_get_child(b, 0);
+    r = settingRow(page, 1, "Puerto serie RS485", "38400 para un receptor AIS, 4800 para NMEA cl\xC3\xA1sico");
+    b = textButton(r, "", 170, 52, onSetting, 1);
+    lv_obj_align(b, LV_ALIGN_RIGHT_MID, -14, 0);
+    setBaudLbl = lv_obj_get_child(b, 0);
+    r = settingRow(page, 2, "Brillo", "Luz de fondo de la pantalla");
+    b = textButton(r, "+", 56, 52, onSetting, 3);
+    lv_obj_align(b, LV_ALIGN_RIGHT_MID, -14, 0);
+    setBrightLbl = label(r, "", &dejavu_bold_20, C_TEXT);
+    lv_obj_align(setBrightLbl, LV_ALIGN_RIGHT_MID, -84, 0);
+    b = textButton(r, "-", 56, 52, onSetting, 2);
+    lv_obj_align(b, LV_ALIGN_RIGHT_MID, -150, 0);
+    lv_obj_t* info = box(page, C_PANEL, 10);
+    lv_obj_set_size(info, 374, 366);
+    lv_obj_set_pos(info, 630, 0);
+    lv_obj_t* t = label(info, "Estado", &dejavu_bold_20, C_TEXT);
+    lv_obj_align(t, LV_ALIGN_TOP_LEFT, 14, 12);
+    setInfo = label(info, "", &dejavu_16, C_SOFT);
+    lv_obj_align(setInfo, LV_ALIGN_TOP_LEFT, 14, 48);
+    lv_obj_set_width(setInfo, 346);
+    lv_obj_set_style_text_line_space(setInfo, 8, 0);
+    lv_obj_t* about = label(page, "APRS LoRa+ \xC2\xB7 \xC2\xA9 2026 Manuel - EA7JRS \xC2\xB7 GPL-3.0 \xC2\xB7 mapas \xC2\xA9 OpenStreetMap", &dejavu_14, C_DIM);
+    lv_obj_align(about, LV_ALIGN_BOTTOM_LEFT, 4, -4);
+}
+
+static void updateSettings() {
+    const settings::Values& v = settings::get();
+    lv_label_set_text(setSimLbl, v.simulator ? "Encendido" : "Apagado");
+    lv_label_set_text(setBaudLbl, v.serialBaud == 38400 ? "38400 (AIS)" : "4800 (NMEA)");
+    char b[320];
+    snprintf(b, sizeof(b), "%d %%", v.brightness);
+    lv_label_set_text(setBrightLbl, b);
+    const links::Status& ls = links::status();
+    const NmeaStats& ns = links::serialStats();
+    uint32_t now = millis();
+    snprintf(b, sizeof(b),
+             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nMensajes AIS: %u\nBlancos AIS: %d\nWaypoints: %d de %d\nDerrota: %d puntos",
+#ifdef PLOTTER_VERSION
+             PLOTTER_VERSION,
+#else
+             "(PC)",
+#endif
+             (unsigned)ls.serialLines, (unsigned)(ns.badChecksum + ns.malformed),
+             ls.serialLines ? (now - ls.serialLastMs < 5000 ? "ahora" : "hace rato") : "ninguna", (unsigned)ls.aisMessages, links::targets().count(), wpN, kWps,
+             trackN);
+    lv_label_set_text(setInfo, b);
 }
 
 // La derrota se guarda aunque la carta no este a la vista
@@ -793,6 +1198,27 @@ static void placeholder(lv_obj_t* page, const char* name) {
     lv_obj_align(a, LV_ALIGN_CENTER, 0, -14);
     lv_obj_t* b = label(p, "En preparaci\xC3\xB3n", &dejavu_16, C_DIM);
     lv_obj_align(b, LV_ALIGN_CENTER, 0, 16);
+}
+
+// MOB: marca donde esta el barco, pone rumbo de vuelta y abre la ventana. Si ya hay uno marcado, solo la reabre.
+static void onMob(lv_event_t*) {
+    uint32_t now = millis();
+    double la, lo;
+    if (!navMob) {
+        if (!store->get(Key::Lat, now, la) || !store->get(Key::Lon, now, lo)) return;      // sin posicion no hay que marcar
+        mobMs = now;
+        startGoTo({la, lo}, "MOB", true);
+        selOn = false;
+        chFollow = true;
+    }
+    openModal(M_MOB, 0);
+}
+
+// Marcar: waypoint en la posicion del barco
+static void onMark(lv_event_t*) {
+    uint32_t now = millis();
+    double la, lo;
+    if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) addWaypoint({la, lo});
 }
 
 void begin(DataStore* s) {
@@ -824,8 +1250,18 @@ void begin(DataStore* s) {
     lv_obj_set_style_bg_opa(mob, LV_OPA_COVER, 0);
     lv_obj_t* mobL = label(mob, "MOB", &dejavu_bold_16, C_INK);
     lv_obj_center(mobL);
+    lv_obj_add_event_cb(mob, onMob, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t* mark = lv_button_create(top);
+    lv_obj_remove_style_all(mark);
+    lv_obj_set_size(mark, 84, TOP_H - 1);
+    lv_obj_align(mark, LV_ALIGN_RIGHT_MID, -70, 0);
+    lv_obj_set_style_bg_color(mark, lv_color_hex(C_PANEL), 0);
+    lv_obj_set_style_bg_opa(mark, LV_OPA_COVER, 0);
+    lv_obj_t* markL = label(mark, "Marcar", &dejavu_bold_16, C_TEXT);
+    lv_obj_center(markL);
+    lv_obj_add_event_cb(mark, onMark, LV_EVENT_CLICKED, nullptr);
     lblPos = label(top, "Sin posici\xC3\xB3n", &dejavu_16, C_SOFT);
-    lv_obj_align(lblPos, LV_ALIGN_RIGHT_MID, -84, 0);
+    lv_obj_align(lblPos, LV_ALIGN_RIGHT_MID, -168, 0);
 
     // Cuerpo: una pagina por pestana
     for (int i = 0; i < 8; i++) {
@@ -837,6 +1273,7 @@ void begin(DataStore* s) {
         lv_obj_set_scrollable(pages[i], false);
         if (i == 1) makeChart(pages[i]);
         else if (i == 3) makeRadar(pages[i]);
+        else if (i == 7) makeSettings(pages[i]);
         else if (i > 0) placeholder(pages[i], kTabs[i]);
     }
 
@@ -880,6 +1317,7 @@ void begin(DataStore* s) {
         tabBtn[i] = b;
     }
     makeModal();
+    loadWaypoints();
     showTab(0);
 }
 
@@ -920,7 +1358,9 @@ void update() {
     if (!store) return;
     uint32_t now = millis();
     sampleTrack();
+    updateNav();
     if (active == 1) updateChart();
+    if (active == 7) updateSettings();
     if (active == 3) updateRadar();
     checkCollision();
     updateModal();
@@ -985,5 +1425,17 @@ void showPage(int tab) {
 void closeWindow() {
     if (modalMode != M_NONE) onModalB(nullptr);
 }
+
+// Para las pruebas en el PC: lo mismo que tocar la pantalla
+void testTapChart(int x, int y) {
+    double cx, cy;
+    lonLatToWorldPx(chCenter, chZoom, cx, cy);
+    selectPoint(worldPxToLonLat(cx + x - CH_W / 2.0, cy + y - CH_H / 2.0, chZoom));
+}
+void testPanelButton(int b) {
+    lv_obj_send_event(chPanelBtn[b], LV_EVENT_CLICKED, nullptr);
+}
+void testMob() { onMob(nullptr); }
+void testMark() { onMark(nullptr); }
 
 }

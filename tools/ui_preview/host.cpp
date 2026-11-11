@@ -7,11 +7,16 @@
 #include <Arduino.h>
 #include <lvgl.h>
 #include <cstdio>
+#include <string>
 #include <vector>
 #include "links.h"
 #include "store.h"
 #include "ui.h"
 
+#include "board.h"
+namespace board {
+void setBacklight(int) {}
+}
 static uint32_t fakeMs = 0;
 uint32_t hostMillis() { return fakeMs; }
 HardwareSerial Serial, Serial1;
@@ -44,8 +49,27 @@ int main(int argc, char** argv) {
         if (i % 60 == 0) ui::update();
         lv_timer_handler();
     }
-    if (argc > 4) {                              // cuarto argumento: cerrar la ventana de alerta antes de la foto
-        ui::closeWindow();
+    if (argc > 4) {                              // cuarto argumento: acciones separadas por comas antes de la foto
+        // cerrar | mob | marcar | tocar:x:y | boton:n | pagina:n
+        std::string acts = argv[4];
+        size_t pos = 0;
+        while (pos <= acts.size()) {
+            size_t e = acts.find(',', pos);
+            if (e == std::string::npos) e = acts.size();
+            std::string a = acts.substr(pos, e - pos);
+            pos = e + 1;
+            int x = 0, y = 0;
+            if (a == "cerrar") ui::closeWindow();
+            else if (a == "mob") ui::testMob();
+            else if (a == "marcar") ui::testMark();
+            else if (sscanf(a.c_str(), "tocar:%d:%d", &x, &y) == 2) ui::testTapChart(x, y);
+            else if (sscanf(a.c_str(), "boton:%d", &x) == 1) ui::testPanelButton(x);
+            else if (sscanf(a.c_str(), "pagina:%d", &x) == 1) ui::showPage(x);
+            else if (sscanf(a.c_str(), "esperar:%d", &x) == 1) {
+                for (int i = 0; i < x * 200; i++) { fakeMs += 5; links::loop(); if (i % 60 == 0) ui::update(); lv_timer_handler(); }
+            }
+            for (int i = 0; i < 120; i++) { fakeMs += 5; links::loop(); if (i % 60 == 0) ui::update(); lv_timer_handler(); }
+        }
         for (int i = 0; i < 100; i++) { fakeMs += 5; links::loop(); if (i % 60 == 0) ui::update(); lv_timer_handler(); }
     }
     FILE* f = fopen(argc > 1 ? argv[1] : "out.ppm", "wb");

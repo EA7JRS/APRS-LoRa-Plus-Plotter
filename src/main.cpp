@@ -10,6 +10,7 @@
 
 #include "board.h"
 #include "links.h"
+#include "settings.h"
 #include "store.h"
 #include "ui.h"
 
@@ -64,7 +65,11 @@ void setup() {
     lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(indev, readTouch);
 
+    settings::load();
     links::begin(&store);
+    links::setSimulator(settings::get().simulator);
+    links::setSerialBaud(settings::get().serialBaud);
+    board::setBacklight(settings::get().brightness);
     ui::begin(&store);
     if (!ok) Serial.println("La placa no ha arrancado bien: revisar docs/HARDWARE.md");
     if (!sd) Serial.println("[main] sin tarjeta: la carta sale sin mapa de fondo");
@@ -80,8 +85,12 @@ static void console() {
             buf[n] = 0;
             if (n && strcmp(buf, "APRS-INFO?") == 0)
                 Serial.println("APRS-LoRa-Plus: device=plotter board=" BOARD_ENV " version=" PLOTTER_VERSION " chip=ESP32-S3 ota=0");
-            else if (n && strcmp(buf, "SIM 0") == 0) { links::setSimulator(false); Serial.println("[main] simulador apagado"); }
-            else if (n && strcmp(buf, "SIM 1") == 0) { links::setSimulator(true); Serial.println("[main] simulador encendido"); }
+            else if (n && (strcmp(buf, "SIM 0") == 0 || strcmp(buf, "SIM 1") == 0)) {
+                settings::get().simulator = buf[4] == '1';
+                links::setSimulator(settings::get().simulator);
+                settings::save();
+                Serial.printf("[main] simulador %s\n", buf[4] == '1' ? "encendido" : "apagado");
+            }
             n = 0;
         } else if (n < sizeof(buf) - 1) {
             buf[n++] = c;

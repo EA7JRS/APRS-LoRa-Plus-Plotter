@@ -239,13 +239,23 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   tarjeta por el sistema de ficheros de LVGL (`S:`; Arduino SD en la placa, carpeta `/tmp/plotter_sd` en el PC). Sobre mapa
   claro las líneas pasan a oscuras y las etiquetas llevan fondo. `board::sdBegin` (CS por el expansor, GPIO 6 de pega para
   la librería SD: **sin verificar**). Comprobado en el PC con teselas de prueba (`tools/ui_preview/fake_tiles.py`): encajan
-  entre sí y con el barco. Falta: elegir mapa base, bajar teselas por WiFi, costa de reserva, waypoints y rutas, medir,
-  alarma sonora (zumbador externo, pin por decidir), rumbo arriba, zona de guarda y estelas en el radar.
+  entre sí y con el barco. Fusionado en `main` el 2026-11-11.
+- **Navegar a un punto, waypoints, MOB y Ajustes (2026-11-11, rama `navegar`)**: tocar la carta elige un punto (o el waypoint
+  que haya debajo) y abre un panel con posición, distancia, demora y tiempo, y botones «Ir a», «Marcar» y «Cerrar». «Ir a»
+  usa `RouteFollower` (loxodrómica, llegada a 0,05 mn): línea al destino, panel con distancia, demora, tiempo y desvío,
+  «Parar» y «Destino». Waypoints (50, «WPT 01»...) con el botón «Marcar» de la barra o desde el punto tocado; se guardan en
+  GPX en la tarjeta (`S:/waypoints.gpx`, por el sistema de ficheros de LVGL) y se cargan al arrancar. **MOB**: marca la
+  posición, pone rumbo de vuelta y abre la ventana «MAN OVERBOARD» con distancia, demora y tiempo; al cerrarla sigue la
+  navegación al punto en la carta. Pestaña **Ajustes**: simulador, velocidad del RS485 (38400 / 4800), brillo y estado; se
+  guardan en NVS (`src/settings.*`). Dibujado en el PC con acciones simuladas (`build.sh ... "cerrar,marcar,tocar:x:y,boton:n,
+  mob,esperar:s"`). Falta: rutas de varios puntos y su pestaña, borrar y renombrar waypoints, medir, elegir mapa base,
+  bajar teselas por WiFi, costa de reserva, alarma sonora (zumbador externo, pin por decidir), rumbo arriba, zona de guarda
+  y estelas en el radar.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.
 
 ## Siguiente
-1. Hechos el esqueleto, Instrumentos, Radar AIS, alerta de abordaje y Carta sin teselas (ver Estado). Lo siguiente:
-   teselas de la microSD en la Carta, waypoints y rutas, Ajustes (fuentes, unidades, simulador), hombre al agua (MOB).
+1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Lo
+   siguiente: pestaña Rutas (rutas de varios puntos, lista de waypoints), medir, unidades, y probar en la placa.
 2. NMEA 2000 por TWAI (librería NMEA2000) y UART / RS485.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático; comprobar pines libres de la 7B para el anemómetro.

@@ -153,7 +153,10 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   (`wmsFeatureInfoUrl`, GetFeatureInfo); falta el nombre de capa y un ejemplo de respuesta para leerla y rellenar `LightRecord`.
   `https://ideihm.covam.es/wms/catalogoENC` (enlace de Manuel): por el nombre, el catálogo de celdas ENC (qué carta
   electrónica cubre cada zona y a qué escala); tampoco leído. Poco útil en el plotter: como mucho, para saber hasta qué zoom
-  hay carta en un sitio. Maqueta `CartaBase` actualizada: OpenSeaMap, IHM electrónica, IHM de papel, IGN, ortofoto PNOA y relieve.
+  hay carta en un sitio. `https://ideihm.covam.es/wms/enc` (enlace de Manuel): la carta
+  electrónica en una sola dirección (antes teníamos `cartaENCp2..p5`, una por escala); tampoco leído.
+  **Los cinco WMS del IHM (enc, CartaOF, lucesIHM, mareas, catalogoENC) esperan lo mismo: el GetCapabilities con los nombres
+  de capa, que tiene que abrir Manuel.** Maqueta `CartaBase` actualizada: OpenSeaMap, IHM electrónica, IHM de papel, IGN, ortofoto PNOA y relieve.
 
 ## Estado (2026-11-11)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1226 comprobaciones en `test/host/test_core.cpp`

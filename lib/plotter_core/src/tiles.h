@@ -43,6 +43,7 @@ int wmsTileUrl(char* out, int size, const char* base, const char* layers, int zo
 int wmsFeatureInfoUrl(char* out, int size, const char* base, const char* layers, LatLon p, int zoom,
                       const char* infoFormat = "text/plain", int featureCount = 5);
 // Servicios del Instituto Hidrografico de la Marina (los nombres de capa se leen del GetCapabilities de cada uno)
+constexpr const char* kWmsIhmEnc = "https://ideihm.covam.es/wms/enc";
 constexpr const char* kWmsIhmPaperCharts = "https://ideihm.covam.es/wms/CartaOF";
 constexpr const char* kWmsIhmLights = "https://ideihm.covam.es/wms/lucesIHM";
 constexpr const char* kWmsIhmTides = "https://ideihm.covam.es/wms/mareas";

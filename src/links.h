@@ -27,6 +27,8 @@ struct Status {
     uint32_t canLastMs = 0;
     uint32_t tcpLines = 0, udpLines = 0;   // lineas NMEA recibidas por la red
     uint32_t netLastMs = 0;
+    char wxPlace[32] = "";              // ultima observacion de internet: lugar y cuando (0 = ninguna)
+    uint32_t wxMs = 0;
     uint32_t pilotSent = 0;             // tramas enviadas al piloto
 };
 

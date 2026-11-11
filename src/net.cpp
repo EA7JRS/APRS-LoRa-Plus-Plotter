@@ -5,7 +5,10 @@
 #include "net.h"
 
 #ifdef ESP32
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <WiFiUdp.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -26,10 +29,46 @@ static Config cfg;
 static volatile uint32_t cfgVersion = 0;
 static SemaphoreHandle_t cfgLock = nullptr;
 static StreamBufferHandle_t sbTcp = nullptr, sbUdp = nullptr, sbOut = nullptr;
+static double posLat = 0, posLon = 0;
+static bool posValid = false;
+static Weather wx;
+static bool wxNew = false;
+
+// El tiempo en la posicion del barco. Bloquea unos segundos como mucho: va en la tarea de red, no en la de la pantalla.
+static bool fetchWeather(const char* key, double lat, double lon) {
+    WiFiClientSecure tls;
+    tls.setInsecure();                                             // cifrado, sin comprobar el certificado (no hay reloj fiable al arrancar)
+    HTTPClient http;
+    char url[200];
+    snprintf(url, sizeof(url), "https://api.openweathermap.org/data/2.5/weather?lat=%.4f&lon=%.4f&units=metric&appid=%s", lat, lon, key);
+    http.setConnectTimeout(6000);
+    http.setTimeout(6000);
+    if (!http.begin(tls, url)) return false;
+    int code = http.GET();
+    if (code != 200) { http.end(); return false; }
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, http.getStream());
+    http.end();
+    if (err) return false;
+    Weather w;
+    w.windMs = doc["wind"]["speed"] | NAN;
+    w.windDeg = doc["wind"]["deg"] | NAN;
+    w.gustMs = doc["wind"]["gust"] | NAN;
+    w.pressureHpa = doc["main"]["pressure"] | NAN;
+    w.tempC = doc["main"]["temp"] | NAN;
+    w.humidityPct = doc["main"]["humidity"] | NAN;
+    w.visibilityM = doc["visibility"] | NAN;
+    snprintf(w.place, sizeof(w.place), "%s", (const char*)(doc["name"] | ""));
+    xSemaphoreTake(cfgLock, portMAX_DELAY);
+    wx = w;
+    wxNew = true;
+    xSemaphoreGive(cfgLock);
+    return true;
+}
 
 static void task(void*) {
     Config c;
-    uint32_t seen = 0xFFFFFFFFu, lastBegin = 0, lastTry = 0, lastInfo = 0;
+    uint32_t seen = 0xFFFFFFFFu, lastBegin = 0, lastTry = 0, lastInfo = 0, nextWx = 0;
     bool wifiStarted = false, udpOn = false;
     WiFiClient client;
     WiFiUDP udp;
@@ -48,6 +87,7 @@ static void task(void*) {
             st.wifi = st.tcp = false;
             st.ip[0] = 0;
             lastBegin = lastTry = 0;
+            nextWx = now;
         }
         if (!c.ssid[0]) { vTaskDelay(pdMS_TO_TICKS(300)); continue; }
         if (WiFi.status() != WL_CONNECTED) {
@@ -67,6 +107,17 @@ static void task(void*) {
             snprintf(st.ip, sizeof(st.ip), "%s", WiFi.localIP().toString().c_str());
             st.rssi = WiFi.RSSI();
             st.wifi = true;
+        }
+        // Tiempo de internet: cada 15 min (a los 2 min si ha fallado), con clave y posicion
+        if (c.owmKey[0] && (int32_t)(now - nextWx) >= 0) {
+            double la, lo;
+            xSemaphoreTake(cfgLock, portMAX_DELAY);
+            bool ok = posValid;
+            la = posLat; lo = posLon;
+            xSemaphoreGive(cfgLock);
+            if (!ok) nextWx = now + 5000;                           // aun sin posicion
+            else if (fetchWeather(c.owmKey, la, lo)) { st.wxOk++; nextWx = now + 15 * 60000u; }
+            else { st.wxFail++; nextWx = now + 2 * 60000u; }
         }
         // UDP: lo que otros equipos manden a este puerto (AIS de AIS-catcher o AIS Dispatcher, NMEA de un multiplexor)
         if (c.udpPort > 0 && !udpOn) udpOn = udp.begin((uint16_t)c.udpPort) == 1;
@@ -116,7 +167,7 @@ void begin() {
     sbTcp = xStreamBufferCreate(8192, 1);
     sbUdp = xStreamBufferCreate(4096, 1);
     sbOut = xStreamBufferCreate(1024, 1);
-    xTaskCreatePinnedToCore(task, "net", 6144, nullptr, 1, nullptr, 0);
+    xTaskCreatePinnedToCore(task, "net", 12288, nullptr, 1, nullptr, 0);    // la pila, holgada por el TLS
 }
 
 void apply(const Config& c) {
@@ -125,6 +176,22 @@ void apply(const Config& c) {
     cfg = c;
     cfgVersion = cfgVersion + 1;
     xSemaphoreGive(cfgLock);
+}
+
+void setPosition(double lat, double lon) {
+    if (!cfgLock) return;
+    xSemaphoreTake(cfgLock, portMAX_DELAY);
+    posLat = lat; posLon = lon; posValid = true;
+    xSemaphoreGive(cfgLock);
+}
+
+bool takeWeather(Weather& w) {
+    if (!cfgLock || !wxNew) return false;
+    xSemaphoreTake(cfgLock, portMAX_DELAY);
+    w = wx;
+    wxNew = false;
+    xSemaphoreGive(cfgLock);
+    return true;
 }
 
 int readTcp(uint8_t* b, int max) { return sbTcp ? (int)xStreamBufferReceive(sbTcp, b, (size_t)max, 0) : 0; }
@@ -137,6 +204,8 @@ void begin() {}
 void apply(const Config&) {}
 int readTcp(uint8_t*, int) { return 0; }
 void sendTcp(const char*, int) {}
+void setPosition(double, double) {}
+bool takeWeather(Weather&) { return false; }
 int readUdp(uint8_t*, int) { return 0; }
 
 #endif

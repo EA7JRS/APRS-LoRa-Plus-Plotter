@@ -196,7 +196,7 @@ static lv_obj_t* setUnitsLbl = nullptr;
 static lv_obj_t* setCanLbl = nullptr;
 // Pantalla de red (WiFi, TCP, UDP) con teclado
 static lv_obj_t* netScr = nullptr;
-static lv_obj_t* netTa[5] = {};                        // red, clave, servidor, puerto TCP, puerto UDP
+static lv_obj_t* netTa[6] = {};                        // red, clave, servidor, puerto TCP, puerto UDP, clave de OpenWeatherMap
 static lv_obj_t* netKb = nullptr;
 static lv_obj_t* netKindLbl = nullptr;
 static lv_obj_t* netStatus = nullptr;
@@ -1643,6 +1643,7 @@ static void openNet() {
     lv_textarea_set_text(netTa[3], b);
     snprintf(b, sizeof(b), "%d", v.udpPort);
     lv_textarea_set_text(netTa[4], v.udpPort ? b : "");
+    lv_textarea_set_text(netTa[5], v.owmKey);
     netKind = v.tcpKind;
     lv_keyboard_set_textarea(netKb, netTa[0]);
     lv_obj_set_hidden(netScr, false);
@@ -1659,6 +1660,7 @@ static void onNetBtn(lv_event_t* e) {
         snprintf(v.wifiSsid, sizeof(v.wifiSsid), "%s", lv_textarea_get_text(netTa[0]));
         snprintf(v.wifiPass, sizeof(v.wifiPass), "%s", lv_textarea_get_text(netTa[1]));
         snprintf(v.tcpHost, sizeof(v.tcpHost), "%s", lv_textarea_get_text(netTa[2]));
+        snprintf(v.owmKey, sizeof(v.owmKey), "%s", lv_textarea_get_text(netTa[5]));
         v.tcpKind = netKind;
         int port = atoi(lv_textarea_get_text(netTa[3]));
         v.tcpPort = (port >= 1 && port <= 65535) ? port : 10110;
@@ -1724,9 +1726,7 @@ static void makeNet() {
     netField(2, 232, 126, 420, "Servidor (direcci\xC3\xB3n IP o nombre)", 39, false);
     netField(3, 668, 126, 140, "Puerto", 5, true);
     netField(4, 824, 126, 184, "Puerto UDP", 5, true);
-    lv_obj_t* h = label(netScr, "TCP: NMEA 0183 de un multiplexor o de Signal K (puerto 10110), o gpsd (2947). UDP: AIS o NMEA que otro equipo env\xC3\xAD" "e a este puerto.", &dejavu_14, C_DIM);
-    lv_obj_set_pos(h, 16, 184);
-    lv_obj_set_width(h, 992);
+    netField(5, 16, 184, 992, "Clave de OpenWeatherMap: tiempo de internet, de reserva si falla un sensor de a bordo", 39, false);
     netKb = lv_keyboard_create(netScr);
     lv_obj_set_size(netKb, board::W, 360);
     lv_obj_align(netKb, LV_ALIGN_BOTTOM_MID, 0, 0);
@@ -1960,8 +1960,10 @@ static void updateWind() {
         int f = beaufort(w.tws);
         snprintf(b, sizeof(b), "%.1f", speedFromKn(w.tws, U.windSpeed)); comma(b);
         lv_label_set_text(wTile[1].value, b);
-        snprintf(s, sizeof(s), "Fuerza %d \xC2\xB7 %s%s", f, beaufortNameEs(f), w.computed ? " \xC2\xB7 calculado" : "");
+        bool inet = !w.computed && store->source(Key::Tws, now) == Source::Internet;
+        snprintf(s, sizeof(s), "Fuerza %d \xC2\xB7 %s%s", f, beaufortNameEs(f), w.computed ? " \xC2\xB7 calculado" : (inet ? " \xC2\xB7 internet, estimado" : ""));
         lv_label_set_text(wTile[1].sub, s);
+        lv_obj_set_style_text_color(wTile[1].value, lv_color_hex(inet ? C_WARN : C_ACC), 0);
     } else {
         lv_label_set_text(wTile[1].value, "--");
         lv_label_set_text(wTile[1].sub, "Falta viento, velocidad o rumbo");
@@ -2213,6 +2215,123 @@ static void updatePilot() {
     lv_label_set_text(pOutTxt, b);
 }
 
+// ---------- Pestana Meteo ----------
+// Cada dato dice de donde sale: del sensor de a bordo o, si este falta, de internet (estimado).
+static WTile mTile[6];
+static lv_obj_t* mNote = nullptr;
+
+static void makeMeteo(lv_obj_t* page) {
+    static const char* const names[6] = {"PRESI\xC3\x93N", "TEMPERATURA", "HUMEDAD", "VIENTO REAL", "RACHA", "VISIBILIDAD"};
+    for (int i = 0; i < 6; i++) {
+        lv_obj_t* t = box(page, C_PANEL, 10);
+        lv_obj_set_size(t, 328, 176);
+        lv_obj_set_pos(t, (i % 3) * 338, (i / 3) * 186);
+        lv_obj_set_style_pad_all(t, 12, 0);
+        lv_obj_t* n = label(t, names[i], &dejavu_bold_16, C_DIM);
+        lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, 0);
+        mTile[i].unit = label(t, "", &dejavu_14, C_DIM);
+        lv_obj_align(mTile[i].unit, LV_ALIGN_TOP_RIGHT, 0, 2);
+        mTile[i].value = label(t, "--", &dejavu_num_60, C_TEXT);
+        lv_obj_align(mTile[i].value, LV_ALIGN_LEFT_MID, 0, 6);
+        mTile[i].sub = label(t, "", &dejavu_12, C_DIM);
+        lv_obj_align(mTile[i].sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    }
+    lv_obj_t* nbox = box(page, C_PANEL, 10);
+    lv_obj_set_size(nbox, 1004, 104);
+    lv_obj_set_pos(nbox, 0, 372);
+    mNote = label(nbox, "", &dejavu_14, C_SOFT);
+    lv_obj_align(mNote, LV_ALIGN_TOP_LEFT, 14, 12);
+    lv_obj_set_width(mNote, 976);
+    lv_obj_set_style_text_line_space(mNote, 6, 0);
+}
+
+// Fuente, antiguedad y si es estimado; el valor de internet se pinta en ambar
+static bool meteoSub(int i, Key k, const char* extra) {
+    uint32_t now = millis();
+    Source src = store->source(k, now);
+    bool est = src == Source::Internet || store->quality(k) == Quality::Estimated;
+    uint32_t age = store->ageMs(k, now) / 1000;
+    char t[24], s[96];
+    if (age < 120) snprintf(t, sizeof(t), "hace %u s", (unsigned)age);
+    else snprintf(t, sizeof(t), "hace %u min", (unsigned)(age / 60));
+    snprintf(s, sizeof(s), "%s%s%s \xC2\xB7 %s%s", extra, extra[0] ? " \xC2\xB7 " : "", sourceName(src), t, est ? " \xC2\xB7 estimado" : "");
+    lv_label_set_text(mTile[i].sub, s);
+    lv_obj_set_style_text_color(mTile[i].value, lv_color_hex(est ? C_WARN : C_TEXT), 0);
+    return est;
+}
+
+static void meteoNone(int i) {
+    lv_label_set_text(mTile[i].value, "--");
+    lv_label_set_text(mTile[i].sub, "Sin datos");
+    lv_obj_set_style_text_color(mTile[i].value, lv_color_hex(C_TEXT), 0);
+}
+
+static void updateMeteo() {
+    uint32_t now = millis();
+    char b[32], x[48];
+    double v;
+    int est = 0;
+    lv_label_set_text(mTile[0].unit, plotter::label(U.press));
+    if (store->get(Key::Pressure, now, v)) {
+        double p = pressFromHpa(v, U.press);
+        snprintf(b, sizeof(b), U.press == PressUnit::InHg ? "%.2f" : "%.0f", p); comma(b);
+        lv_label_set_text(mTile[0].value, b);
+        est += meteoSub(0, Key::Pressure, "");
+    } else meteoNone(0);
+    lv_label_set_text(mTile[1].unit, plotter::label(U.temp));
+    if (store->get(Key::AirTemp, now, v)) {
+        snprintf(b, sizeof(b), "%.1f", tempFromC(v, U.temp)); comma(b);
+        lv_label_set_text(mTile[1].value, b);
+        est += meteoSub(1, Key::AirTemp, "Aire");
+    } else meteoNone(1);
+    lv_label_set_text(mTile[2].unit, "%");
+    if (store->get(Key::Humidity, now, v)) {
+        snprintf(b, sizeof(b), "%.0f", v);
+        lv_label_set_text(mTile[2].value, b);
+        est += meteoSub(2, Key::Humidity, "");
+    } else meteoNone(2);
+    // Viento real: el calculado con los sensores de a bordo o, si faltan, el de internet
+    lv_label_set_text(mTile[3].unit, plotter::label(U.windSpeed));
+    WindNow w = windNow();
+    if (w.tru) {
+        snprintf(b, sizeof(b), "%.1f", speedFromKn(w.tws, U.windSpeed)); comma(b);
+        lv_label_set_text(mTile[3].value, b);
+        if (w.truDir) snprintf(x, sizeof(x), "Del %s (%03d\xC2\xB0) \xC2\xB7 fuerza %d", cardinalEs(w.twd), (int)lround(norm360(w.twd)) % 360, beaufort(w.tws));
+        else snprintf(x, sizeof(x), "Fuerza %d", beaufort(w.tws));
+        if (w.computed) {
+            char s[96];
+            snprintf(s, sizeof(s), "%s \xC2\xB7 calculado a bordo", x);
+            lv_label_set_text(mTile[3].sub, s);
+            lv_obj_set_style_text_color(mTile[3].value, lv_color_hex(C_TEXT), 0);
+        } else est += meteoSub(3, Key::Tws, x);
+    } else meteoNone(3);
+    lv_label_set_text(mTile[4].unit, plotter::label(U.windSpeed));
+    if (store->get(Key::Gust, now, v)) {
+        snprintf(b, sizeof(b), "%.1f", speedFromKn(v, U.windSpeed)); comma(b);
+        lv_label_set_text(mTile[4].value, b);
+        est += meteoSub(4, Key::Gust, "");
+    } else meteoNone(4);
+    lv_label_set_text(mTile[5].unit, distLabel());
+    if (store->get(Key::Visibility, now, v)) {
+        snprintf(b, sizeof(b), "%.1f", distFromNm(v, U.dist)); comma(b);
+        lv_label_set_text(mTile[5].value, b);
+        est += meteoSub(5, Key::Visibility, "");
+    } else meteoNone(5);
+
+    const settings::Values& sv = settings::get();
+    const links::Status& ls = links::status();
+    const net::Status& ns = net::status();
+    char n[420], last[96];
+    if (!sv.owmKey[0]) snprintf(last, sizeof(last), "Sin clave de OpenWeatherMap: se pone en Ajustes > Red.");
+    else if (!ns.wifi) snprintf(last, sizeof(last), "Sin WiFi: no se puede pedir el tiempo de internet.");
+    else if (!ls.wxMs) snprintf(last, sizeof(last), ns.wxFail ? "OpenWeatherMap no contesta (%u intentos)." : "Esperando la primera observaci\xC3\xB3n de OpenWeatherMap.", (unsigned)ns.wxFail);
+    else snprintf(last, sizeof(last), "OpenWeatherMap%s%s \xC2\xB7 hace %u min.", ls.wxPlace[0] ? " \xC2\xB7 " : "", ls.wxPlace, (unsigned)((now - ls.wxMs) / 60000));
+    snprintf(n, sizeof(n), "Datos de internet: %s\nSolo sustituyen a un sensor de a bordo cuando este falta o deja de mandar; en \xC3\xA1mbar y con \xC2\xAB" "estimado\xC2\xBB. "
+             "Al volver el sensor, manda \xC3\xA9l.\nPosici\xC3\xB3n, rumbo, velocidad y sonda no tienen sustituto en internet.", last);
+    (void)est;
+    lv_label_set_text(mNote, n);
+}
+
 // ---------- Ajustes ----------
 static void setBaseMap(int i) {
     baseMap = (i >= 0 && i < kBaseMapN) ? i : 0;
@@ -2421,6 +2540,7 @@ void begin(DataStore* s) {
         else if (i == 7) makeSettings(pages[i]);
         else if (i == 4) makeWind(pages[i]);
         else if (i == 5) makePilot(pages[i]);
+        else if (i == 6) makeMeteo(pages[i]);
         else if (i > 0) placeholder(pages[i], kTabs[i]);
     }
 
@@ -2526,6 +2646,7 @@ void update() {
     pilotSend();
     if (active == 1) updateChart();
     if (active == 5) updatePilot();
+    if (active == 6) updateMeteo();
     if (active == 2) updateRoutes();
     if (active == 4) updateWind();
     if (active == 7) updateSettings();
@@ -2541,7 +2662,7 @@ void update() {
     show(T_WATER, Key::WaterTemp, 1);
 
     // Angulo aparente: babor / estribor
-    double awa, aws;
+    double awa;
     if (store->get(Key::Awa, now, awa)) {
         char b[24];
         snprintf(b, sizeof(b), "%d\xC2\xB0", (int)lround(fabs(awa)));
@@ -2552,22 +2673,26 @@ void update() {
         lv_label_set_text(tiles[T_AWA].sub, "Sin datos");
     }
 
-    // Viento real: calculado con el aparente, la velocidad y el rumbo
-    double hdg, spd;
-    bool haveSpd = store->get(Key::Stw, now, spd) || store->get(Key::Sog, now, spd);
-    if (store->get(Key::Awa, now, awa) && store->get(Key::Aws, now, aws) && haveSpd && store->get(Key::Heading, now, hdg)) {
-        double twa, tws, twd;
-        trueWind(awa, aws, spd, hdg, twa, tws, twd);
-        char b[24], s[48];
-        snprintf(b, sizeof(b), "%.1f", speedFromKn(tws, U.windSpeed));
-        for (char* p = b; *p; p++) if (*p == '.') *p = ',';
-        lv_label_set_text(tiles[T_TWS].value, b);
+    // Viento real: calculado con el aparente, la velocidad y el rumbo; si falta el sensor, el que llegue de otra fuente
+    {
+        WindNow w = windNow();
         lv_label_set_text(tileUnit[T_TWS], plotter::label(U.windSpeed));
-        snprintf(s, sizeof(s), "De %03d\xC2\xB0 \xC2\xB7 fuerza %d \xC2\xB7 calculado", (int)lround(twd) % 360, beaufort(tws));
-        lv_label_set_text(tiles[T_TWS].sub, s);
-    } else {
-        lv_label_set_text(tiles[T_TWS].value, "--");
-        lv_label_set_text(tiles[T_TWS].sub, "Falta viento, velocidad o rumbo");
+        if (w.tru) {
+            char b[24], s[72];
+            bool inet = !w.computed && store->source(Key::Tws, now) == Source::Internet;
+            snprintf(b, sizeof(b), "%.1f", speedFromKn(w.tws, U.windSpeed));
+            for (char* p = b; *p; p++) if (*p == '.') *p = ',';
+            lv_label_set_text(tiles[T_TWS].value, b);
+            if (w.truDir) snprintf(s, sizeof(s), "De %03d\xC2\xB0 \xC2\xB7 fuerza %d \xC2\xB7 %s", (int)lround(norm360(w.twd)) % 360, beaufort(w.tws),
+                                   w.computed ? "calculado" : (inet ? "internet, estimado" : sourceName(store->source(Key::Tws, now))));
+            else snprintf(s, sizeof(s), "Fuerza %d", beaufort(w.tws));
+            lv_label_set_text(tiles[T_TWS].sub, s);
+            lv_obj_set_style_text_color(tiles[T_TWS].value, lv_color_hex(inet ? C_WARN : C_TEXT), 0);
+        } else {
+            lv_label_set_text(tiles[T_TWS].value, "--");
+            lv_label_set_text(tiles[T_TWS].sub, "Falta viento, velocidad o rumbo");
+            lv_obj_set_style_text_color(tiles[T_TWS].value, lv_color_hex(C_TEXT), 0);
+        }
     }
 
     double la, lo;
@@ -2617,6 +2742,12 @@ void testRoutes(int action) {                              // 2 ir a, 3 ver, 4 a
 void testSelectWaypoint(int i) { wpSel = (i >= 0 && i < wpN) ? i : -1; }
 void testMark() { onMark(nullptr); }
 void testAnchor() { onAnchorBtn(nullptr); }
+void testInternet() {                                      // como si acabara de llegar una observacion de internet
+    uint32_t now = millis();
+    const double v[][2] = {{(double)Key::Tws, 14.0}, {(double)Key::Twd, 280}, {(double)Key::Gust, 21.5}, {(double)Key::Pressure, 1016},
+                           {(double)Key::AirTemp, 17.4}, {(double)Key::Humidity, 72}, {(double)Key::Visibility, 5.4}};
+    for (const auto& e : v) store->set((Key)(int)e[0], e[1], Source::Internet, now, Quality::Estimated);
+}
 void testNet() { openNet(); }
 void testSetting(int what) {                               // 4 unidades, 5 mapa base
     settings::Values& v = settings::get();

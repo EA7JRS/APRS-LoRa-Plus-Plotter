@@ -11,6 +11,8 @@
 #include "sim.h"
 #include "stream.h"
 
+#include <cmath>
+
 #ifdef ESP32
 #include "driver/twai.h"
 #endif
@@ -115,7 +117,31 @@ void applyNetwork() {
     c.tcpKind = v.tcpKind;
     c.tcpPort = v.tcpPort;
     c.udpPort = v.udpPort;
+    snprintf(c.owmKey, sizeof(c.owmKey), "%s", v.owmKey);
     net::apply(c);
+}
+
+// Datos de internet: entran como la fuente de menos prioridad y marcados como estimados. Mientras el sensor de a bordo
+// mande, ni se ven; si se calla (10 s), la tabla pasa sola a estos, y vuelve al sensor en cuanto reaparece.
+static void internetLoop(uint32_t now) {
+    static uint32_t tPos = 0;
+    if (now - tPos >= 30000 || tPos == 0) {
+        double la, lo;
+        if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) { net::setPosition(la, lo); tPos = now ? now : 1; }
+    }
+    net::Weather w;
+    if (!net::takeWeather(w)) return;
+    const double kn = 3600.0 / 1852.0;
+    auto put = [&](Key k, double v) { if (!std::isnan(v)) store->set(k, v, Source::Internet, now, Quality::Estimated); };
+    put(Key::Tws, w.windMs * kn);
+    put(Key::Twd, w.windDeg);
+    put(Key::Gust, w.gustMs * kn);
+    put(Key::Pressure, w.pressureHpa);
+    put(Key::AirTemp, w.tempC);
+    put(Key::Humidity, w.humidityPct);
+    put(Key::Visibility, w.visibilityM / 1852.0);
+    snprintf(st.wxPlace, sizeof(st.wxPlace), "%s", w.place);
+    st.wxMs = now ? now : 1;
 }
 
 // Bytes de la red -> lineas -> lector NMEA / AIS, como fuente "red"
@@ -186,6 +212,7 @@ void loop() {
     serialNmea.sky().expire(now);
     canLoop(now);
     netLoop(now);
+    internetLoop(now);
 
     if (st.simulator && now - simLast >= 1000) {
         simLast = now;

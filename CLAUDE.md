@@ -306,6 +306,17 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   (Pypilot: puerto 20220). Solo datos: no embraga ni manda el piloto. El RS485 es el mismo puerto del AIS (el transceptor
   conmuta solo): emitir por él con un receptor AIS conectado al mismo par puede chocar; sin probar. Falta: demoras
   magnéticas para pilotos que las pidan, XTE / BWC, y los mandos según la marca del piloto de Manuel.
+- **Relevo por internet y pestaña Meteo (2026-11-11, rama `internet`; Manuel: «si falla cualquier sensor físico podrá
+  alternar con los datos obtenidos de internet»)**: la tabla de datos ya lo hacía por prioridad (a los 10 s sin un sensor
+  entra la fuente siguiente y vuelve sola al reaparecer); faltaba traer los datos. `net.cpp`: OpenWeatherMap
+  `data/2.5/weather` (HTTPS sin comprobar certificado, clave del usuario en Ajustes > Red, en la posición del barco, cada
+  15 min; a los 2 min si falla) → `links.cpp` los mete como fuente `Internet`, calidad «estimado», válidos 2 h: viento real
+  (velocidad y dirección), racha, presión, temperatura del aire, humedad y visibilidad. Pestaña **Meteo**: seis casillas con
+  fuente, antigüedad y «estimado», en ámbar lo que viene de internet, y nota con el estado de la consulta. Viento e
+  Instrumentos usan el viento real de internet si falta el de a bordo. **Sin sustituto en internet**: posición, rumbo,
+  velocidad, sonda, viento aparente (el AIS tendrá AISHub). Sin probar contra el servidor real (nombres de campo de memoria,
+  los mismos que usa la app Android). Falta: AEMET (estación más cercana, `wxstation`), IQAir, Portus (temperatura del agua,
+  oleaje), y elegir fuente.
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
@@ -314,7 +325,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y
-   medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Lo siguiente: Signal K nativo, zumbador, pestaña Meteo, y probar en la placa.
+   medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Relevo por internet y pestaña Meteo hechos. Lo siguiente: Signal K nativo, zumbador, AEMET, y probar en la placa.
 2. NMEA 2000: hecho en escucha con decodificador propio; más PGN según lo que haya en la red de Manuel.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático; cómo conectar el NASA Target 2 Wind (4800 baudios) teniendo el AIS a 38400 en el único puerto serie.

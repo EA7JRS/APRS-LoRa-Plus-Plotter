@@ -37,7 +37,7 @@ const char* nmeaSentenceStart(const char* line) {
 
 namespace {
 
-constexpr int kMaxFields = 24;
+constexpr int kMaxFields = 40;           // las tramas propietarias (P...) llevan muchos campos
 
 struct Fields {
     char buf[100];
@@ -103,6 +103,7 @@ NmeaResult Nmea0183::feed(const char* line, Source src, uint32_t now, DataStore&
         }
         line = body;
     }
+    if (line[0] == '{') return NmeaResult::Ignored;               // linea JSON de gpsd (VERSION, DEVICES, WATCH)
     if (!nmeaChecksumOk(line)) { stats_.badChecksum++; return NmeaResult::Bad; }
     Fields f;
     if (!split(line, f) || std::strlen(f.f[0]) < 5) { stats_.malformed++; return NmeaResult::Bad; }
@@ -119,6 +120,17 @@ NmeaResult Nmea0183::feed(const char* line, Source src, uint32_t now, DataStore&
         if (dec_.lastError() == AisError::Unsupported) stats_.aisUnsupported++;
         else if (dec_.lastError() != AisError::Pending) stats_.aisRejected++;
         return NmeaResult::Ignored;
+    }
+    if (!std::strcmp(id, "GSV")) { sky_.feedGsv(f.f, f.n, now); return NmeaResult::Data; }
+    if (!std::strcmp(id, "GSA")) { sky_.feedGsa(f.f, f.n, now); return NmeaResult::Data; }
+    if (!std::strcmp(id, "GGA")) {
+        if (f.n < 10 || !f.has(6) || f.f[6][0] == '0') return NmeaResult::Ignored;        // calidad 0 = sin posicion
+        double la, lo;
+        if (coord(f, 2, la) && coord(f, 4, lo)) { st.set(Key::Lat, la, src, now); st.set(Key::Lon, lo, src, now); }
+        if (f.has(7)) st.set(Key::SatsUsed, f.num(7), src, now);
+        if (f.has(8)) st.set(Key::Hdop, f.num(8), src, now);
+        if (f.has(9)) st.set(Key::Altitude, f.num(9), src, now);
+        return NmeaResult::Data;
     }
     if (!std::strcmp(id, "RMC")) {
         if (f.n < 9 || !f.has(2) || f.f[2][0] != 'A') return NmeaResult::Ignored;         // sin posicion valida

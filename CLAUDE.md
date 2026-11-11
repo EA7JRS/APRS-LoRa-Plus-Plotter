@@ -81,11 +81,12 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   texto AIS acaba en la primera «@», como en gpsd. Para la fuente gpsd (TCP 2947): pedir `?WATCH={"enable":true,"nmea":true}` y
   reutilizar el lector NMEA; el JSON `SKY` (satélites) para la pantalla GPS queda para después. `drivers/driver_nmea2000.c` es
   referencia de PGN (127245 timón, 127250 rumbo, 127508 batería, 128259 corredera, 128267 sonda, 128275 distancia, 129025 /
-  129026 / 129029 posición, 129284 navegación, 129539 / 129540 satélites). Pendiente: pasar el lector NMEA por sus 402
-  grabaciones de receptores reales. Posible más adelante: meteorología por AIS (mensaje 8).
+  129026 / 129029 posición, 129284 navegación, 129539 / 129540 satélites). Hecho (Manuel: «incluye lo que encaja»): cielo GNSS desde GSV / GSA
+  (`gnss`, vale para cualquier fuente NMEA, también gpsd), GGA (altitud, HDOP, satélites), orden `?WATCH` de gpsd, y el lector
+  NMEA pasado por sus 201 grabaciones de receptores reales con ASan / UBSan sin fallos (`tools/nmea_soak`). Posible más adelante: meteorología por AIS (mensaje 8).
 
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda). 1056 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites). 1080 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

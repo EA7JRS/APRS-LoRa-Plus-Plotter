@@ -578,6 +578,58 @@ static void testRoute() {
     CHECK(alertSound(AlertLevel::Emergency).beeps > alertSound(AlertLevel::Warn).beeps);
 }
 
+static void testGnss() {
+    Nmea0183 nm;
+    DataStore st;
+    auto feed = [&](const char* body, uint32_t t) { return nm.feed(sentence(body).c_str(), Source::Serial, t, st); };
+    GnssSky& sky = nm.sky();
+    // GPS en 3 tramas y GLONASS en 1
+    CHECK(feed("$GPGSV,3,1,11,03,03,111,00,04,15,270,00,06,01,010,00,13,06,292,00", 0) == NmeaResult::Data);
+    feed("$GPGSV,3,2,11,14,25,170,00,16,57,208,39,18,67,296,40,19,40,246,00", 10);
+    feed("$GPGSV,3,3,11,22,42,067,42,24,14,311,43,27,05,244,00,,,,", 20);
+    feed("$GLGSV,1,1,03,65,30,100,35,66,60,200,41,88,10,330,", 30);
+    CHECK(sky.count() == 14);
+    CHECK(sky.sat(0).sys == GnssSystem::Gps && sky.sat(0).prn == 3 && sky.sat(0).elev == 3 && sky.sat(0).az == 111 && sky.sat(0).snr == 0);
+    CHECK(sky.sat(11).sys == GnssSystem::Glonass && sky.sat(11).prn == 65 && sky.sat(13).snr == -1);
+    // Usados: una GSA por constelacion
+    feed("$GPGSA,A,3,16,18,22,24,,,,,,,,,3.6,2.1,2.2", 40);
+    feed("$GLGSA,A,3,65,66,,,,,,,,,,,3.6,2.1,2.2", 50);
+    CHECK(sky.fixMode() == 3 && sky.usedCount() == 6); NEAR(sky.hdop(), 2.1, 1e-9); NEAR(sky.pdop(), 3.6, 1e-9);
+    int used = 0;
+    for (int i = 0; i < sky.count(); i++) if (sky.sat(i).used) used += sky.sat(i).prn;
+    CHECK(used == 16 + 18 + 22 + 24 + 65 + 66);
+    // Ciclo siguiente: la lista de GPS se sustituye, la de GLONASS sigue
+    feed("$GPGSV,1,1,02,16,58,209,40,18,66,297,41", 1000);
+    CHECK(sky.count() == 5 && sky.sat(3).prn == 16 && sky.sat(3).used && sky.sat(3).elev == 58);
+    feed("$GPGSA,A,3,16,18,,,,,,,,,,,5.0,4.0,3.0", 1040);
+    CHECK(sky.usedCount() == 2);                                     // rafaga nueva: lo de antes ya no cuenta
+    // GLONASS deja de llegar
+    feed("$GPGSV,1,1,02,16,58,209,40,18,66,297,41", 12000);
+    sky.expire(12000);
+    CHECK(sky.count() == 2);
+    // Emisor GN con sistema (NMEA 4.10) y senal al final; SBAS con emisor GP
+    Nmea0183 n2;
+    auto feed2 = [&](const char* body, uint32_t t) { return n2.feed(sentence(body).c_str(), Source::Serial, t, st); };
+    feed2("$GAGSV,1,1,02,05,45,120,38,09,20,300,33,7", 0);
+    feed2("$GPGSV,1,1,02,10,50,090,44,36,30,150,37,1", 5);
+    feed2("$GNGSA,A,3,10,,,,,,,,,,,,1.5,0.9,1.2,1", 10);
+    feed2("$GNGSA,A,3,05,09,,,,,,,,,,,1.5,0.9,1.2,3", 15);
+    CHECK(n2.sky().count() == 4 && n2.sky().usedCount() == 3);
+    CHECK(n2.sky().sat(0).sys == GnssSystem::Galileo && n2.sky().sat(3).sys == GnssSystem::Sbas && !n2.sky().sat(3).used);
+    CHECK(!std::strcmp(gnssSystemName(GnssSystem::Galileo), "Galileo") && gnssSystemFromTalker("BD") == GnssSystem::Beidou);
+    // GGA
+    double v = 0;
+    CHECK(feed2("$GPGGA,123519,3631.84,N,00617.02,W,1,08,0.9,12.4,M,46.9,M,,", 100) == NmeaResult::Data);
+    CHECK(st.get(Key::SatsUsed, 110, v) && v == 8); CHECK(st.get(Key::Hdop, 110, v)); NEAR(v, 0.9, 1e-9);
+    CHECK(st.get(Key::Altitude, 110, v)); NEAR(v, 12.4, 1e-9);
+    CHECK(feed2("$GPGGA,123519,,,,,0,00,,,M,,M,,", 100) == NmeaResult::Ignored);
+    // gpsd: sus lineas JSON se ignoran sin contar como malas
+    NmeaStats b = n2.stats();
+    CHECK(n2.feed("{\"class\":\"VERSION\",\"release\":\"3.26\"}", Source::Tcp, 1, st) == NmeaResult::Ignored);
+    CHECK(n2.stats().badChecksum == b.badChecksum && n2.stats().malformed == b.malformed);
+    CHECK(!std::strcmp(kGpsdWatchNmea, "?WATCH={\"enable\":true,\"nmea\":true};\r\n") && kGpsdPort == 2947);
+}
+
 static void testGpx() {
     // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
     const char* in =
@@ -642,7 +694,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

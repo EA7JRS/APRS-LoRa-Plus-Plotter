@@ -3,13 +3,14 @@
  * This file is part of APRS LoRa+ Plotter.
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-// NMEA 0183: comprobacion, campos y las tramas de la fase 1 (RMC, GLL, VTG, DPT, DBT, MWV, HDG, HDT, HDM, VHW, MTW, XDR, RSA, VDM, VDO).
+// NMEA 0183: comprobacion, campos y las tramas de la fase 1 (RMC, GGA, GLL, VTG, GSV, GSA, DPT, DBT, MWV, HDG, HDT, HDM, VHW, MTW, XDR, RSA, VDM, VDO).
 #ifndef PLOTTER_NMEA_H_
 #define PLOTTER_NMEA_H_
 
 #include <cstdint>
 
 #include "ais.h"
+#include "gnss.h"
 #include "store.h"
 
 namespace plotter {
@@ -44,6 +45,7 @@ class Nmea0183 {
     NmeaResult feed(const char* line, Source src, uint32_t nowMs, DataStore& store);
     const AisReport& ais() const { return ais_; }
     const NmeaStats& stats() const { return stats_; }
+    GnssSky& sky() { return sky_; }
     // Del bloque de etiquetas de la ultima linea: hora UNIX (0 si no venia) y estacion ("" si no venia)
     uint32_t tagTime() const { return tagTime_; }
     const char* tagSource() const { return tagSource_; }
@@ -52,6 +54,7 @@ class Nmea0183 {
     AisDecoder dec_;
     AisReport ais_;
     NmeaStats stats_;
+    GnssSky sky_;
     uint32_t tagTime_ = 0;
     char tagSource_[16] = "";
 };

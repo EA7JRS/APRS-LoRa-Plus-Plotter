@@ -20,6 +20,7 @@ Todavía no hay firmware que compile para la placa.
 | `store` | Tabla única de datos con fuente, hora y prioridad |
 | `nmea` | NMEA 0183: RMC, GLL, VTG, DPT, DBT, MWV, HDT, VHW, MTW, VDM, VDO |
 | `ais` | Mensajes AIS de buques (1, 2, 3, 5, 18, 19, 24, 27), estaciones base (4), aeronaves SAR (9), seguridad (12, 14) y ayudas a la navegación (21); comprobación de posiciones |
+| `gnss` | Satélites a la vista y usados (GSV, GSA), DOP; arranque de una fuente gpsd |
 | `gpx` | Lectura y escritura de GPX 1.1 (waypoints, rutas y tracks) |
 | `inputs` | Entradas de pulsos (corredera, cuentavueltas), interruptores, sondas DS18B20 y niveles de aviso de Signal K |
 | `route` | Seguimiento de ruta y paso de waypoint, registro de derrota y de sonda, sonido de los avisos |

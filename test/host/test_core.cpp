@@ -26,6 +26,7 @@
 #include "tiles.h"
 #include "units.h"
 #include "wind.h"
+#include "wxstation.h"
 
 using namespace plotter;
 
@@ -899,6 +900,50 @@ static void testChartUi() {
     NEAR(v.center.lat, 36.19, 1e-9);
 }
 
+static void testWxStation() {
+    const LatLon here{36.5297, -6.2927};
+    WxObservation ob[3];
+    ob[0].pos = gcDestination(here, 45, 4.2);  ob[0].timeUnix = 1000000; ob[0].windMs = 6.0; ob[0].windDirDeg = 250; ob[0].gustMs = 9.5;
+    ob[0].pressureHpa = 1014.2; ob[0].tempC = 18.4; ob[0].humidityPct = 71; ob[0].visKm = 18.52;
+    ob[1].pos = gcDestination(here, 180, 1.0); ob[1].timeUnix = 1000000; ob[1].tempC = 19.0;             // mas cerca, sin viento
+    ob[2].pos = gcDestination(here, 0, 50.0);  ob[2].timeUnix = 1000000; ob[2].windMs = 3.0; ob[2].windDirDeg = 90;
+    double d = 0;
+    CHECK(nearestStation(ob, 3, here, 30, true, &d) == 0); NEAR(d, 4.2, 1e-6);
+    CHECK(nearestStation(ob, 3, here, 30, false) == 1);
+    CHECK(nearestStation(ob, 3, here, 3, true) == -1 && nearestStation(ob, 0, here) == -1);
+    CHECK(nearestStation(ob, 3, here, 60, true) == 0);
+
+    DataStore st;
+    uint32_t now = 1000000 + 25 * 60;
+    NEAR(observationAgeMin(ob[0], now), 25.0, 1e-9);
+    CHECK(applyObservation(ob[0], now, 5000, st) == 7);
+    double v = 0;
+    CHECK(st.get(Key::Tws, 6000, v)); NEAR(v, 6.0 * 3600 / 1852, 1e-9);
+    CHECK(st.get(Key::Twd, 6000, v) && v == 250); CHECK(st.get(Key::Gust, 6000, v)); NEAR(v, 18.466523, 1e-5);
+    CHECK(st.get(Key::Pressure, 6000, v)); NEAR(v, 1014.2, 1e-9);
+    CHECK(st.get(Key::Visibility, 6000, v)); NEAR(v, 10.0, 1e-9);
+    CHECK(st.get(Key::Humidity, 6000, v) && v == 71);
+    CHECK(st.source(Key::Twd, 6000) == Source::Internet && st.quality(Key::Twd) == Quality::Estimated);
+    // Un dato medido a bordo manda sobre el de la estacion
+    DataStore st2;
+    st2.set(Key::Tws, 12.0, Source::Sensor, 5000);
+    CHECK(applyObservation(ob[0], now, 5000, st2) == 6);
+    CHECK(st2.get(Key::Tws, 6000, v) && v == 12.0 && st2.quality(Key::Tws) == Quality::Measured);
+    // Vieja, sin hora o en calma
+    DataStore st3;
+    CHECK(applyObservation(ob[0], 1000000 + 91 * 60, 5000, st3) == 0);
+    WxObservation calm = ob[0];
+    calm.windMs = 0.1;
+    CHECK(applyObservation(calm, now, 5000, st3) == 6 && !st3.get(Key::Twd, 6000, v));
+    WxObservation none;
+    CHECK(applyObservation(none, now, 5000, st3) == 0);
+
+    char b[80];
+    CHECK(describeObservation(b, sizeof(b), ob[0], here, now) > 0);
+    CHECK(!std::strcmp(b, "Estaci\xC3\xB3n de tierra a 4,2 mn al NE \xC2\xB7 hace 25 min"));
+    CHECK(describeObservation(b, 20, ob[0], here, now) == 0);
+}
+
 static void testGpx() {
     // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
     const char* in =
@@ -963,7 +1008,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

@@ -185,8 +185,16 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
      `armada.mde.es/ihm/Aplicaciones/LibroFaros/V3/`, sin poder leerla). Es © IHM: se puede usar para una lista personal, pero
      **no se mete en el repositorio**.
 
+- Observaciones de la estación de AEMET más cercana (Manuel: «sí», 2026-11-11; fase 3). El catálogo de datos abiertos del
+  MITECO no aporta meteorología propia: la de España es AEMET OpenData (misma clave que el radar y los avisos): avisos,
+  predicción marítima (XML, diaria), radar y **observación horaria de estaciones** (últimas 12 h, todas o una por `idema`).
+  Núcleo `wxstation`: estación más cercana con viento (30 mn por defecto), datos a la tabla como fuente Internet y calidad
+  «estimado» (viento, dirección, racha, presión, temperatura, humedad, visibilidad; nada con más de 90 min; un dato medido a
+  bordo manda), texto «Estación de tierra a 4,2 mn al NE · hace 25 min». Da dirección de viento real al anemómetro sin veleta.
+  Los nombres de campo del JSON de AEMET están puestos de memoria: comprobar con una respuesta real. Maqueta `Meteo` actualizada.
+
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1248 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana). 1274 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

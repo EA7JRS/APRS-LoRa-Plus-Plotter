@@ -143,8 +143,14 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   siguientes para usarlos sin cobertura) y el cálculo armónico propio como reserva y para otros países. Pendiente: que Manuel
   pegue el texto de la página o una respuesta de ejemplo antes de escribir el lector.
 
+- WMS del IHM `https://ideihm.covam.es/wms/CartaOF` y `.../wms/mareas` (enlaces de Manuel, 2026-11-11): son servidores
+  MapServer; sin parámetros dan error y la herramienta de lectura de la sesión pierde los parámetros, así que **no se han
+  podido ver las capas** (hace falta el `GetCapabilities`, que puede abrir Manuel). `CartaOF` parece la carta oficial de papel
+  en ráster: candidata a mapa base «Carta IHM» junto a la ENC. El núcleo ya pide a cualquier WMS la imagen de cada tesela
+  (`tileBounds3857`, `wmsTileUrl`, EPSG:3857, 256 px): vale para las cartas del IHM, los límites marítimos y Portus.
+
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1207 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1221 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

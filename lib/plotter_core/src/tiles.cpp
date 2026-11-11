@@ -79,6 +79,34 @@ int tileUrl(char* out, int size, const char* t, int zoom, int tx, int ty) {
     return n;
 }
 
+void tileBounds3857(int zoom, int tx, int ty, double& minX, double& minY, double& maxX, double& maxY) {
+    const double half = kPi * 6378137.0;                      // 20037508,34 m
+    double span = 2 * half / double(1u << zoom);
+    minX = -half + tx * span;
+    maxX = minX + span;
+    maxY = half - ty * span;
+    minY = maxY - span;
+}
+
+int wmsTileUrl(char* out, int size, const char* base, const char* layers, int zoom, int tx, int ty, bool transparent, const char* format) {
+    if (!base || !layers || !format) return 0;
+    double x0, y0, x1, y1;
+    tileBounds3857(zoom, tx, ty, x0, y0, x1, y1);
+    char fmt[32];
+    int k = 0;
+    for (const char* p = format; *p && k < int(sizeof(fmt)) - 4; p++) {      // "image/png" -> "image%2Fpng"
+        if (*p == '/') { fmt[k++] = '%'; fmt[k++] = '2'; fmt[k++] = 'F'; }
+        else fmt[k++] = *p;
+    }
+    fmt[k] = 0;
+    int n = std::snprintf(out, size_t(size),
+                          "%s%cSERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=%s&STYLES=&CRS=EPSG:3857&BBOX=%.2f,%.2f,%.2f,%.2f"
+                          "&WIDTH=%d&HEIGHT=%d&FORMAT=%s&TRANSPARENT=%s",
+                          base, std::strchr(base, '?') ? '&' : '?', layers, x0, y0, x1, y1, kTileSize, kTileSize, fmt,
+                          transparent ? "TRUE" : "FALSE");
+    return (n > 0 && n < size) ? n : 0;
+}
+
 int tilePath(char* out, int size, const char* folder, int zoom, int tx, int ty, const char* ext) {
     int n = std::snprintf(out, size_t(size), "%s/%d/%d/%d.%s", folder ? folder : "", zoom, tx, ty, ext ? ext : "png");
     return (n > 0 && n < size) ? n : 0;

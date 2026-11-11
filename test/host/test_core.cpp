@@ -809,6 +809,23 @@ static void testTiles() {
     CHECK(tileUrl(u, sizeof(u), "https://tile.example/{z}/{x}/{y}.png", 12, 1976, 1600) > 0 && !std::strcmp(u, "https://tile.example/12/1976/1600.png"));
     CHECK(tileUrl(u, sizeof(u), kTilesIgnBase, 12, 1976, 1600) > 0 && !std::strcmp(u, "https://tms-ign-base.idee.es/1.0.0/IGNBaseTodo/12/1976/2495.jpeg"));
     CHECK(tileUrl(u, 20, kTilesPnoa, 12, 1976, 1600) == 0 && tileUrl(u, sizeof(u), "https://sin.plantilla/", 1, 1, 1) == 0);
+    // WMS: recuadro de la tesela en Web Mercator
+    double x0, y0, x1, y1;
+    tileBounds3857(0, 0, 0, x0, y0, x1, y1);
+    NEAR(x0, -20037508.34, 0.01); NEAR(y1, 20037508.34, 0.01); NEAR(x1, 20037508.34, 0.01); NEAR(y0, -20037508.34, 0.01);
+    tileBounds3857(1, 1, 0, x0, y0, x1, y1);
+    NEAR(x0, 0.0, 1e-6); NEAR(y0, 0.0, 1e-6); NEAR(x1, 20037508.34, 0.01);
+    tileBounds3857(12, 1976, 1600, x0, y0, x1, y1);
+    { double px, py; lonLatToWorldPx(LatLon{36.5297, -6.2927}, 12, px, py);      // Cadiz cae dentro del recuadro
+      double mx = (px / (256.0 * 4096) - 0.5) * 2 * 20037508.342789244, my = (0.5 - py / (256.0 * 4096)) * 2 * 20037508.342789244;
+      CHECK(mx > x0 && mx < x1 && my > y0 && my < y1); NEAR(x1 - x0, 9783.94, 0.01); }
+    char w[320];
+    CHECK(wmsTileUrl(w, sizeof(w), kWmsIhmPaperCharts, "capa1,capa2", 1, 1, 0) > 0);
+    CHECK(!std::strcmp(w, "https://ideihm.covam.es/wms/CartaOF?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=capa1,capa2&STYLES=&CRS=EPSG:3857"
+                          "&BBOX=0.00,0.00,20037508.34,20037508.34&WIDTH=256&HEIGHT=256&FORMAT=image%2Fpng&TRANSPARENT=TRUE"));
+    CHECK(wmsTileUrl(w, sizeof(w), "https://servidor.example/wms?map=a", "c", 0, 0, 0, false, "image/jpeg") > 0);
+    CHECK(std::strstr(w, "wms?map=a&SERVICE=WMS") && std::strstr(w, "FORMAT=image%2Fjpeg&TRANSPARENT=FALSE"));
+    CHECK(wmsTileUrl(w, 60, kWmsIhmTides, "c", 1, 1, 0) == 0 && wmsTileUrl(w, sizeof(w), nullptr, "c", 1, 1, 0) == 0);
     CHECK(tilePath(u, sizeof(u), "/charts/osm", 12, 1976, 1600, "png") > 0 && !std::strcmp(u, "/charts/osm/12/1976/1600.png"));
 }
 

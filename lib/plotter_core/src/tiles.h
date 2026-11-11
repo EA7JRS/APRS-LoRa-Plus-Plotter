@@ -33,6 +33,16 @@ int tileUrl(char* out, int size, const char* tmpl, int zoom, int tx, int ty);
 // Ruta en la microSD: "<carpeta>/<z>/<x>/<y>.<ext>"
 int tilePath(char* out, int size, const char* folder, int zoom, int tx, int ty, const char* ext);
 
+// Servicios WMS (IHM, Portus...): no dan teselas, pero se les puede pedir la imagen de cada tesela por su recuadro en
+// Web Mercator (EPSG:3857). "base" es la direccion del servicio sin parametros; "layers", los nombres de capa separados por comas.
+void tileBounds3857(int zoom, int tx, int ty, double& minX, double& minY, double& maxX, double& maxY);   // metros
+int wmsTileUrl(char* out, int size, const char* base, const char* layers, int zoom, int tx, int ty, bool transparent = true,
+               const char* format = "image/png");
+// Servicios del Instituto Hidrografico de la Marina (los nombres de capa se leen del GetCapabilities de cada uno)
+constexpr const char* kWmsIhmPaperCharts = "https://ideihm.covam.es/wms/CartaOF";
+constexpr const char* kWmsIhmTides = "https://ideihm.covam.es/wms/mareas";
+constexpr const char* kWmsIhmMaritimeLimits = "https://ideihm.covam.es/ihm-inspire/wms-unidadesmaritimas";
+
 // Fuentes comprobadas en el codigo de la API-CNIG del IGN (teselas JPEG / PNG ya hechas, numeracion TMS)
 constexpr const char* kTilesIgnBase = "https://tms-ign-base.idee.es/1.0.0/IGNBaseTodo/{z}/{x}/{-y}.jpeg";
 constexpr const char* kTilesPnoa = "https://tms-pnoa-ma.idee.es/1.0.0/pnoa-ma/{z}/{x}/{-y}.jpeg";

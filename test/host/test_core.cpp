@@ -14,6 +14,7 @@
 #include "geo.h"
 #include "gpx.h"
 #include "motion.h"
+#include "navwarn.h"
 #include "nmea.h"
 #include "store.h"
 #include "inputs.h"
@@ -726,6 +727,47 @@ static void testLights() {
     CHECK(!std::strcmp(ialaMarkNameEs(IalaMark::CardinalE), "Cardinal este") && !std::strcmp(ialaMarkNameEs(IalaMark::SafeWater), "Aguas navegables"));
 }
 
+static void testNavWarn() {
+    // Mismo formato que el XML del IHM, con avisos inventados
+    const std::string xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<dataroot xmlns:od=\"urn:schemas-microsoft-com:officedata\" generated=\"2026-11-10T09:31:41\">\n"
+        "<NAVAREASVIGOR>\n<nnuna>260501</nnuna>\n<nnunaf>0501/26</nnunaf>\n<nfemi>2026-06-03T00:00:00</nfemi>\n"
+        "<nlocae>MAR DE ALBOR\xC3\x81N</nlocae>\n<nlocai>ALBORAN SEA</nlocai>\n"
+        "<ntees>EJERCICIOS DE TIRO EN ZONA LIMITADA POR:\n36-10.0N 004-30.5W\n36-10.0N 004-10.0W\n36-00,5N 004-10.0W\n36 00,500N 004 30,500W</ntees>\n"
+        "<ntein>FIRING EXERCISES IN AREA BOUNDED BY:\n36-10.0N 004-30.5W\n36-10.0N 004-10.0W\n36-00,5N 004-10.0W\n36 00,500N 004 30,500W</ntein>\n"
+        "<nasun>EJERCICIOS &amp; TIRO</nasun>\n<nasuni>FIRING EXERCISES</nasuni>\n</NAVAREASVIGOR>\n"
+        "<NAVAREASVIGOR><nnuna>260502</nnuna><nnunaf>0502/26</nnunaf><nfemi>2026-07-01T00:00:00</nfemi><nlocae>MEDITERR\xC3\x81NEO</nlocae>"
+        "<nlocai>MEDITERRANEAN</nlocai><ntees>AVISO GENERAL SIN POSICIONES. CANAL 16.</ntees><ntein>GENERAL NOTICE. 2 VESSELS, 24 HOURS.</ntein>"
+        "<nasun>AVISO GENERAL</nasun><nasuni>GENERAL NOTICE</nasuni></NAVAREASVIGOR>\n</dataroot>\n";
+    std::vector<NavWarning> w;
+    std::string gen;
+    CHECK(navWarningsParseIhm(xml, w, &gen) && w.size() == 2 && gen == "2026-11-10T09:31:41");
+    CHECK(w[0].number == "0501/26" && w[0].date == "2026-06-03" && w[0].areaEn == "ALBORAN SEA" && w[0].areaEs == "MAR DE ALBOR\xC3\x81N");
+    CHECK(w[0].titleEs == "EJERCICIOS & TIRO" && w[0].titleEn == "FIRING EXERCISES" && w[0].textEs.rfind("EJERCICIOS DE TIRO", 0) == 0);
+    CHECK(w[0].positions.size() == 4);
+    NEAR(w[0].positions[0].lat, 36.0 + 10.0 / 60, 1e-9); NEAR(w[0].positions[0].lon, -(4.0 + 30.5 / 60), 1e-9);
+    NEAR(w[0].positions[2].lat, 36.0 + 0.5 / 60, 1e-9);                         // coma decimal
+    NEAR(w[0].positions[3].lon, -(4.0 + 30.5 / 60), 1e-9);                      // separado por espacios
+    CHECK(w[1].positions.empty() && w[1].number == "0502/26");
+    NEAR(navWarningDistanceNm(w[0], LatLon{36.0 + 10.0 / 60, -(4.0 + 30.5 / 60)}), 0.0, 1e-6);
+    double d = navWarningDistanceNm(w[0], LatLon{36.5297, -6.2927});
+    CHECK(d > 80 && d < 100 && navWarningDistanceNm(w[1], LatLon{36, -6}) < 0);
+    CHECK(!navWarningsParseIhm("<html>no</html>", w) && w.empty());
+    CHECK(navWarningsParseIhm("<dataroot></dataroot>", w) && w.empty());
+
+    // Posiciones sueltas: formatos de radioaviso y cosas que no lo son
+    std::vector<LatLon> p;
+    CHECK(navWarningPositions("WRECK IN 46-04.0N 033-12.8E AND 42 11,718N 009 59,778E.", p) == 2);
+    NEAR(p[0].lat, 46.0 + 4.0 / 60, 1e-9); NEAR(p[0].lon, 33.0 + 12.8 / 60, 1e-9);
+    NEAR(p[1].lat, 42.0 + 11.718 / 60, 1e-9); NEAR(p[1].lon, 9.0 + 59.778 / 60, 1e-9);
+    p.clear();
+    CHECK(navWarningPositions("36-31N 006-17W", p) == 1); NEAR(p[0].lon, -(6.0 + 17.0 / 60), 1e-9);
+    p.clear();
+    CHECK(navWarningPositions("12-05.5S 077-10.0W", p) == 1 && p[0].lat < 0 && p[0].lon < 0);
+    p.clear();
+    CHECK(navWarningPositions("CHANNEL 16, 24 HOURS, 2026-06-03, 10-20 NM, 36-70.0N 004-10.0W, 136-10.0N 004-10.0W, 36-10.0NE 004-10.0W", p) == 0);
+}
+
 static void testGpx() {
     // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
     const char* in =
@@ -790,7 +832,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

@@ -24,6 +24,7 @@ Todavía no hay firmware que compile para la placa.
 | `gpx` | Lectura y escritura de GPX 1.1 (waypoints, rutas y tracks) |
 | `inputs` | Entradas de pulsos (corredera, cuentavueltas), interruptores, sondas DS18B20 y niveles de aviso de Signal K |
 | `lights` | Alcance geográfico y luminoso, ritmos de luces, marcas IALA, radio de borneo |
+| `navwarn` | Radioavisos náuticos en vigor (XML del IHM) y posiciones dentro del texto |
 | `route` | Seguimiento de ruta y paso de waypoint, registro de derrota y de sonda, sonido de los avisos |
 | `signalk` | Signal K: rutas y unidades, suscripción, avisos y envío de valores propios |
 | `stream` | Troceo en líneas para serie, TCP y UDP; filtro de tramas repetidas |

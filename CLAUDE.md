@@ -100,8 +100,18 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   alarma de garreo. Maqueta `Balizamiento` (ayuda con las marcas de la región A, «¿qué luz veo?» y «¿cuándo veré el faro?»).
   **Fuera**: diseño y mantenimiento de ayudas, VTS, practicaje.
 
+- Radioavisos náuticos del IHM (enlaces de Manuel, 2026-11-11; fase 3). Fuente pública sin cuenta:
+  `https://armada.defensa.gob.es/ihm/XML/navareas_crudo.xml` (exportación de Access: `<dataroot generated="...">` con un
+  `<NAVAREASVIGOR>` por aviso: `nnuna`, `nnunaf` «0086/26», `nfemi`, `nlocae` / `nlocai` zona, `ntees` / `ntein` texto,
+  `nasun` / `nasuni` título; 14 avisos el 2026-11-10). Las posiciones van dentro del texto («46-04.0N 033-12.8E»,
+  «42 11,718N 009 59,778E»). Núcleo hecho en `navwarn` (lector del XML, posiciones del texto —vale también para Navtex—,
+  distancia al aviso), probado con avisos inventados en ese formato: falta pasarle el fichero real (desde la sesión solo se
+  pudo leer resumido). Son los NAVAREA III (Mediterráneo desde 005°45′W y mar Negro): para el golfo de Cádiz hacen falta los
+  costeros / NAVAREA II, sin fuente localizada. `navarea3.com` (portal nuevo con mapa y descargas S-124 / KML / SHP) pide
+  usuario y está en construcción: no se usa. Posible fuente de Portugal: ANAVnet del Instituto Hidrográfico (sin mirar).
+
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo). 1138 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos). 1160 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

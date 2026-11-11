@@ -25,7 +25,7 @@ const Status& status() { return st; }
 static Config cfg;
 static volatile uint32_t cfgVersion = 0;
 static SemaphoreHandle_t cfgLock = nullptr;
-static StreamBufferHandle_t sbTcp = nullptr, sbUdp = nullptr;
+static StreamBufferHandle_t sbTcp = nullptr, sbUdp = nullptr, sbOut = nullptr;
 
 static void task(void*) {
     Config c;
@@ -94,6 +94,8 @@ static void task(void*) {
                 }
             } else {
                 st.tcp = true;
+                size_t out = xStreamBufferReceive(sbOut, buf, sizeof(buf), 0);       // lo que haya para enviar
+                if (out) client.write(buf, out);
                 int avail = client.available();
                 while (avail > 0) {
                     int got = client.read(buf, avail > (int)sizeof(buf) ? sizeof(buf) : (size_t)avail);
@@ -113,6 +115,7 @@ void begin() {
     cfgLock = xSemaphoreCreateMutex();
     sbTcp = xStreamBufferCreate(8192, 1);
     sbUdp = xStreamBufferCreate(4096, 1);
+    sbOut = xStreamBufferCreate(1024, 1);
     xTaskCreatePinnedToCore(task, "net", 6144, nullptr, 1, nullptr, 0);
 }
 
@@ -125,6 +128,7 @@ void apply(const Config& c) {
 }
 
 int readTcp(uint8_t* b, int max) { return sbTcp ? (int)xStreamBufferReceive(sbTcp, b, (size_t)max, 0) : 0; }
+void sendTcp(const char* d, int len) { if (sbOut && st.tcp && len > 0) xStreamBufferSend(sbOut, d, (size_t)len, 0); }
 int readUdp(uint8_t* b, int max) { return sbUdp ? (int)xStreamBufferReceive(sbUdp, b, (size_t)max, 0) : 0; }
 
 #else   // en el PC no hay red
@@ -132,6 +136,7 @@ int readUdp(uint8_t* b, int max) { return sbUdp ? (int)xStreamBufferReceive(sbUd
 void begin() {}
 void apply(const Config&) {}
 int readTcp(uint8_t*, int) { return 0; }
+void sendTcp(const char*, int) {}
 int readUdp(uint8_t*, int) { return 0; }
 
 #endif

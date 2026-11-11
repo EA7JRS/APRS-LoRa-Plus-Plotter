@@ -33,5 +33,6 @@ void begin();
 void apply(const Config& c);            // cambia la configuracion: corta lo que hubiera y vuelve a conectar
 const Status& status();
 int readTcp(uint8_t* buf, int max);     // bytes recibidos desde la ultima llamada (0 si no hay)
+void sendTcp(const char* data, int len); // al servidor TCP, si esta conectado (datos de ruta para el piloto)
 int readUdp(uint8_t* buf, int max);     // cada datagrama acaba en salto de linea
 }

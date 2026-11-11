@@ -209,7 +209,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `CartaPrevision`. Fase 3, sin programar.
 
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), anchor (vigilancia de fondeo), n2k (NMEA 2000), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS). 1461 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), anchor (vigilancia de fondeo), n2k (NMEA 2000), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS). 1466 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - **Firmware, primer paso (2026-11-11)**: `platformio.ini` (misma base que Display: pioarduino `espressif32 @ 8.0.0`, LVGL
   ~9.6.0, ArduinoJson 7.4.3), placa 7B copiada de Display (`src/board.h`, `board_lcd7b.cpp`, `board_common.*`, `lv_defs.h`,
@@ -291,6 +291,14 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   (una muestra cada 10 s, mínimo y máximo). El real se calcula con el aparente, la velocidad y el rumbo; si no, se usa el
   que llegue ya calculado (NMEA 2000). Falta: marcar los datos estimados (dirección de internet sin veleta) y el anemómetro
   de pulsos propio.
+- **Pestaña Piloto (2026-11-11, rama `piloto`)**: rumbo a gobernar (demora al destino) y cuánto caer, rumbo del barco, barra
+  de desvío de la ruta (escala ± 0,1 / 0,5 / 2 mn), timón (si llega RSA o el PGN 127245), destino con distancia, tiempo y rumbo
+  del tramo, y **salida de datos de ruta**: Apagado / RS485 / servidor TCP (`settings.pilotOut`), APB y RMB (`nmeaRmb`, nuevo
+  en el núcleo) una vez por segundo con ruta activa, demoras verdaderas. Por TCP usa la misma conexión de Ajustes > Red
+  (Pypilot: puerto 20220). Solo datos: no embraga ni manda el piloto. El RS485 es el mismo puerto del AIS (el transceptor
+  conmuta solo): emitir por él con un receptor AIS conectado al mismo par puede chocar; sin probar. Falta: demoras
+  magnéticas para pilotos que las pidan, XTE / BWC, y los mandos según la marca del piloto de Manuel.
+- README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.
@@ -298,7 +306,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y
-   medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Lo siguiente: Signal K nativo, zumbador, pestañas Piloto y Meteo, y probar en la placa.
+   medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Lo siguiente: Signal K nativo, zumbador, pestaña Meteo, y probar en la placa.
 2. NMEA 2000: hecho en escucha con decodificador propio; más PGN según lo que haya en la red de Manuel.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático; comprobar pines libres de la 7B para el anemómetro.

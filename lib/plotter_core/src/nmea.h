@@ -37,6 +37,11 @@ struct NmeaStats {
 int nmeaApb(char* out, int size, double xteNm, bool arrived, bool perpendicularPassed, double bearingOriginToDest,
             const char* waypointId, double bearingToDest, double headingToSteer, bool magnetic);
 
+// Trama RMB (datos minimos de navegacion al waypoint): desvio y hacia donde gobernar, waypoints de origen y destino, posicion
+// del destino, distancia, demora verdadera, velocidad de acercamiento y llegada. Devuelve la longitud escrita, 0 si no cabe.
+int nmeaRmb(char* out, int size, double xteNm, const char* originId, const char* destId, double destLat, double destLon,
+            double rangeNm, double bearingTrue, double closingKn, bool arrived);
+
 enum class NmeaResult { Bad, Ignored, Data, Ais };
 
 class Nmea0183 {

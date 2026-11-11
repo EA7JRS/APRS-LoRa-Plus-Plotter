@@ -27,6 +27,7 @@ struct HardwareSerial {
     void updateBaudRate(unsigned long) {}
     int available() { return 0; }
     int read() { return -1; }
+    size_t write(const uint8_t*, size_t n) { return n; }
     template <typename... A> void printf(const char*, A...) {}
     void println(const char*) {}
 };

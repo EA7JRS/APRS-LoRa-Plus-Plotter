@@ -99,6 +99,13 @@ void begin(DataStore* s) {
 
 void setSimulator(bool on) { st.simulator = on; }
 
+bool sendPilot(const char* sentence, int len, int via) {
+    if (len <= 0) return false;
+    if (via == 1) { Serial1.write((const uint8_t*)sentence, (size_t)len); st.pilotSent++; return true; }
+    if (via == 2 && net::status().tcp) { net::sendTcp(sentence, len); st.pilotSent++; return true; }
+    return false;
+}
+
 void applyNetwork() {
     const settings::Values& v = settings::get();
     net::Config c;

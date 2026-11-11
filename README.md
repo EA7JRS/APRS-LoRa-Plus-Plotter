@@ -7,8 +7,8 @@ Repositorio aparte por ahora; la idea es integrarlo después en APRS-LoRa-Plus-D
 
 ## Estado
 
-Fase 1 en curso. Hecho: el núcleo de cálculo (`lib/plotter_core`), sin dependencias de Arduino y con pruebas en el PC.
-Todavía no hay firmware que compile para la placa.
+Fase 1 en curso. El núcleo de cálculo (`lib/plotter_core`) no depende de Arduino y tiene pruebas en el PC. El firmware de la
+7B compila en la CI (Instrumentos, Carta, Rutas, Radar AIS, Viento, Piloto y Ajustes); todavía sin probar en la placa.
 
 | Módulo | Contenido |
 |---|---|
@@ -54,3 +54,9 @@ Vista previa de las pantallas: https://claude.ai/artifact/3rGbM86ZobibCQ2KU44DAD
 ## Licencia
 
 GPL-3.0-or-later. APRS LoRa+ · © 2026 Manuel - EA7JRS
+
+## Donativos
+
+Si el proyecto te resulta útil:
+
+[![Donar con PayPal](https://img.shields.io/badge/Donar-PayPal-00457C?logo=paypal&logoColor=white)](https://paypal.me/ea7jrs)

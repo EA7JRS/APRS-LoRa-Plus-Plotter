@@ -231,4 +231,33 @@ int nmeaApb(char* out, int size, double xteNm, bool arrived, bool perp, double b
     return (w > 0 && w < size) ? w : 0;
 }
 
+static void cleanId(const char* in, char* out, int size) {
+    int k = 0;
+    for (const char* p = in ? in : ""; *p && k < size - 1; p++)
+        if (*p != ',' && *p != '*' && *p >= 32 && *p < 127) out[k++] = *p;
+    out[k] = 0;
+}
+
+int nmeaRmb(char* out, int size, double xteNm, const char* originId, const char* destId, double destLat, double destLon,
+            double rangeNm, double bearingTrue, double closingKn, bool arrived) {
+    char body[128], o[10], d[10];
+    cleanId(originId, o, sizeof(o));
+    cleanId(destId, d, sizeof(d));
+    double x = xteNm < 0 ? -xteNm : xteNm;
+    if (x > 9.99) x = 9.99;
+    if (rangeNm > 999.9) rangeNm = 999.9;
+    if (rangeNm < 0) rangeNm = 0;
+    double la = destLat < 0 ? -destLat : destLat, lo = destLon < 0 ? -destLon : destLon;
+    int laD = int(la), loD = int(lo);
+    double laM = (la - laD) * 60.0, loM = (lo - loD) * 60.0;
+    if (laM >= 59.99995) { laM = 0; laD++; }             // que el redondeo no escriba 60.0000 minutos
+    if (loM >= 59.99995) { loM = 0; loD++; }
+    int n = std::snprintf(body, sizeof(body), "ECRMB,A,%.2f,%c,%s,%s,%02d%07.4f,%c,%03d%07.4f,%c,%.1f,%.1f,%.1f,%c,A", x, xteNm > 0 ? 'L' : 'R', o,
+                          d, laD, laM, destLat < 0 ? 'S' : 'N', loD, loM, destLon < 0 ? 'W' : 'E', rangeNm, norm360(bearingTrue), closingKn,
+                          arrived ? 'A' : 'V');
+    if (n <= 0 || n >= int(sizeof(body))) return 0;
+    int w = std::snprintf(out, size_t(size), "$%s*%02X\r\n", body, nmeaChecksum(body));
+    return (w > 0 && w < size) ? w : 0;
+}
+
 }  // namespace plotter

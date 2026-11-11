@@ -2008,6 +2008,211 @@ static void updateWind() {
     lv_label_set_text(wChartLbl, s);
 }
 
+// ---------- Pestana Piloto ----------
+// El plotter solo da al piloto los datos de la ruta (APB y RMB); embragar y mandar se hace desde el mando del piloto.
+static lv_obj_t* pHts = nullptr;
+static lv_obj_t* pHtsSub = nullptr;
+static lv_obj_t* pHdg = nullptr;
+static lv_obj_t* pHdgSub = nullptr;
+static lv_obj_t* pXteBoat = nullptr;
+static lv_obj_t* pXteTxt = nullptr;
+static lv_obj_t* pXteScale = nullptr;
+static lv_obj_t* pRudBar = nullptr;
+static lv_obj_t* pRudTxt = nullptr;
+static lv_obj_t* pDest = nullptr;
+static lv_obj_t* pInfo = nullptr;
+static lv_obj_t* pOutLbl = nullptr;
+static lv_obj_t* pOutTxt = nullptr;
+static const int P_BAR_W = 560;
+static uint32_t pilotLastMs = 0;
+static bool pilotOk = false;
+
+static void onPilotOut(lv_event_t*) {
+    settings::Values& v = settings::get();
+    v.pilotOut = (v.pilotOut + 1) % 3;
+    settings::save();
+}
+
+// Una vez por segundo, con ruta activa: APB y RMB por la via elegida
+static void pilotSend() {
+    const settings::Values& v = settings::get();
+    uint32_t now = millis();
+    if (now - pilotLastMs < 1000) return;
+    pilotLastMs = now;
+    pilotOk = false;
+    if (!v.pilotOut || !navOn) return;
+    const RouteStatus& st = nav.status();
+    const char* dest = navCount > 1 ? navNames[st.target] : navName;
+    const char* orig = (navCount > 1 && st.target > 0) ? navNames[st.target - 1] : "ORIGEN";
+    bool arrived = navCount > 1 ? st.finished : st.inArrival;
+    double sog = 0, cog = 0, closing = 0;
+    if (store->get(Key::Sog, now, sog) && store->get(Key::Cog, now, cog)) closing = sog * cos(deg2rad(norm180(st.bearing - cog)));
+    char b[128];
+    int n = nmeaApb(b, sizeof(b), st.xteNm, arrived, st.abeam, st.legBearing, dest, st.bearing, st.bearing, false);
+    bool ok = links::sendPilot(b, n, v.pilotOut);
+    n = nmeaRmb(b, sizeof(b), st.xteNm, orig, dest, navPts[st.target].lat, navPts[st.target].lon, st.distanceNm, st.bearing, closing, arrived);
+    ok = links::sendPilot(b, n, v.pilotOut) && ok;
+    pilotOk = ok;
+}
+
+static lv_obj_t* pilotBig(lv_obj_t* parent, int x, const char* name, lv_obj_t** value, lv_obj_t** sub, uint32_t color) {
+    lv_obj_t* t = box(parent, C_PANEL, 10);
+    lv_obj_set_size(t, 298, 190);
+    lv_obj_set_pos(t, x, 0);
+    lv_obj_set_style_pad_all(t, 12, 0);
+    lv_obj_t* n = label(t, name, &dejavu_bold_16, C_DIM);
+    lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, 0);
+    *value = label(t, "--", &dejavu_num_60, color);
+    lv_obj_align(*value, LV_ALIGN_LEFT_MID, 0, 6);
+    *sub = label(t, "", &dejavu_12, C_DIM);
+    lv_obj_align(*sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    return t;
+}
+
+static void makePilot(lv_obj_t* page) {
+    pilotBig(page, 0, "RUMBO A GOBERNAR", &pHts, &pHtsSub, 0xFF9F43);
+    pilotBig(page, 308, "RUMBO DEL BARCO", &pHdg, &pHdgSub, C_TEXT);
+    // Desvio de la ruta: la linea del centro es la ruta y el punto, el barco
+    lv_obj_t* x = box(page, C_PANEL, 10);
+    lv_obj_set_size(x, 606, 150);
+    lv_obj_set_pos(x, 0, 200);
+    lv_obj_t* t = label(x, "DESV\xC3\x8DO DE LA RUTA", &dejavu_bold_16, C_DIM);
+    lv_obj_align(t, LV_ALIGN_TOP_LEFT, 12, 12);
+    pXteScale = label(x, "", &dejavu_12, C_DIM);
+    lv_obj_align(pXteScale, LV_ALIGN_TOP_RIGHT, -12, 14);
+    lv_obj_t* bar = box(x, C_BAR, 6);
+    lv_obj_set_size(bar, P_BAR_W, 30);
+    lv_obj_align(bar, LV_ALIGN_CENTER, 0, 4);
+    lv_obj_t* mid = box(x, 0xFF9F43);
+    lv_obj_set_size(mid, 4, 46);
+    lv_obj_align(mid, LV_ALIGN_CENTER, 0, 4);
+    pXteBoat = box(x, C_TEXT, LV_RADIUS_CIRCLE);
+    lv_obj_set_size(pXteBoat, 24, 24);
+    lv_obj_set_style_border_color(pXteBoat, lv_color_hex(C_INK), 0);
+    lv_obj_set_style_border_width(pXteBoat, 3, 0);
+    lv_obj_align(pXteBoat, LV_ALIGN_CENTER, 0, 4);
+    pXteTxt = label(x, "", &dejavu_16, C_TEXT);
+    lv_obj_align(pXteTxt, LV_ALIGN_BOTTOM_LEFT, 12, -10);
+    // Timon
+    lv_obj_t* r = box(page, C_PANEL, 10);
+    lv_obj_set_size(r, 606, 116);
+    lv_obj_set_pos(r, 0, 360);
+    t = label(r, "TIM\xC3\x93N", &dejavu_bold_16, C_DIM);
+    lv_obj_align(t, LV_ALIGN_TOP_LEFT, 12, 12);
+    lv_obj_t* rb = box(r, C_BAR, 6);
+    lv_obj_set_size(rb, P_BAR_W, 22);
+    lv_obj_align(rb, LV_ALIGN_CENTER, 0, 8);
+    lv_obj_t* rm = box(r, C_DIM);
+    lv_obj_set_size(rm, 2, 34);
+    lv_obj_align(rm, LV_ALIGN_CENTER, 0, 8);
+    pRudBar = box(r, C_ACC, 4);
+    lv_obj_set_size(pRudBar, 4, 22);
+    lv_obj_align(pRudBar, LV_ALIGN_CENTER, 0, 8);
+    pRudTxt = label(r, "", &dejavu_14, C_SOFT);
+    lv_obj_align(pRudTxt, LV_ALIGN_BOTTOM_LEFT, 12, -8);
+    // Derecha: destino y salida al piloto
+    lv_obj_t* d = box(page, C_PANEL, 10);
+    lv_obj_set_size(d, 388, 476);
+    lv_obj_set_pos(d, 616, 0);
+    pDest = label(d, "", &dejavu_bold_20, C_TEXT);
+    lv_obj_align(pDest, LV_ALIGN_TOP_LEFT, 14, 12);
+    lv_obj_set_width(pDest, 360);
+    pInfo = label(d, "", &dejavu_16, C_SOFT);
+    lv_obj_align(pInfo, LV_ALIGN_TOP_LEFT, 14, 50);
+    lv_obj_set_width(pInfo, 360);
+    lv_obj_set_style_text_line_space(pInfo, 8, 0);
+    t = label(d, "Datos de ruta para el piloto", &dejavu_bold_16, C_DIM);
+    lv_obj_align(t, LV_ALIGN_TOP_LEFT, 14, 232);
+    lv_obj_t* b = textButton(d, "", 360, 52, onPilotOut, 0);
+    lv_obj_align(b, LV_ALIGN_TOP_LEFT, 14, 260);
+    pOutLbl = lv_obj_get_child(b, 0);
+    pOutTxt = label(d, "", &dejavu_14, C_SOFT);
+    lv_obj_align(pOutTxt, LV_ALIGN_TOP_LEFT, 14, 324);
+    lv_obj_set_width(pOutTxt, 360);
+    lv_obj_set_style_text_line_space(pOutTxt, 5, 0);
+}
+
+static void updatePilot() {
+    uint32_t now = millis();
+    const settings::Values& v = settings::get();
+    char b[220], c[24];
+    double hdg = 0, cog = 0, sog = 0, rud = 0;
+    bool hasHdg = store->get(Key::Heading, now, hdg), hasCog = store->get(Key::Cog, now, cog);
+    store->get(Key::Sog, now, sog);
+    if (hasHdg || hasCog) {
+        snprintf(b, sizeof(b), "%03d\xC2\xB0", (int)lround(norm360(hasHdg ? hdg : cog)) % 360);
+        lv_label_set_text(pHdg, b);
+        lv_label_set_text(pHdgSub, hasHdg ? "Comp\xC3\xA1s, verdadero" : "Sin comp\xC3\xA1s: rumbo sobre el fondo");
+    } else {
+        lv_label_set_text(pHdg, "--");
+        lv_label_set_text(pHdgSub, "Sin datos");
+    }
+    if (navOn) {
+        const RouteStatus& st = nav.status();
+        snprintf(b, sizeof(b), "%03d\xC2\xB0", (int)lround(norm360(st.bearing)) % 360);
+        lv_label_set_text(pHts, b);
+        if (hasHdg || hasCog) {
+            double turn = norm180(st.bearing - (hasHdg ? hdg : cog));
+            if (fabs(turn) < 2) snprintf(b, sizeof(b), "En rumbo");
+            else snprintf(b, sizeof(b), "Caer %d\xC2\xB0 a %s", (int)lround(fabs(turn)), turn < 0 ? "babor" : "estribor");
+        } else snprintf(b, sizeof(b), "Demora verdadera al destino");
+        lv_label_set_text(pHtsSub, b);
+        // Barra: de -escala a +escala; la escala crece si el desvio no cabe
+        double scale = fabs(st.xteNm) > 0.5 ? 2.0 : (fabs(st.xteNm) > 0.1 ? 0.5 : 0.1);
+        double f = st.xteNm / scale;
+        if (f > 1) f = 1;
+        if (f < -1) f = -1;
+        lv_obj_align(pXteBoat, LV_ALIGN_CENTER, (int)lround(f * (P_BAR_W / 2 - 12)), 4);
+        lv_obj_set_hidden(pXteBoat, false);
+        fmtDist(c, sizeof(c), scale, scale < 1 ? 1 : 0);
+        snprintf(b, sizeof(b), "\xC2\xB1 %s", c);
+        lv_label_set_text(pXteScale, b);
+        if (fabs(st.xteNm) < 0.005) snprintf(b, sizeof(b), "En la derrota");
+        else { fmtDist(c, sizeof(c), fabs(st.xteNm), 2); snprintf(b, sizeof(b), "%s a %s de la ruta \xC2\xB7 gobernar a %s", c, st.xteNm > 0 ? "estribor" : "babor", st.xteNm > 0 ? "babor" : "estribor"); }
+        lv_label_set_text(pXteTxt, b);
+        bool arrived = !navMob && (navCount > 1 ? st.finished : st.inArrival);
+        if (navCount > 1) snprintf(b, sizeof(b), "%s%s (%d de %d)", arrived ? "LLEGADA \xC2\xB7 " : "A ", navNames[st.target], st.target + 1, navCount);
+        else snprintf(b, sizeof(b), "%s%s", arrived ? "LLEGADA \xC2\xB7 " : "A ", navName);
+        lv_label_set_text(pDest, b);
+        char d[24], t[24] = "--";
+        fmtDist(d, sizeof(d), st.distanceNm, 2);
+        if (sog > 0.5) formatDuration(t, sizeof(t), st.distanceNm / sog);
+        snprintf(b, sizeof(b), "Distancia:  %s\nDemora:  %03d\xC2\xB0\nTiempo:  %s\nRumbo del tramo:  %03d\xC2\xB0", d, (int)lround(norm360(st.bearing)) % 360, t,
+                 (int)lround(norm360(st.legBearing)) % 360);
+        lv_label_set_text(pInfo, b);
+    } else {
+        lv_label_set_text(pHts, "--");
+        lv_label_set_text(pHtsSub, "Sin destino");
+        lv_obj_set_hidden(pXteBoat, true);
+        lv_label_set_text(pXteScale, "");
+        lv_label_set_text(pXteTxt, "");
+        lv_label_set_text(pDest, "Sin destino");
+        lv_label_set_text(pInfo, "Elige un punto en la Carta y pulsa \xC2\xAB" "Ir a\xC2\xBB, o navega una ruta desde la pesta\xC3\xB1" "a Rutas.");
+    }
+    if (store->get(Key::RudderAngle, now, rud)) {
+        double f = rud / 35.0;                             // de -35 a +35 grados
+        if (f > 1) f = 1;
+        if (f < -1) f = -1;
+        int w = (int)lround(fabs(f) * (P_BAR_W / 2));
+        if (w < 4) w = 4;
+        lv_obj_set_width(pRudBar, w);
+        lv_obj_align(pRudBar, LV_ALIGN_CENTER, (int)lround(f * (P_BAR_W / 4)), 8);
+        lv_obj_set_style_bg_color(pRudBar, lv_color_hex(rud < 0 ? C_RED : 0x2ECC71), 0);
+        lv_obj_set_hidden(pRudBar, false);
+        snprintf(b, sizeof(b), "%d\xC2\xB0 a %s", (int)lround(fabs(rud)), fabs(rud) < 0.5 ? "la v\xC3\xAD" "a" : (rud < 0 ? "babor" : "estribor"));
+        lv_label_set_text(pRudTxt, b);
+    } else {
+        lv_obj_set_hidden(pRudBar, true);
+        lv_label_set_text(pRudTxt, "Sin sensor de tim\xC3\xB3n (RSA o NMEA 2000)");
+    }
+    static const char* const kOut[3] = {"Apagado", "Por el RS485 (NMEA 0183)", "Por la red (servidor TCP)"};
+    lv_label_set_text(pOutLbl, kOut[v.pilotOut]);
+    const char* state = !v.pilotOut ? "No se env\xC3\xAD" "a nada." : (!navOn ? "Sin destino: no se env\xC3\xAD" "a nada." : (pilotOk ? "Enviando APB y RMB cada segundo." : "Sin conexi\xC3\xB3n con el servidor: no se env\xC3\xAD" "a."));
+    snprintf(b, sizeof(b), "%s\nEl plotter solo da los datos de la ruta. El piloto se embraga y se manda desde su propio mando.%s", state,
+             v.pilotOut == 1 ? "\nEl RS485 es el mismo puerto por el que entra el AIS." : "");
+    lv_label_set_text(pOutTxt, b);
+}
+
 // ---------- Ajustes ----------
 static void setBaseMap(int i) {
     baseMap = (i >= 0 && i < kBaseMapN) ? i : 0;
@@ -2215,6 +2420,7 @@ void begin(DataStore* s) {
         else if (i == 3) makeRadar(pages[i]);
         else if (i == 7) makeSettings(pages[i]);
         else if (i == 4) makeWind(pages[i]);
+        else if (i == 5) makePilot(pages[i]);
         else if (i > 0) placeholder(pages[i], kTabs[i]);
     }
 
@@ -2317,7 +2523,9 @@ void update() {
     sampleTrack();
     sampleWind();
     updateNav();
+    pilotSend();
     if (active == 1) updateChart();
+    if (active == 5) updatePilot();
     if (active == 2) updateRoutes();
     if (active == 4) updateWind();
     if (active == 7) updateSettings();

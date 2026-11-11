@@ -435,6 +435,17 @@ static void testPilot() {
     n = nmeaApb(b, sizeof(b), -0.5, true, true, -10, nullptr, 370, 0, false);
     CHECK(std::string(b, size_t(n - 2)).rfind("$ECAPB,A,A,0.50,R,N,A,A,350.0,T,,10.0,T,0.0,T*", 0) == 0);
     CHECK(nmeaApb(b, 20, 0.1, false, false, 0, "A", 0, 0, true) == 0);     // no cabe
+    // RMB: barco 0,03 mn a estribor (gobernar a babor), destino 36 31,842 N 006 17,502 W a 1,2 mn y 251 grados
+    {
+        char r[120];
+        int rn = nmeaRmb(r, sizeof(r), 0.034, "ORIGEN", "WPT 01", 36.5307, -6.2917, 1.2, 251.4, 5.8, false);
+        CHECK(rn > 0 && nmeaChecksumOk(r));
+        CHECK(std::string(r).find("$ECRMB,A,0.03,L,ORIGEN,WPT 01,3631.8420,N,00617.5020,W,1.2,251.4,5.8,V,A*") == 0);
+        rn = nmeaRmb(r, sizeof(r), -0.2, "", "A,B*", -33.99999999, 151.5, 2000, 361, -1.5, true);
+        CHECK(rn > 0 && nmeaChecksumOk(r));
+        CHECK(std::string(r).find("$ECRMB,A,0.20,R,,AB,3400.0000,S,15130.0000,E,999.9,1.0,-1.5,A,A*") == 0);
+        CHECK(nmeaRmb(r, 30, 0, "A", "B", 0, 0, 1, 0, 0, false) == 0);
+    }
 }
 
 static void testSignalK() {

@@ -254,6 +254,73 @@ static void testNmea() {
     CHECK(nm.ais().own);
 }
 
+static void testAisExtra() {
+    Nmea0183 nm;
+    DataStore st;
+    auto feed = [&](const char* body) { return nm.feed(sentence(body).c_str(), Source::Serial, 1, st); };
+    // Ejemplos de la documentacion AIVDM/AIVDO de gpsd
+    CHECK(feed("!AIVDM,1,1,,A,403OviQuMGCqWrRO9>E6fE700@GO,0") == NmeaResult::Ais);            // 4: estacion base
+    CHECK(nm.ais().type == 4 && nm.ais().kind == AisKind::BaseStation && nm.ais().mmsi == 3669702);
+    NEAR(nm.ais().lat, 36.883767, 1e-5); NEAR(nm.ais().lon, -76.352362, 1e-5);
+    CHECK(feed("!AIVDM,1,1,,B,91b55wi;hbOS@OdQAC062Ch2089h,0") == NmeaResult::Ais);            // 9: aeronave SAR
+    CHECK(nm.ais().kind == AisKind::SarAircraft && nm.ais().mmsi == 111232511 && nm.ais().hasAlt && nm.ais().altM == 303);
+    CHECK(nm.ais().hasSog && nm.ais().sogKn == 42); NEAR(nm.ais().cogDeg, 154.5, 1e-9);
+    NEAR(nm.ais().lat, 58.144, 1e-5); NEAR(nm.ais().lon, -6.2788383, 1e-5);
+    CHECK(feed("!AIVDM,1,1,,A,>5?Per18=HB1U:1@E=B0m<L,2") == NmeaResult::Ais);                 // 14: mensaje de seguridad
+    CHECK(nm.ais().kind == AisKind::Safety && nm.ais().mmsi == 351809000 && !std::strcmp(nm.ais().text, "RCVD YR TEST MSG"));
+    CHECK(feed("!AIVDM,2,1,5,B,E1mg=5J1T4W0h97aRh6ba84<h2d;W:Te=eLvH50```q,0") == NmeaResult::Ignored);   // 21: ayuda a la navegacion
+    CHECK(feed("!AIVDM,2,2,5,B,:D44QDlp0C1DU00,2") == NmeaResult::Ais);
+    CHECK(nm.ais().kind == AisKind::Aton && nm.ais().mmsi == 123456789 && nm.ais().atonType == 20 && !nm.ais().atonVirtual);
+    CHECK(!std::strcmp(nm.ais().name, "CHINA ROSE MURPHY EXPRESS ALERT"));                     // nombre con ampliacion
+    NEAR(nm.ais().lat, 47.920618, 1e-5); NEAR(nm.ais().lon, -122.698592, 1e-5);
+    CHECK(nm.ais().hasDim && nm.ais().toBow == 5 && nm.ais().toStarboard == 5);
+    CHECK(feed("!AIVDM,1,1,,B,KC5E2b@U19PFdLbMuc5=ROv62<7m,0") == NmeaResult::Ais);            // 27: largo alcance (ejemplo con bits de mas)
+    CHECK(nm.ais().type == 27 && nm.ais().mmsi == 206914217 && nm.ais().oversized);
+    NEAR(nm.ais().lat, 4.84, 1e-9); NEAR(nm.ais().lon, 137.023333, 1e-5);
+    CHECK(nm.ais().sogKn == 57 && nm.ais().cogDeg == 167);
+    CHECK(feed("!AIVDM,1,1,,B,H42O55lti4hhhilD3nink000?050,0") == NmeaResult::Ais);            // 24 parte B: dimensiones
+    CHECK(!std::strcmp(nm.ais().callsign, "TC6163") && nm.ais().hasDim && nm.ais().toStern == 15 && nm.ais().toStarboard == 5);
+    // Mensaje 5: dimensiones, calado y destino
+    feed("!AIVDM,2,1,3,B,55P5TL01VIaAL@7WKO@mBplU@<PDhh000000001S;AJ::4A80?4i@E53,0");
+    CHECK(feed("!AIVDM,2,2,3,B,1@0000000000000,2") == NmeaResult::Ais);
+    CHECK(nm.ais().hasDim && nm.ais().toBow == 90 && nm.ais().toStern == 90 && nm.ais().toPort == 10 && nm.ais().toStarboard == 10);
+    CHECK(nm.ais().hasVoyage); NEAR(nm.ais().draughtM, 6.0, 1e-9); CHECK(!std::strcmp(nm.ais().destination, "SEATTLE"));
+
+    // Calidad: corto, MMSI 0, tipo sin uso, suma mal
+    NmeaStats before = nm.stats();
+    CHECK(feed("!AIVDM,1,1,,B,177KQJ5000G?tO`K,0") == NmeaResult::Ignored);
+    CHECK(feed("!AIVDM,1,1,,B,1000000000G?tO`K>RA1wUbN0TKH,0") == NmeaResult::Ignored);
+    CHECK(nm.stats().aisRejected == before.aisRejected + 2);
+    CHECK(feed("!AIVDM,1,1,,B,:5?Per18=HB1U:1@E=B0m<L,0") == NmeaResult::Ignored);             // tipo 10
+    CHECK(nm.stats().aisUnsupported == before.aisUnsupported + 1);
+    CHECK(nm.feed("!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5D", Source::Serial, 1, st) == NmeaResult::Bad);
+    CHECK(nm.stats().badChecksum == before.badChecksum + 1);
+    CHECK(nm.stats().aisOversized >= 1 && nm.stats().good > 8);
+
+    // Bloque de etiquetas delante de la trama
+    const char* tagged = "\\s:EA7JRS-1,c:1794415252*00\\!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C";
+    CHECK(!std::strcmp(nmeaSentenceStart(tagged), "!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C"));
+    CHECK(nm.feed(tagged, Source::Tcp, 1, st) == NmeaResult::Ais && nm.ais().mmsi == 477553000);
+    CHECK(nm.tagTime() == 1794415252u && !std::strcmp(nm.tagSource(), "EA7JRS-1"));
+    CHECK(nm.feed("\\c:1794415252123*00\\!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C", Source::Tcp, 1, st) == NmeaResult::Ais);
+    CHECK(nm.tagTime() == 1794415252u && nm.tagSource()[0] == 0);                               // hora en milisegundos
+    CHECK(nm.feed("!AIVDM,1,1,,B,177KQJ5000G?tO`K>RA1wUbN0TKH,0*5C", Source::Tcp, 1, st) == NmeaResult::Ais && nm.tagTime() == 0);
+    CHECK(nm.feed("\\sin cierre", Source::Tcp, 1, st) == NmeaResult::Bad);
+    const char* plain = "$GPGLL,3631.84,N,00617.02,W,112500,A*3A";
+    CHECK(nmeaSentenceStart(plain) == plain);
+
+    // Posiciones: saltos imposibles
+    double la = 36.53, lo = -6.30;
+    CHECK(aisJudgePosition(false, 0, 0, false, 10, la, lo, false) == AisPosVerdict::Unknown);
+    CHECK(aisJudgePosition(true, la, lo, false, 60, la + 0.01, lo, false) == AisPosVerdict::Valid);       // 0,6 mn en 1 min
+    CHECK(aisJudgePosition(true, la, lo, false, 60, la + 0.1, lo, false) == AisPosVerdict::Jump);         // 6 mn en 1 min
+    CHECK(aisJudgePosition(true, la, lo, false, 60, la + 0.1, lo, true) == AisPosVerdict::Valid);         // una aeronave si puede
+    CHECK(aisJudgePosition(true, la, lo, true, 60, la + 0.005, lo, false) == AisPosVerdict::Jump);        // parado y aparece a 0,3 mn
+    CHECK(aisJudgePosition(true, la, lo, true, 60, la + 0.0005, lo, false) == AisPosVerdict::Valid);      // borneo en el fondeo
+    CHECK(aisJudgePosition(true, la, lo, false, 3600, la + 5, lo, false) == AisPosVerdict::Unknown);      // la anterior es vieja
+    CHECK(aisJudgePosition(true, la, lo, false, -60, la + 0.01, lo, false) == AisPosVerdict::Valid);      // hora desordenada
+}
+
 static void testGpx() {
     // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
     const char* in =
@@ -318,7 +385,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

@@ -17,6 +17,19 @@ namespace plotter {
 uint8_t nmeaChecksum(const char* body);         // XOR de lo que va entre '$' o '!' y '*'
 bool nmeaChecksumOk(const char* line);          // false tambien si falta la suma
 
+// Las tramas pueden llegar con un bloque de etiquetas delante (\\s:estacion,c:hora*XX\\!AIVDM...), como las de AIS-catcher y
+// AIS Dispatcher. Devuelve el comienzo de la trama ('$' o '!'), o la propia linea si no hay bloque.
+const char* nmeaSentenceStart(const char* line);
+
+struct NmeaStats {
+    uint32_t good = 0;
+    uint32_t badChecksum = 0;       // suma mal o trama cortada
+    uint32_t malformed = 0;
+    uint32_t aisRejected = 0;       // AIS corto, MMSI 0 o fragmentos sueltos
+    uint32_t aisUnsupported = 0;    // tipo de mensaje que no se usa
+    uint32_t aisOversized = 0;      // aceptado, con mas bits de la cuenta
+};
+
 enum class NmeaResult { Bad, Ignored, Data, Ais };
 
 class Nmea0183 {
@@ -24,10 +37,17 @@ class Nmea0183 {
     // Procesa una linea. Los datos van a "store" con la fuente indicada; un mensaje AIS completo queda en ais().
     NmeaResult feed(const char* line, Source src, uint32_t nowMs, DataStore& store);
     const AisReport& ais() const { return ais_; }
+    const NmeaStats& stats() const { return stats_; }
+    // Del bloque de etiquetas de la ultima linea: hora UNIX (0 si no venia) y estacion ("" si no venia)
+    uint32_t tagTime() const { return tagTime_; }
+    const char* tagSource() const { return tagSource_; }
 
    private:
     AisDecoder dec_;
     AisReport ais_;
+    NmeaStats stats_;
+    uint32_t tagTime_ = 0;
+    char tagSource_[16] = "";
 };
 
 }  // namespace plotter

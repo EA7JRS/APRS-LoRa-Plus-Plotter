@@ -28,6 +28,12 @@ bool nmeaChecksumOk(const char* line) {
     return *end == 0 && uint8_t(v) == nmeaChecksum(line + 1);
 }
 
+const char* nmeaSentenceStart(const char* line) {
+    if (!line || line[0] != '\\') return line;
+    const char* end = std::strchr(line + 1, '\\');
+    return end ? end + 1 : line;
+}
+
 namespace {
 
 constexpr int kMaxFields = 24;
@@ -72,15 +78,46 @@ bool coord(const Fields& f, int i, double& deg) {
 }  // namespace
 
 NmeaResult Nmea0183::feed(const char* line, Source src, uint32_t now, DataStore& st) {
-    if (!nmeaChecksumOk(line)) return NmeaResult::Bad;
+    tagTime_ = 0;
+    tagSource_[0] = 0;
+    if (!line) { stats_.malformed++; return NmeaResult::Bad; }
+    const char* body = nmeaSentenceStart(line);
+    if (body != line) {                                           // bloque de etiquetas: campos "clave:valor" separados por comas
+        for (const char* p = line + 1; p < body - 1 && *p != '*';) {
+            const char* e = p;
+            while (e < body - 1 && *e != ',' && *e != '*') e++;
+            if (e - p > 2 && p[1] == ':') {
+                if (p[0] == 'c') {
+                    unsigned long long t = std::strtoull(p + 2, nullptr, 10);
+                    if (t > 99999999999ULL) t /= 1000;            // algunos equipos la dan en milisegundos
+                    tagTime_ = uint32_t(t);
+                } else if (p[0] == 's') {
+                    size_t n = size_t(e - p - 2);
+                    if (n >= sizeof(tagSource_)) n = sizeof(tagSource_) - 1;
+                    std::memcpy(tagSource_, p + 2, n);
+                    tagSource_[n] = 0;
+                }
+            }
+            p = (e < body - 1 && *e == ',') ? e + 1 : body;
+        }
+        line = body;
+    }
+    if (!nmeaChecksumOk(line)) { stats_.badChecksum++; return NmeaResult::Bad; }
     Fields f;
-    if (!split(line, f) || std::strlen(f.f[0]) < 5) return NmeaResult::Bad;
+    if (!split(line, f) || std::strlen(f.f[0]) < 5) { stats_.malformed++; return NmeaResult::Bad; }
+    stats_.good++;
     const char* id = f.f[0] + std::strlen(f.f[0]) - 3;            // sin el emisor (GP, II, AI...)
 
     if (!std::strcmp(id, "VDM") || !std::strcmp(id, "VDO")) {
-        if (f.n < 7) return NmeaResult::Bad;
+        if (f.n < 7) { stats_.malformed++; return NmeaResult::Bad; }
         int seq = f.has(3) ? std::atoi(f.f[3]) : -1;
-        return dec_.feed(std::atoi(f.f[1]), std::atoi(f.f[2]), seq, f.f[5], std::atoi(f.f[6]), id[2] == 'O', ais_) ? NmeaResult::Ais : NmeaResult::Ignored;
+        if (dec_.feed(std::atoi(f.f[1]), std::atoi(f.f[2]), seq, f.f[5], std::atoi(f.f[6]), id[2] == 'O', ais_)) {
+            if (ais_.oversized) stats_.aisOversized++;
+            return NmeaResult::Ais;
+        }
+        if (dec_.lastError() == AisError::Unsupported) stats_.aisUnsupported++;
+        else if (dec_.lastError() != AisError::Pending) stats_.aisRejected++;
+        return NmeaResult::Ignored;
     }
     if (!std::strcmp(id, "RMC")) {
         if (f.n < 9 || !f.has(2) || f.f[2][0] != 'A') return NmeaResult::Ignored;         // sin posicion valida

@@ -7,6 +7,18 @@ OpenStreetMap (XYZ, 256 × 256 píxeles, PNG):
 /charts/osm/<zoom>/<x>/<y>.png
 ```
 
+Otros mapas base (Ajustes > Mapa base), con la misma numeración XYZ:
+
+| Mapa base | Carpeta | Formato |
+|---|---|---|
+| OpenSeaMap | `/charts/osm` | PNG |
+| IHM (no válida para la navegación) | `/charts/ihm` | PNG |
+| IGN base | `/charts/ign` | JPEG (`.jpeg`) |
+| Ortofoto PNOA | `/charts/pnoa` | JPEG (`.jpeg`) |
+
+Los servicios TMS del IGN numeran la `y` al revés: al copiarlas hay que guardarlas con la `y` de OpenStreetMap.
+Los JPEG no se han probado todavía con teselas reales.
+
 - Zoom de 5 a 18. Para navegar por una zona basta con los zooms 10 a 15.
 - Lo que no esté en la tarjeta se queda en azul liso: el barco, la derrota y los blancos AIS se ven igual.
 - Las teselas se buscan al mover la carta; lo que falta se vuelve a mirar cada 30 s (por si se copian cartas nuevas).

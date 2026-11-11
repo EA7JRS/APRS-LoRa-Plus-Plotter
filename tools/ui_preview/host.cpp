@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
         lv_timer_handler();
     }
     if (argc > 4) {                              // cuarto argumento: acciones separadas por comas antes de la foto
-        // cerrar | mob | fondeo | marcar | tocar:x:y | boton:n | pagina:n | wp:n | rutas:n | esperar:s
+        // cerrar | mob | fondeo | ajuste:n | marcar | tocar:x:y | boton:n | pagina:n | wp:n | rutas:n | esperar:s
         std::string acts = argv[4];
         size_t pos = 0;
         while (pos <= acts.size()) {
@@ -62,6 +62,7 @@ int main(int argc, char** argv) {
             if (a == "cerrar") ui::closeWindow();
             else if (a == "mob") ui::testMob();
             else if (a == "fondeo") ui::testAnchor();
+            else if (sscanf(a.c_str(), "ajuste:%d", &x) == 1) ui::testSetting(x);
             else if (a == "marcar") ui::testMark();
             else if (sscanf(a.c_str(), "tocar:%d:%d", &x, &y) == 2) ui::testTapChart(x, y);
             else if (sscanf(a.c_str(), "boton:%d", &x) == 1) ui::testPanelButton(x);

@@ -9,6 +9,7 @@
 
 #include "board.h"
 #include "anchor.h"
+#include "units.h"
 #include "lights.h"
 #include "aistargets.h"
 #include "chartui.h"
@@ -42,6 +43,7 @@ struct Tile {
     lv_obj_t* value = nullptr;
     lv_obj_t* sub = nullptr;
 };
+static lv_obj_t* tileUnit[8] = {};
 enum { T_SOG, T_COG, T_HDG, T_DEPTH, T_AWS, T_AWA, T_TWS, T_WATER, T_COUNT };
 
 static DataStore* store = nullptr;
@@ -116,7 +118,15 @@ struct Missing { int z = -1, x = 0, y = 0; };
 static Missing missing[96];                       // teselas que no estan en la tarjeta, para no preguntar cada vez
 static int missingNext = 0;
 static uint32_t missingClearedMs = 0;
-static const char* chartFolder = "S:/charts/osm";
+struct BaseMap { const char* name; const char* folder; const char* ext; const char* credit; };
+static const BaseMap kBaseMaps[] = {
+    {"OpenSeaMap", "S:/charts/osm", "png", "OpenSeaMap \xC2\xB7 \xC2\xA9 OpenStreetMap"},
+    {"IHM", "S:/charts/ihm", "png", "IHM \xC2\xB7 no v\xC3\xA1lida para la navegaci\xC3\xB3n"},
+    {"IGN", "S:/charts/ign", "jpeg", "IGN base \xC2\xB7 CC BY 4.0 ign.es"},
+    {"Ortofoto", "S:/charts/pnoa", "jpeg", "PNOA \xC2\xB7 CC BY 4.0 scne.es"},
+};
+static const int kBaseMapN = (int)(sizeof(kBaseMaps) / sizeof(kBaseMaps[0]));
+static int baseMap = 0;
 
 // Navegacion: punto tocado, waypoints, "ir a" y hombre al agua
 static const int kWps = 50, kWpMarks = 20;
@@ -180,6 +190,8 @@ static int wpPage = 0, wpSel = -1;
 
 // Ajustes
 static lv_obj_t* setSimLbl = nullptr;
+static lv_obj_t* setUnitsLbl = nullptr;
+static lv_obj_t* setMapLbl = nullptr;
 static lv_obj_t* setBaudLbl = nullptr;
 static lv_obj_t* setBrightLbl = nullptr;
 static lv_obj_t* setInfo = nullptr;
@@ -232,6 +244,7 @@ static void makeTile(lv_obj_t* grid, int idx, int col, int row, const char* name
     lv_obj_t* n = label(t, name, &dejavu_bold_16, C_DIM);
     lv_obj_align(n, LV_ALIGN_TOP_LEFT, 0, 0);
     lv_obj_t* u = label(t, unit, &dejavu_14, C_DIM);
+    tileUnit[idx] = u;
     lv_obj_align(u, LV_ALIGN_TOP_RIGHT, 0, 2);
     tiles[idx].value = label(t, "--", &dejavu_num_60, valueColor);
     lv_obj_align(tiles[idx].value, LV_ALIGN_LEFT_MID, 0, 6);
@@ -240,6 +253,22 @@ static void makeTile(lv_obj_t* grid, int idx, int col, int row, const char* name
 }
 
 static void comma(char* b);
+
+// Unidades elegidas en Ajustes (nautico / metrico / imperial). Por dentro todo va en mn, kn, m y grados C.
+static Units U = unitsFor(UnitSystem::Nautical, Units{});
+static const char* distLabel() { return U.dist == DistUnit::Nm ? "mn" : plotter::label(U.dist); }
+static void fmtDist(char* b, size_t n, double nm, int decimals) {
+    snprintf(b, n, "%.*f %s", decimals, distFromNm(nm, U.dist), distLabel());
+    comma(b);
+}
+static void fmtSpeed(char* b, size_t n, double kn) {
+    snprintf(b, n, "%.1f %s", speedFromKn(kn, U.boatSpeed), plotter::label(U.boatSpeed));
+    comma(b);
+}
+static void applyUnits() {
+    int u = settings::get().units;
+    U = unitsFor(u == 1 ? UnitSystem::Metric : (u == 2 ? UnitSystem::Imperial : UnitSystem::Nautical), Units{});
+}
 
 static void onRange(lv_event_t* e) {
     int d = (int)(intptr_t)lv_event_get_user_data(e);
@@ -350,7 +379,7 @@ static void updateRadar() {
     uint32_t now = millis();
     for (int i = 0; i < 3; i++) {
         char b[16];
-        snprintf(b, sizeof(b), i == 2 ? "%.2g mn" : "%.2g", range * (i + 1) / 3);
+        snprintf(b, sizeof(b), i == 2 ? "%.2g %s" : "%.2g", distFromNm(range * (i + 1) / 3, U.dist), distLabel());
         comma(b);
         lv_label_set_text(ringLbl[i], b);
     }
@@ -424,7 +453,7 @@ static void updateRadar() {
         if (t.name[0]) lv_label_set_text(rowLbl[r][1], t.name);
         else { snprintf(b, sizeof(b), "MMSI %09u", (unsigned)t.mmsi); lv_label_set_text(rowLbl[r][1], b); }
         if (t.hasRange) {
-            snprintf(b, sizeof(b), "%.1f mn", t.rangeNm); comma(b);
+            fmtDist(b, sizeof(b), t.rangeNm, 1);
             lv_label_set_text(rowLbl[r][2], b);
             snprintf(b, sizeof(b), "%03d\xC2\xB0", (int)lround(t.bearing) % 360);
             lv_label_set_text(rowLbl[r][3], b);
@@ -436,7 +465,7 @@ static void updateRadar() {
         else if (!t.hasCpa) lv_label_set_text(rowLbl[r][4], t.kind == AisKind::Aton ? "Baliza" : "--");
         else if (t.tcpaMin < 0) lv_label_set_text(rowLbl[r][4], "Se aleja");
         else if (t.hasSog && t.sogKn < 0.3 && sog < 0.3) lv_label_set_text(rowLbl[r][4], "Parado");
-        else { snprintf(b, sizeof(b), "%.1f mn \xC2\xB7 %d min", t.cpaNm, (int)lround(t.tcpaMin)); comma(b); lv_label_set_text(rowLbl[r][4], b); }
+        else { char c[20]; fmtDist(c, sizeof(c), t.cpaNm, 1); snprintf(b, sizeof(b), "%s \xC2\xB7 %d min", c, (int)lround(t.tcpaMin)); lv_label_set_text(rowLbl[r][4], b); }
         lv_obj_set_style_border_color(rowBox[r], lv_color_hex(t.dangerous ? C_WARN : C_PANEL), 0);
         lv_obj_set_style_bg_color(rowBox[r], lv_color_hex(t.dangerous ? 0x2A2A1C : C_PANEL), 0);
         lv_obj_set_style_text_color(rowLbl[r][4], lv_color_hex(t.dangerous ? C_WARN : (t.lost ? C_DIM : C_TEXT)), 0);
@@ -553,7 +582,7 @@ static void updateMobModal() {
     if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) {
         Measure m = measure({la, lo}, navPts[0], true);
         if (m.distanceNm < 0.1) snprintf(dist, sizeof(dist), "%d m \xC2\xB7 %03d\xC2\xB0", (int)lround(m.distanceNm * kMetersPerNm), (int)lround(m.bearing) % 360);
-        else { snprintf(dist, sizeof(dist), "%.2f mn \xC2\xB7 %03d\xC2\xB0", m.distanceNm, (int)lround(m.bearing) % 360); comma(dist); }
+        else { char c[20]; fmtDist(c, sizeof(c), m.distanceNm, 2); snprintf(dist, sizeof(dist), "%s \xC2\xB7 %03d\xC2\xB0", c, (int)lround(m.bearing) % 360); }
     }
     uint32_t secs = (now - mobMs) / 1000;
     lv_obj_set_style_bg_color(modalHead, lv_color_hex(C_RED), 0);
@@ -584,7 +613,7 @@ static void updateAnchorModal() {
         lv_label_set_text(modalName, head);
         char sogTxt[24] = "--";
         double sog;
-        if (store->get(Key::Sog, millis(), sog)) { snprintf(sogTxt, sizeof(sogTxt), "%.1f kn", sog); comma(sogTxt); }
+        if (store->get(Key::Sog, millis(), sog)) { fmtSpeed(sogTxt, sizeof(sogTxt), sog); }
         snprintf(b, sizeof(b), "Distance / bearing from the anchor\nAlarm radius:  %d m\nMaximum distance:  %d m\nSpeed:  %s",
                  (int)lround(anchorW.radiusM()), (int)lround(a.maxDistanceM), sogTxt);
     }
@@ -604,14 +633,14 @@ static void updateModal() {
     const AisTarget& t = tg.at(i);
     if (modalMode == M_COLLISION && (!t.dangerous || t.silenced)) { closeModal(); return; }
     char b[420], dist[32] = "--", cpaTxt[48] = "--";
-    if (t.hasRange) { snprintf(dist, sizeof(dist), "%.1f mn \xC2\xB7 %03d\xC2\xB0", t.rangeNm, (int)lround(t.bearing) % 360); comma(dist); }
+    if (t.hasRange) { char c[20]; fmtDist(c, sizeof(c), t.rangeNm, 1); snprintf(dist, sizeof(dist), "%s \xC2\xB7 %03d\xC2\xB0", c, (int)lround(t.bearing) % 360); }
     if (t.lost) snprintf(cpaTxt, sizeof(cpaTxt), "Perdido");
-    else if (t.hasCpa && t.tcpaMin >= 0) { snprintf(cpaTxt, sizeof(cpaTxt), "%.2f mn en %d min", t.cpaNm, (int)lround(t.tcpaMin)); comma(cpaTxt); }
+    else if (t.hasCpa && t.tcpaMin >= 0) { char c[20]; fmtDist(c, sizeof(c), t.cpaNm, 2); snprintf(cpaTxt, sizeof(cpaTxt), "%s en %d min", c, (int)lround(t.tcpaMin)); }
     else if (t.hasCpa) snprintf(cpaTxt, sizeof(cpaTxt), "Se aleja");
     if (t.name[0]) lv_label_set_text(modalName, t.name);
     else { snprintf(b, sizeof(b), "MMSI %09u", (unsigned)t.mmsi); lv_label_set_text(modalName, b); }
     char sog[24] = "--", cog[16] = "--", len[24] = "--";
-    if (t.hasSog) { snprintf(sog, sizeof(sog), "%.1f kn", t.sogKn); comma(sog); }
+    if (t.hasSog) { fmtSpeed(sog, sizeof(sog), t.sogKn); }
     if (t.hasCog) snprintf(cog, sizeof(cog), "%03d\xC2\xB0", (int)lround(t.cogDeg) % 360);
     if (t.lengthM > 0) snprintf(len, sizeof(len), "%d x %d m", t.lengthM, t.beamM);
     if (modalMode == M_COLLISION) {
@@ -690,7 +719,7 @@ static void onChartDrag(lv_event_t*) {                    // arrastrar mueve la 
 static bool tileExists(int z, int x, int y, char* path, int size) {
     for (const Missing& m : missing)
         if (m.z == z && m.x == x && m.y == y) return false;
-    if (!tilePath(path, size, chartFolder, z, x, y, "png")) return false;
+    if (!tilePath(path, size, kBaseMaps[baseMap].folder, z, x, y, kBaseMaps[baseMap].ext)) return false;
     lv_fs_file_t f;
     if (lv_fs_open(&f, path, LV_FS_MODE_RD) == LV_FS_RES_OK) {
         lv_fs_close(&f);
@@ -1332,11 +1361,11 @@ static void updateChart() {
     } else if (measOn) {
         double total = pathLengthNm(measPts, measN, true);
         char tt[24], l2[96] = "Toca la carta para a\xC3\xB1" "adir puntos";
-        snprintf(tt, sizeof(tt), "%.2f mn", total); comma(tt);
+        fmtDist(tt, sizeof(tt), total, 2);
         if (measN >= 2) {
             Measure m = measure(measPts[measN - 2], measPts[measN - 1], true, sog);
             char d[24], t[24] = "";
-            snprintf(d, sizeof(d), "%.2f mn", m.distanceNm); comma(d);
+            fmtDist(d, sizeof(d), m.distanceNm, 2);
             if (sog > 0.5) formatDuration(t, sizeof(t), total / sog);
             snprintf(l2, sizeof(l2), "Tramo %s \xC2\xB7 %03d\xC2\xB0%s%s", d, (int)lround(m.bearing) % 360, t[0] ? " \xC2\xB7 total " : "", t);
         }
@@ -1365,7 +1394,7 @@ static void updateChart() {
         if (own) {
             Measure m = measure({la, lo}, selPos, true, sog);
             char d[24], t[24] = "";
-            snprintf(d, sizeof(d), "%.2f mn", m.distanceNm); comma(d);
+            fmtDist(d, sizeof(d), m.distanceNm, 2);
             if (m.hours >= 0) formatDuration(t, sizeof(t), m.hours);
             snprintf(pt, sizeof(pt), "%s%s%s\n%s \xC2\xB7 %03d\xC2\xB0%s%s", wn ? wn : "", wn ? " \xC2\xB7 " : "", p.c_str(), d, (int)lround(m.bearing) % 360,
                      t[0] ? " \xC2\xB7 " : "", t);
@@ -1385,13 +1414,13 @@ static void updateChart() {
         const RouteStatus& st = nav.status();
         char d[24], t[24] = "--", x[64];
         if (st.distanceNm < 0.1) snprintf(d, sizeof(d), "%d m", (int)lround(st.distanceNm * kMetersPerNm));
-        else { snprintf(d, sizeof(d), "%.2f mn", st.distanceNm); comma(d); }
+        else { fmtDist(d, sizeof(d), st.distanceNm, 2); }
         if (sog > 0.5) formatDuration(t, sizeof(t), st.distanceNm / sog);
         if (navMob) {
             uint32_t secs = (now - mobMs) / 1000;
             snprintf(x, sizeof(x), "Hombre al agua hace %u min %02u s", (unsigned)(secs / 60), (unsigned)(secs % 60));
         } else if (fabs(st.xteNm) < 0.005) snprintf(x, sizeof(x), "En la derrota");
-        else { snprintf(x, sizeof(x), "Desv\xC3\xADo %.2f mn a %s", fabs(st.xteNm), st.xteNm > 0 ? "estribor" : "babor"); comma(x); }
+        else { char c[20]; fmtDist(c, sizeof(c), fabs(st.xteNm), 2); snprintf(x, sizeof(x), "Desv\xC3\xADo %s a %s", c, st.xteNm > 0 ? "estribor" : "babor"); }
         char who[40];
         if (navCount > 1) snprintf(who, sizeof(who), "%s (%d de %d)", navNames[st.target], st.target + 1, navCount);
         else snprintf(who, sizeof(who), "%s", navName);
@@ -1422,14 +1451,14 @@ static void updateChart() {
     static const double kSteps[] = {0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200};
     double best = kSteps[0];
     for (double st : kSteps)
-        if (st * kMetersPerNm / mpp <= 180) best = st;
-    lv_obj_set_width(chScaleBar, (int)lround(best * kMetersPerNm / mpp));
+        if (st / distFromNm(1, U.dist) * kMetersPerNm / mpp <= 180) best = st;       // pasos redondos en la unidad elegida
+    lv_obj_set_width(chScaleBar, (int)lround(best / distFromNm(1, U.dist) * kMetersPerNm / mpp));
     char b[112];
-    snprintf(b, sizeof(b), best < 1 ? "%.2g mn" : "%.0f mn", best);
+    snprintf(b, sizeof(b), best < 1 ? "%.2g %s" : "%.0f %s", best, distLabel());
     comma(b);
     lv_label_set_text(chScaleLbl, b);
     snprintf(b, sizeof(b), "Norte arriba \xC2\xB7 zoom %d \xC2\xB7 %s%s", chZoom,
-             tilesShown ? "OpenSeaMap \xC2\xB7 \xC2\xA9 OpenStreetMap" : "sin cartas en la tarjeta para esta zona", chFollow ? "" : " \xC2\xB7 carta movida");
+             tilesShown ? kBaseMaps[baseMap].credit : "sin cartas en la tarjeta para esta zona", chFollow ? "" : " \xC2\xB7 carta movida");
     lv_label_set_text(chInfo, b);
     lv_obj_set_hidden(chCenterBtn, chFollow);
 }
@@ -1550,7 +1579,7 @@ static void updateRoutes() {
         lv_label_set_text(wpRowLbl[r][0], wps[i].name);
         if (own) {
             Measure m = measure({la, lo}, wps[i].p, true);
-            snprintf(b, sizeof(b), "%.2f mn", m.distanceNm); comma(b);
+            fmtDist(b, sizeof(b), m.distanceNm, 2);
             lv_label_set_text(wpRowLbl[r][1], b);
             snprintf(b, sizeof(b), "%03d\xC2\xB0", (int)lround(m.bearing) % 360);
             lv_label_set_text(wpRowLbl[r][2], b);
@@ -1564,7 +1593,7 @@ static void updateRoutes() {
     if (routeN == 0) snprintf(b, sizeof(b), "Ruta \xC2\xB7 vac\xC3\xAD" "a");
     else {
         char t[24];
-        snprintf(t, sizeof(t), "%.2f mn", pathLengthNm(routePts, routeN, true)); comma(t);
+        fmtDist(t, sizeof(t), pathLengthNm(routePts, routeN, true), 2);
         snprintf(b, sizeof(b), "Ruta \xC2\xB7 %d puntos \xC2\xB7 %s%s", routeN, t, running ? " \xC2\xB7 navegando" : "");
     }
     lv_label_set_text(rtTitle, b);
@@ -1579,7 +1608,7 @@ static void updateRoutes() {
         else {
             Measure m = measure(routePts[i - 1], routePts[i], true);
             char d[24];
-            snprintf(d, sizeof(d), "%.2f mn", m.distanceNm); comma(d);
+            fmtDist(d, sizeof(d), m.distanceNm, 2);
             snprintf(b, sizeof(b), "%d   %s   \xC2\xB7   %s   \xC2\xB7   %03d\xC2\xB0", i + 1, routeNames[i], d, (int)lround(m.bearing) % 360);
         }
         lv_label_set_text(rtRowLbl[r], b);
@@ -1590,11 +1619,19 @@ static void updateRoutes() {
 }
 
 // ---------- Ajustes ----------
+static void setBaseMap(int i) {
+    baseMap = (i >= 0 && i < kBaseMapN) ? i : 0;
+    for (Missing& m : missing) m = Missing();             // otra carpeta: lo que faltaba ya no vale
+    for (TileImg& t : tileImgs) t.z = -1;                 // y las teselas puestas se vuelven a buscar
+}
+
 static void onSetting(lv_event_t* e) {
     int what = (int)(intptr_t)lv_event_get_user_data(e);
     settings::Values& v = settings::get();
     if (what == 0) { v.simulator = !v.simulator; links::setSimulator(v.simulator); }
     else if (what == 1) { v.serialBaud = v.serialBaud == 38400 ? 4800 : 38400; links::setSerialBaud(v.serialBaud); }
+    else if (what == 4) { v.units = (v.units + 1) % 3; applyUnits(); }
+    else if (what == 5) { v.baseMap = (v.baseMap + 1) % kBaseMapN; setBaseMap(v.baseMap); }
     else {
         v.brightness += what == 2 ? -10 : 10;
         if (v.brightness < 10) v.brightness = 10;
@@ -1606,12 +1643,12 @@ static void onSetting(lv_event_t* e) {
 
 static lv_obj_t* settingRow(lv_obj_t* page, int row, const char* title, const char* help) {
     lv_obj_t* r = box(page, C_PANEL, 10);
-    lv_obj_set_size(r, 620, 84);
-    lv_obj_set_pos(r, 0, row * 94);
+    lv_obj_set_size(r, 620, 76);
+    lv_obj_set_pos(r, 0, row * 84);
     lv_obj_t* t = label(r, title, &dejavu_bold_20, C_TEXT);
-    lv_obj_align(t, LV_ALIGN_TOP_LEFT, 14, 12);
+    lv_obj_align(t, LV_ALIGN_TOP_LEFT, 14, 9);
     lv_obj_t* h = label(r, help, &dejavu_14, C_DIM);
-    lv_obj_align(h, LV_ALIGN_BOTTOM_LEFT, 14, -12);
+    lv_obj_align(h, LV_ALIGN_BOTTOM_LEFT, 14, -9);
     return r;
 }
 
@@ -1631,8 +1668,16 @@ static void makeSettings(lv_obj_t* page) {
     lv_obj_align(setBrightLbl, LV_ALIGN_RIGHT_MID, -84, 0);
     b = textButton(r, "-", 56, 52, onSetting, 2);
     lv_obj_align(b, LV_ALIGN_RIGHT_MID, -150, 0);
+    r = settingRow(page, 3, "Unidades", "mn, kn, m \xC2\xB7 km, km/h, m/s \xC2\xB7 mi, mph, ft, \xC2\xB0" "F");
+    b = textButton(r, "", 170, 52, onSetting, 4);
+    lv_obj_align(b, LV_ALIGN_RIGHT_MID, -14, 0);
+    setUnitsLbl = lv_obj_get_child(b, 0);
+    r = settingRow(page, 4, "Mapa base", "Teselas de la tarjeta: /charts/osm, ihm, ign o pnoa");
+    b = textButton(r, "", 170, 52, onSetting, 5);
+    lv_obj_align(b, LV_ALIGN_RIGHT_MID, -14, 0);
+    setMapLbl = lv_obj_get_child(b, 0);
     lv_obj_t* info = box(page, C_PANEL, 10);
-    lv_obj_set_size(info, 374, 366);
+    lv_obj_set_size(info, 374, 412);
     lv_obj_set_pos(info, 630, 0);
     lv_obj_t* t = label(info, "Estado", &dejavu_bold_20, C_TEXT);
     lv_obj_align(t, LV_ALIGN_TOP_LEFT, 14, 12);
@@ -1648,6 +1693,8 @@ static void updateSettings() {
     const settings::Values& v = settings::get();
     lv_label_set_text(setSimLbl, v.simulator ? "Encendido" : "Apagado");
     lv_label_set_text(setBaudLbl, v.serialBaud == 38400 ? "38400 (AIS)" : "4800 (NMEA)");
+    lv_label_set_text(setUnitsLbl, v.units == 1 ? "M\xC3\xA9trico" : (v.units == 2 ? "Imperial" : "N\xC3\xA1utico"));
+    lv_label_set_text(setMapLbl, kBaseMaps[baseMap].name);
     char b[320];
     snprintf(b, sizeof(b), "%d %%", v.brightness);
     lv_label_set_text(setBrightLbl, b);
@@ -1810,6 +1857,8 @@ void begin(DataStore* s) {
     }
     makeModal();
     loadWaypoints();
+    applyUnits();
+    setBaseMap(settings::get().baseMap);
     {                                                     // fondeo que estaba vigilado antes de apagar o reiniciar
         const settings::Values& v = settings::get();
         anchorRode = v.anchorRode;
@@ -1834,6 +1883,10 @@ static const char* sourceName(Source s) {
 static void show(int idx, Key k, int decimals, bool degrees = false) {
     uint32_t now = millis();
     double v;
+    if (!degrees) {                                       // la unidad de la casilla, por si se ha cambiado en Ajustes
+        const char* u = k == Key::Depth ? plotter::label(U.depth) : (k == Key::WaterTemp ? plotter::label(U.temp) : plotter::label(k == Key::Aws ? U.windSpeed : U.boatSpeed));
+        lv_label_set_text(tileUnit[idx], u);
+    }
     if (!store->get(k, now, v)) {
         lv_label_set_text(tiles[idx].value, "--");
         lv_label_set_text(tiles[idx].sub, "Sin datos");
@@ -1842,6 +1895,10 @@ static void show(int idx, Key k, int decimals, bool degrees = false) {
     char b[24];
     if (degrees) snprintf(b, sizeof(b), "%03d\xC2\xB0", (int)lround(norm360(v)) % 360);
     else {
+        if (k == Key::Depth) v = depthFromM(v, U.depth);
+        else if (k == Key::WaterTemp) v = tempFromC(v, U.temp);
+        else if (k == Key::Aws) v = speedFromKn(v, U.windSpeed);
+        else v = speedFromKn(v, U.boatSpeed);
         snprintf(b, sizeof(b), "%.*f", decimals, v);
         for (char* p = b; *p; p++) if (*p == '.') *p = ',';
     }
@@ -1888,9 +1945,10 @@ void update() {
         double twa, tws, twd;
         trueWind(awa, aws, spd, hdg, twa, tws, twd);
         char b[24], s[48];
-        snprintf(b, sizeof(b), "%.1f", tws);
+        snprintf(b, sizeof(b), "%.1f", speedFromKn(tws, U.windSpeed));
         for (char* p = b; *p; p++) if (*p == '.') *p = ',';
         lv_label_set_text(tiles[T_TWS].value, b);
+        lv_label_set_text(tileUnit[T_TWS], plotter::label(U.windSpeed));
         snprintf(s, sizeof(s), "De %03d\xC2\xB0 \xC2\xB7 fuerza %d \xC2\xB7 calculado", (int)lround(twd) % 360, beaufort(tws));
         lv_label_set_text(tiles[T_TWS].sub, s);
     } else {
@@ -1945,5 +2003,10 @@ void testRoutes(int action) {                              // 2 ir a, 3 ver, 4 a
 void testSelectWaypoint(int i) { wpSel = (i >= 0 && i < wpN) ? i : -1; }
 void testMark() { onMark(nullptr); }
 void testAnchor() { onAnchorBtn(nullptr); }
+void testSetting(int what) {                               // 4 unidades, 5 mapa base
+    settings::Values& v = settings::get();
+    if (what == 4) { v.units = (v.units + 1) % 3; applyUnits(); }
+    else if (what == 5) { v.baseMap = (v.baseMap + 1) % kBaseMapN; setBaseMap(v.baseMap); }
+}
 
 }

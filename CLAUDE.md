@@ -263,6 +263,11 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   «Fondear» en la posición del barco; fondeado: distancia y demora al ancla, radio ± 5 m, «Levar»), círculo verde / rojo,
   zoom 17 al fondear. Ventana «ANCHOR DRAG» / «ANCHOR WATCH · NO GPS FIX» (SILENCE 10 MIN, CLOSE = 2 min). El fondeo se guarda
   en NVS y sigue tras un reinicio. Acción `fondeo` en el dibujo del PC. Falta: marcar el ancla tocando la carta, sonido.
+- **Unidades y mapa base (2026-11-11, rama `unidades`)**: Ajustes > *Unidades* (náutico / métrico / imperial, `units` del
+  núcleo; se aplican a Instrumentos, carta, escala, rutas, radar y ventanas; el viento en métrico va en m/s; el fondeo sigue
+  en metros) y Ajustes > *Mapa base* (carpetas de la tarjeta `/charts/osm` PNG, `/charts/ihm` PNG, `/charts/ign` y
+  `/charts/pnoa` JPEG, cada una con su atribución en la carta). Se guardan en NVS. Acción `ajuste:n` en el dibujo del PC.
+  Falta: sistema «usuario» (cada magnitud por separado) y probar teselas JPEG reales.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.
@@ -270,7 +275,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y
-   medir hechos. Fondeo hecho. Lo siguiente: unidades, elegir mapa base, y probar en la placa.
+   medir hechos. Fondeo, unidades y mapa base hechos. Lo siguiente: NMEA 2000 por CAN, entradas por WiFi (TCP / UDP), y probar en la placa.
 2. NMEA 2000 por TWAI (librería NMEA2000) y UART / RS485.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático; comprobar pines libres de la 7B para el anemómetro.

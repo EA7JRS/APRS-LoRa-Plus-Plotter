@@ -114,6 +114,13 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   SHOM, `portail.ping-info-nautique.fr`, sin poder leerlo desde la sesión). Pendiente: ver las direcciones exactas de los KML /
   S-124 (traen la geometría hecha) y si se permiten descargas automáticas. Posible fuente de Portugal: ANAVnet del Instituto Hidrográfico (sin mirar).
 
+- IDE del IHM (`ideihm.covam.es`, visualizador estudiado el 2026-11-11; es una app JavaScript, desde la sesión no se ven sus
+  capas). Servicios confirmados por otras fuentes: WMS de cartas ENC (`/wms/cartaENCp2..p5`, ya en el plan), WMS de estaciones
+  de mareas `/wms/mareas`, superficie de referencia vertical `/wms/srvh` y `/wcs/srvh`, límites marítimos
+  `/ihm-inspire/wms-unidadesmaritimas` (CC-BY 4.0), catálogo `/catalogo`. El visualizador tiene un complemento de **faros y
+  señales de niebla**: si esos datos (característica, alcance, altura) se pueden pedir por WFS o GetFeatureInfo, alimentan
+  `lights` (animar luces, «¿cuándo veré el faro?»). Sin comprobar; pendiente de que Manuel mire las capas en el visor.
+
 ## Estado (2026-11-11)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos). 1160 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).

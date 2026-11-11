@@ -204,6 +204,9 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
     Candidato a la capa de **previsión de viento y racha** de la carta (lo que se descartó hacer con Windy). Duda: una malla de
     2,5 km de toda la Península es demasiado para que la baje y la lea el ESP32; habrá que recortar (en la app Android, que
     pasa la zona por BLE o WiFi, o pidiendo solo un recuadro si la API lo permite). Sin comprobar parámetros, tamaño ni licencia.
+  **Aceptado por Manuel (2026-11-11)**: radar georreferenciado en lugar de la imagen aproximada, y capa «Previsión de viento»
+  con control de tiempo de 48 h (viento, racha, lluvia, rayos, presión, temperatura, nubes) y rayos como aviso. Maqueta
+  `CartaPrevision`. Fase 3, sin programar.
 
 ## Estado (2026-11-11)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana). 1274 comprobaciones en `test/host/test_core.cpp`

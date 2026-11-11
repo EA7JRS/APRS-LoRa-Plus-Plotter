@@ -158,6 +158,12 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   **Los cinco WMS del IHM (enc, CartaOF, lucesIHM, mareas, catalogoENC) esperan lo mismo: el GetCapabilities con los nombres
   de capa, que tiene que abrir Manuel.** Maqueta `CartaBase` actualizada: OpenSeaMap, IHM electrónica, IHM de papel, IGN, ortofoto PNOA y relieve.
 
+- Catálogo de datos abiertos del MITECO (`catalogo.datosabiertos.miteco.gob.es`, enlace de Manuel, 2026-11-11): no deja
+  leerse de forma automática (robots). Por otras páginas del ministerio: espacios marinos protegidos (SHP / KMZ), red OSPAR
+  (SHP / GeoJSON), ZEPIM por WMS (`https://wms.mapama.gob.es/sig/Biodiversidad/ZEPIM`), ordenación del espacio marítimo
+  (POEM, WMS) y praderas de fanerógamas marinas. Posible capa «Zonas protegidas» de la carta (fase 3) y aviso al fondear
+  sobre pradera o reserva; propuesto a Manuel, sin decidir. Sin comprobar: direcciones de las capas de posidonia y licencia.
+
 ## Estado (2026-11-11)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1226 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).

@@ -12,6 +12,8 @@
 #include "chartui.h"
 #include "links.h"
 #include "motion.h"
+#include "route.h"
+#include "tiles.h"
 #include "wind.h"
 
 LV_FONT_DECLARE(dejavu_12)
@@ -66,6 +68,44 @@ static lv_obj_t* radarInfo = nullptr;
 static lv_obj_t* rowBox[kRows] = {};
 static lv_obj_t* rowLbl[kRows][5] = {};
 static lv_obj_t* lblAisBadge = nullptr;
+static uint32_t rowMmsi[kRows] = {};
+
+// Ventana centrada sobre cualquier pantalla: ficha de un blanco o alerta de abordaje (la misma que las emergencias de la app)
+enum ModalMode { M_NONE, M_DETAIL, M_COLLISION };
+static lv_obj_t* modalBack = nullptr;
+static lv_obj_t* modalHead = nullptr;
+static lv_obj_t* modalTitle = nullptr;
+static lv_obj_t* modalSub = nullptr;
+static lv_obj_t* modalName = nullptr;
+static lv_obj_t* modalBody = nullptr;
+static lv_obj_t* modalBtnA = nullptr;
+static lv_obj_t* modalBtnALbl = nullptr;
+static lv_obj_t* modalBtnBLbl = nullptr;
+static ModalMode modalMode = M_NONE;
+static uint32_t modalMmsi = 0;
+// Alertas cerradas: el mismo buque no vuelve a abrirla hasta 10 minutos despues
+struct Closed { uint32_t mmsi = 0; uint32_t untilMs = 0; };
+static Closed closedAlerts[8];
+
+// Carta
+static const int CH_W = 1004, CH_H = 476, kTrack = 240, kChartDots = 16;
+static lv_obj_t* chart = nullptr;
+static lv_obj_t* chBoat = nullptr;
+static lv_obj_t* chVec = nullptr;
+static lv_obj_t* chTrack = nullptr;
+static lv_obj_t* chScaleBar = nullptr;
+static lv_obj_t* chScaleLbl = nullptr;
+static lv_obj_t* chInfo = nullptr;
+static lv_obj_t* chCenterBtn = nullptr;
+static lv_point_precise_t chVecPts[2];
+static lv_point_precise_t chTrackPts[kTrack];
+static LatLon trackPts[kTrack];
+static int trackN = 0;
+static TrackSampler trackSampler;
+static Dot chDots[kChartDots];
+static int chZoom = 14;
+static bool chFollow = true;
+static LatLon chCenter{36.53, -6.29};
 
 static lv_obj_t* box(lv_obj_t* parent, uint32_t color, int radius = 0) {
     lv_obj_t* o = lv_obj_create(parent);
@@ -120,6 +160,8 @@ static void makeTile(lv_obj_t* grid, int idx, int col, int row, const char* name
     lv_obj_align(tiles[idx].sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 }
 
+static void comma(char* b);
+
 static void onRange(lv_event_t* e) {
     int d = (int)(intptr_t)lv_event_get_user_data(e);
     int n = (int)(sizeof(kRanges) / sizeof(kRanges[0]));
@@ -127,6 +169,8 @@ static void onRange(lv_event_t* e) {
     if (rangeIdx < 0) rangeIdx = 0;
     if (rangeIdx >= n) rangeIdx = n - 1;
 }
+
+static void onRow(lv_event_t* e);
 
 static lv_obj_t* textButton(lv_obj_t* parent, const char* text, int w, int h, lv_event_cb_t cb, intptr_t data) {
     lv_obj_t* b = lv_button_create(parent);
@@ -137,7 +181,7 @@ static lv_obj_t* textButton(lv_obj_t* parent, const char* text, int w, int h, lv
     lv_obj_set_style_radius(b, 8, 0);
     lv_obj_set_style_border_color(b, lv_color_hex(C_LINE), 0);
     lv_obj_set_style_border_width(b, 1, 0);
-    lv_obj_t* l = label(b, text, &dejavu_bold_20, C_TEXT);
+    lv_obj_t* l = label(b, text, strlen(text) > 2 ? &dejavu_bold_16 : &dejavu_bold_20, C_TEXT);
     lv_obj_center(l);
     lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, (void*)data);
     return b;
@@ -210,6 +254,8 @@ static void makeRadar(lv_obj_t* page) {
             rowLbl[r][c] = label(rowBox[r], "", c == 1 ? &dejavu_bold_16 : &dejavu_16, c == 0 ? C_ACC : C_TEXT);
             lv_obj_align(rowLbl[r][c], LV_ALIGN_LEFT_MID, colX[c], 0);
         }
+        lv_obj_set_clickable(rowBox[r], true);
+        lv_obj_add_event_cb(rowBox[r], onRow, LV_EVENT_CLICKED, (void*)(intptr_t)r);
         lv_label_set_long_mode(rowLbl[r][1], LV_LABEL_LONG_MODE_DOTS);
         lv_obj_set_width(rowLbl[r][1], 186);
     }
@@ -289,9 +335,10 @@ static void updateRadar() {
     lv_obj_set_style_text_color(lblAisBadge, lv_color_hex(danger ? C_WARN : C_TEXT), 0);
 
     for (int r = 0; r < kRows; r++) {
-        if (r >= n) { lv_obj_set_hidden(rowBox[r], true); continue; }
+        if (r >= n) { lv_obj_set_hidden(rowBox[r], true); rowMmsi[r] = 0; continue; }
         lv_obj_set_hidden(rowBox[r], false);
         const AisTarget& t = tg.at(idx[r]);
+        rowMmsi[r] = t.mmsi;
         char b[48];
         snprintf(b, sizeof(b), "%d", r + 1);
         lv_label_set_text(rowLbl[r][0], b);
@@ -316,6 +363,332 @@ static void updateRadar() {
         lv_obj_set_style_text_color(rowLbl[r][4], lv_color_hex(t.dangerous ? C_WARN : (t.lost ? C_DIM : C_TEXT)), 0);
         lv_obj_set_style_text_color(rowLbl[r][0], lv_color_hex(t.dangerous ? C_WARN : C_ACC), 0);
     }
+}
+
+// ---------- Ventana centrada ----------
+static void closeModal() {
+    modalMode = M_NONE;
+    modalMmsi = 0;
+    if (modalBack) lv_obj_set_hidden(modalBack, true);
+}
+
+static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
+    AisTargets& tg = links::targets();
+    int i = tg.find(modalMmsi);
+    if (i >= 0) tg.silence(modalMmsi, modalMode == M_COLLISION ? true : !tg.at(i).silenced);
+    if (modalMode == M_COLLISION) closeModal();
+}
+
+static void onModalB(lv_event_t*) {                       // cerrar
+    if (modalMode == M_COLLISION) {
+        int slot = 0;
+        uint32_t now = millis();
+        for (int i = 0; i < 8; i++) {
+            if (closedAlerts[i].mmsi == modalMmsi) { slot = i; break; }
+            if ((int32_t)(closedAlerts[i].untilMs - now) < (int32_t)(closedAlerts[slot].untilMs - now)) slot = i;
+        }
+        closedAlerts[slot].mmsi = modalMmsi;
+        closedAlerts[slot].untilMs = now + 10 * 60000u;
+    }
+    closeModal();
+}
+
+static lv_obj_t* modalButton(lv_obj_t* parent, uint32_t border, uint32_t text, lv_event_cb_t cb, lv_obj_t** lblOut) {
+    lv_obj_t* b = lv_button_create(parent);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_size(b, 238, 50);
+    lv_obj_set_style_bg_color(b, lv_color_hex(0x1E2A36), 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(b, 10, 0);
+    lv_obj_set_style_border_color(b, lv_color_hex(border), 0);
+    lv_obj_set_style_border_width(b, 1, 0);
+    *lblOut = label(b, "", &dejavu_bold_20, text);
+    lv_obj_center(*lblOut);
+    lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, nullptr);
+    return b;
+}
+
+static void makeModal() {
+    modalBack = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(modalBack);
+    lv_obj_set_size(modalBack, board::W, board::H);
+    lv_obj_set_style_bg_color(modalBack, lv_color_hex(0x06090D), 0);
+    lv_obj_set_style_bg_opa(modalBack, 190, 0);
+    lv_obj_set_scrollable(modalBack, false);
+    lv_obj_set_clickable(modalBack, true);                 // lo de debajo no recibe toques mientras esta abierta
+    lv_obj_t* win = box(modalBack, 0x18222D, 18);
+    lv_obj_set_size(win, 540, 330);
+    lv_obj_center(win);
+    lv_obj_set_style_clip_corner(win, true, 0);
+    modalHead = box(win, C_WARN);
+    lv_obj_set_size(modalHead, 540, 60);
+    lv_obj_align(modalHead, LV_ALIGN_TOP_MID, 0, 0);
+    modalTitle = label(modalHead, "", &dejavu_bold_20, C_INK);
+    lv_obj_align(modalTitle, LV_ALIGN_TOP_LEFT, 16, 8);
+    modalSub = label(modalHead, "", &dejavu_14, C_INK);
+    lv_obj_align(modalSub, LV_ALIGN_BOTTOM_LEFT, 16, -8);
+    modalName = label(win, "", &dejavu_bold_20, C_TEXT);
+    lv_obj_align(modalName, LV_ALIGN_TOP_LEFT, 16, 72);
+    modalBody = label(win, "", &dejavu_16, C_SOFT);
+    lv_obj_align(modalBody, LV_ALIGN_TOP_LEFT, 16, 104);
+    lv_obj_set_width(modalBody, 508);
+    lv_obj_set_style_text_line_space(modalBody, 6, 0);
+    modalBtnA = modalButton(win, 0xFFB347, 0xFFB347, onModalA, &modalBtnALbl);
+    lv_obj_align(modalBtnA, LV_ALIGN_BOTTOM_LEFT, 16, -14);
+    lv_obj_t* b = modalButton(win, 0x2E3E4F, C_TEXT, onModalB, &modalBtnBLbl);
+    lv_obj_align(b, LV_ALIGN_BOTTOM_RIGHT, -16, -14);
+    lv_obj_set_hidden(modalBack, true);
+}
+
+static void openModal(ModalMode mode, uint32_t mmsi) {
+    modalMode = mode;
+    modalMmsi = mmsi;
+    lv_obj_set_hidden(modalBack, false);
+}
+
+// Rellena la ventana con el estado actual del blanco; la cierra si el blanco ya no existe o (alerta) ya no hay riesgo
+static void updateModal() {
+    if (modalMode == M_NONE) return;
+    AisTargets& tg = links::targets();
+    int i = tg.find(modalMmsi);
+    if (i < 0) { closeModal(); return; }
+    const AisTarget& t = tg.at(i);
+    if (modalMode == M_COLLISION && (!t.dangerous || t.silenced)) { closeModal(); return; }
+    char b[420], dist[32] = "--", cpaTxt[48] = "--";
+    if (t.hasRange) { snprintf(dist, sizeof(dist), "%.1f mn \xC2\xB7 %03d\xC2\xB0", t.rangeNm, (int)lround(t.bearing) % 360); comma(dist); }
+    if (t.lost) snprintf(cpaTxt, sizeof(cpaTxt), "Perdido");
+    else if (t.hasCpa && t.tcpaMin >= 0) { snprintf(cpaTxt, sizeof(cpaTxt), "%.2f mn en %d min", t.cpaNm, (int)lround(t.tcpaMin)); comma(cpaTxt); }
+    else if (t.hasCpa) snprintf(cpaTxt, sizeof(cpaTxt), "Se aleja");
+    if (t.name[0]) lv_label_set_text(modalName, t.name);
+    else { snprintf(b, sizeof(b), "MMSI %09u", (unsigned)t.mmsi); lv_label_set_text(modalName, b); }
+    char sog[24] = "--", cog[16] = "--", len[24] = "--";
+    if (t.hasSog) { snprintf(sog, sizeof(sog), "%.1f kn", t.sogKn); comma(sog); }
+    if (t.hasCog) snprintf(cog, sizeof(cog), "%03d\xC2\xB0", (int)lround(t.cogDeg) % 360);
+    if (t.lengthM > 0) snprintf(len, sizeof(len), "%d x %d m", t.lengthM, t.beamM);
+    if (modalMode == M_COLLISION) {
+        // Textos en ingles, como la ventana de emergencias de la app Android
+        lv_obj_set_style_bg_color(modalHead, lv_color_hex(C_WARN), 0);
+        lv_label_set_text(modalTitle, "COLLISION RISK");
+        lv_label_set_text(modalSub, "AIS \xC2\xB7 closest point of approach");
+        snprintf(b, sizeof(b), "Distance / bearing:  %s\nCPA:  %s\nSpeed / course:  %s \xC2\xB7 %s\nMMSI %09u \xC2\xB7 %s", dist, cpaTxt, sog, cog,
+                 (unsigned)t.mmsi, t.classB ? "class B" : "class A");
+        lv_label_set_text(modalBtnALbl, "SILENCE ALARM");
+        lv_label_set_text(modalBtnBLbl, "CLOSE");
+    } else {
+        lv_obj_set_style_bg_color(modalHead, lv_color_hex(t.dangerous ? C_WARN : C_ACC), 0);
+        lv_label_set_text(modalTitle, t.kind == AisKind::Aton ? "Ayuda a la navegaci\xC3\xB3n" : aisShipTypeNameEs(t.shipType));
+        snprintf(b, sizeof(b), "MMSI %09u \xC2\xB7 AIS %s%s%s", (unsigned)t.mmsi, t.classB ? "B" : "A", t.callsign[0] ? " \xC2\xB7 " : "", t.callsign);
+        lv_label_set_text(modalSub, b);
+        snprintf(b, sizeof(b), "Distancia y demora:  %s\nM\xC3\xA1xima aproximaci\xC3\xB3n:  %s\nVelocidad y rumbo:  %s \xC2\xB7 %s\nEslora y manga:  %s\n\xC3\x9Altima se\xC3\xB1" "al:  hace %u s",
+                 dist, cpaTxt, sog, cog, len, (unsigned)((millis() - t.lastMs) / 1000));
+        lv_label_set_text(modalBtnALbl, t.silenced ? "Activar alarma" : "Silenciar alarma");
+        lv_label_set_text(modalBtnBLbl, "Cerrar");
+    }
+    lv_label_set_text(modalBody, b);
+}
+
+// Abre la alerta del primer blanco con riesgo que no este silenciado ni cerrado hace poco
+static void checkCollision() {
+    if (modalMode == M_COLLISION) return;
+    AisTargets& tg = links::targets();
+    if (tg.dangerousCount() == 0) return;
+    uint32_t now = millis();
+    int idx[4];
+    int n = tg.sorted(idx, 4);
+    for (int k = 0; k < n; k++) {
+        const AisTarget& t = tg.at(idx[k]);
+        if (!t.dangerous || t.silenced) continue;
+        bool closed = false;
+        for (const Closed& c : closedAlerts)
+            if (c.mmsi == t.mmsi && (int32_t)(c.untilMs - now) > 0) closed = true;
+        if (closed) continue;
+        openModal(M_COLLISION, t.mmsi);
+        return;
+    }
+}
+
+static void onRow(lv_event_t* e) {
+    int r = (int)(intptr_t)lv_event_get_user_data(e);
+    if (r >= 0 && r < kRows && rowMmsi[r]) openModal(M_DETAIL, rowMmsi[r]);
+}
+
+// ---------- Carta ----------
+static void onZoom(lv_event_t* e) {
+    chZoom += (int)(intptr_t)lv_event_get_user_data(e);
+    if (chZoom < 5) chZoom = 5;
+    if (chZoom > 18) chZoom = 18;
+}
+
+static void onCenter(lv_event_t*) { chFollow = true; }
+
+static void onChartDrag(lv_event_t*) {                    // arrastrar mueve la carta y deja de seguir al barco
+    lv_indev_t* in = lv_indev_active();
+    if (!in) return;
+    lv_point_t v;
+    lv_indev_get_vect(in, &v);
+    if (v.x == 0 && v.y == 0) return;
+    double px, py;
+    lonLatToWorldPx(chCenter, chZoom, px, py);
+    chCenter = worldPxToLonLat(px - v.x, py - v.y, chZoom);
+    chFollow = false;
+}
+
+static void makeChart(lv_obj_t* page) {
+    chart = box(page, 0x0E2A44, 10);
+    lv_obj_set_size(chart, CH_W, CH_H);
+    lv_obj_center(chart);
+    lv_obj_set_style_clip_corner(chart, true, 0);
+    lv_obj_set_clickable(chart, true);
+    lv_obj_add_event_cb(chart, onChartDrag, LV_EVENT_PRESSING, nullptr);
+    chTrack = lv_line_create(chart);
+    lv_obj_set_style_line_color(chTrack, lv_color_hex(0xFF9F43), 0);
+    lv_obj_set_style_line_width(chTrack, 3, 0);
+    chVec = lv_line_create(chart);
+    lv_obj_set_style_line_color(chVec, lv_color_hex(C_TEXT), 0);
+    lv_obj_set_style_line_width(chVec, 2, 0);
+    for (int i = 0; i < kChartDots; i++) {
+        chDots[i].vec = lv_line_create(chart);
+        lv_obj_set_style_line_width(chDots[i].vec, 2, 0);
+        chDots[i].dot = box(chart, C_ACC, LV_RADIUS_CIRCLE);
+        lv_obj_set_size(chDots[i].dot, 14, 14);
+        chDots[i].num = label(chart, "", &dejavu_12, C_TEXT);
+        lv_obj_set_hidden(chDots[i].dot, true);
+        lv_obj_set_hidden(chDots[i].vec, true);
+        lv_obj_set_hidden(chDots[i].num, true);
+    }
+    chBoat = box(chart, C_TEXT, LV_RADIUS_CIRCLE);
+    lv_obj_set_size(chBoat, 16, 16);
+    lv_obj_set_style_border_color(chBoat, lv_color_hex(C_INK), 0);
+    lv_obj_set_style_border_width(chBoat, 2, 0);
+
+    lv_obj_t* plus = textButton(chart, "+", 52, 52, onZoom, 1);
+    lv_obj_align(plus, LV_ALIGN_TOP_RIGHT, -8, 8);
+    lv_obj_t* minus = textButton(chart, "-", 52, 52, onZoom, -1);
+    lv_obj_align(minus, LV_ALIGN_TOP_RIGHT, -8, 68);
+    chCenterBtn = textButton(chart, "Centrar barco", 170, 46, onCenter, 0);
+    lv_obj_align(chCenterBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
+    chScaleBar = box(chart, C_TEXT);
+    lv_obj_set_height(chScaleBar, 3);
+    lv_obj_align(chScaleBar, LV_ALIGN_BOTTOM_LEFT, 16, -14);
+    chScaleLbl = label(chart, "", &dejavu_14, C_TEXT);
+    lv_obj_align(chScaleLbl, LV_ALIGN_BOTTOM_LEFT, 16, -22);
+    chInfo = label(chart, "", &dejavu_12, C_SOFT);
+    lv_obj_align(chInfo, LV_ALIGN_TOP_LEFT, 12, 10);
+}
+
+static void updateChart() {
+    uint32_t now = millis();
+    double la, lo, sog = 0, cog = 0;
+    bool own = store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo);
+    if (own && chFollow) chCenter = {la, lo};
+    double cx, cy;
+    lonLatToWorldPx(chCenter, chZoom, cx, cy);
+    auto toScreen = [&](LatLon p, double& x, double& y) {
+        double px, py;
+        lonLatToWorldPx(p, chZoom, px, py);
+        x = CH_W / 2.0 + (px - cx);
+        y = CH_H / 2.0 + (py - cy);
+    };
+    auto inside = [](double x, double y) { return x > -20 && x < CH_W + 20 && y > -20 && y < CH_H + 20; };
+    double mpp = metersPerPixel(chCenter.lat, chZoom);
+
+    // Barco y vector de 6 minutos
+    bool boatVis = false;
+    double bx = 0, by = 0;
+    if (own) {
+        toScreen({la, lo}, bx, by);
+        boatVis = inside(bx, by);
+        lv_obj_set_pos(chBoat, (int)lround(bx) - 8, (int)lround(by) - 8);
+    }
+    lv_obj_set_hidden(chBoat, !boatVis);
+    bool vec = boatVis && store->get(Key::Sog, now, sog) && store->get(Key::Cog, now, cog) && sog > 0.3;
+    if (vec) {
+        double len = sog / 10.0 * kMetersPerNm / mpp;
+        chVecPts[0] = {(lv_value_precise_t)bx, (lv_value_precise_t)by};
+        chVecPts[1] = {(lv_value_precise_t)(bx + len * sin(deg2rad(cog))), (lv_value_precise_t)(by - len * cos(deg2rad(cog)))};
+        lv_line_set_points(chVec, chVecPts, 2);
+    }
+    lv_obj_set_hidden(chVec, !vec);
+
+    // Derrota
+    int np = 0;
+    for (int i = 0; i < trackN; i++) {
+        double x, y;
+        toScreen(trackPts[i], x, y);
+        chTrackPts[np++] = {(lv_value_precise_t)x, (lv_value_precise_t)y};
+    }
+    if (own && np > 0 && np < kTrack) chTrackPts[np++] = {(lv_value_precise_t)bx, (lv_value_precise_t)by};
+    if (np >= 2) lv_line_set_points(chTrack, chTrackPts, (uint32_t)np);
+    lv_obj_set_hidden(chTrack, np < 2);
+
+    // Blancos AIS
+    AisTargets& tg = links::targets();
+    int idx[kChartDots];
+    int n = tg.sorted(idx, kChartDots);
+    for (int i = 0; i < kChartDots; i++) {
+        Dot& d = chDots[i];
+        bool vis = false;
+        if (i < n) {
+            const AisTarget& t = tg.at(idx[i]);
+            double x, y;
+            if (t.hasPos) {
+                toScreen({t.lat, t.lon}, x, y);
+                if (inside(x, y)) {
+                    vis = true;
+                    uint32_t col = t.dangerous ? C_WARN : (t.lost ? 0x5B6B7A : (t.kind == AisKind::Aton ? 0xF2D43D : C_ACC));
+                    lv_obj_set_style_bg_color(d.dot, lv_color_hex(col), 0);
+                    lv_obj_set_pos(d.dot, (int)lround(x) - 7, (int)lround(y) - 7);
+                    char b[40];
+                    if (t.name[0]) snprintf(b, sizeof(b), "%.18s", t.name);
+                    else snprintf(b, sizeof(b), "%09u", (unsigned)t.mmsi);
+                    lv_label_set_text(d.num, b);
+                    lv_obj_set_style_text_color(d.num, lv_color_hex(col), 0);
+                    lv_obj_set_pos(d.num, (int)lround(x) + 10, (int)lround(y) - 18);
+                    bool tv = t.hasSog && t.hasCog && t.sogKn > 0.3 && !t.lost;
+                    if (tv) {
+                        double len = t.sogKn / 10.0 * kMetersPerNm / mpp;
+                        d.pts[0] = {(lv_value_precise_t)x, (lv_value_precise_t)y};
+                        d.pts[1] = {(lv_value_precise_t)(x + len * sin(deg2rad(t.cogDeg))), (lv_value_precise_t)(y - len * cos(deg2rad(t.cogDeg)))};
+                        lv_line_set_points(d.vec, d.pts, 2);
+                        lv_obj_set_style_line_color(d.vec, lv_color_hex(col), 0);
+                    }
+                    lv_obj_set_hidden(d.vec, !tv);
+                }
+            }
+        }
+        lv_obj_set_hidden(d.dot, !vis);
+        lv_obj_set_hidden(d.num, !vis);
+        if (!vis) lv_obj_set_hidden(d.vec, true);
+    }
+
+    // Escala: la distancia redonda mas larga que quepa en 180 px
+    static const double kSteps[] = {0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200};
+    double best = kSteps[0];
+    for (double st : kSteps)
+        if (st * kMetersPerNm / mpp <= 180) best = st;
+    lv_obj_set_width(chScaleBar, (int)lround(best * kMetersPerNm / mpp));
+    char b[112];
+    snprintf(b, sizeof(b), best < 1 ? "%.2g mn" : "%.0f mn", best);
+    comma(b);
+    lv_label_set_text(chScaleLbl, b);
+    snprintf(b, sizeof(b), "Norte arriba \xC2\xB7 zoom %d \xC2\xB7 sin cartas en la tarjeta%s", chZoom, chFollow ? "" : " \xC2\xB7 carta movida");
+    lv_label_set_text(chInfo, b);
+    lv_obj_set_hidden(chCenterBtn, chFollow);
+}
+
+// La derrota se guarda aunque la carta no este a la vista
+static void sampleTrack() {
+    uint32_t now = millis();
+    double la, lo;
+    if (!store->get(Key::Lat, now, la) || !store->get(Key::Lon, now, lo)) return;
+    if (!trackSampler.sample({la, lo}, now)) return;
+    if (trackN == kTrack) {                               // llena: se quita un punto de cada dos de la mitad antigua
+        int w = 0;
+        for (int i = 0; i < kTrack; i++)
+            if (i >= kTrack / 2 || i % 2 == 0) trackPts[w++] = trackPts[i];
+        trackN = w;
+    }
+    trackPts[trackN++] = {la, lo};
 }
 
 static void placeholder(lv_obj_t* page, const char* name) {
@@ -367,7 +740,8 @@ void begin(DataStore* s) {
         lv_obj_align(pages[i], LV_ALIGN_TOP_LEFT, 0, TOP_H);
         lv_obj_set_style_pad_all(pages[i], PAD, 0);
         lv_obj_set_scrollable(pages[i], false);
-        if (i == 3) makeRadar(pages[i]);
+        if (i == 1) makeChart(pages[i]);
+        else if (i == 3) makeRadar(pages[i]);
         else if (i > 0) placeholder(pages[i], kTabs[i]);
     }
 
@@ -410,6 +784,7 @@ void begin(DataStore* s) {
         lv_obj_add_event_cb(b, onTab, LV_EVENT_CLICKED, (void*)(intptr_t)i);
         tabBtn[i] = b;
     }
+    makeModal();
     showTab(0);
 }
 
@@ -449,7 +824,11 @@ static void show(int idx, Key k, int decimals, bool degrees = false) {
 void update() {
     if (!store) return;
     uint32_t now = millis();
+    sampleTrack();
+    if (active == 1) updateChart();
     if (active == 3) updateRadar();
+    checkCollision();
+    updateModal();
     show(T_SOG, Key::Sog, 1);
     show(T_COG, Key::Cog, 0, true);
     show(T_HDG, Key::Heading, 0, true);
@@ -506,6 +885,10 @@ void update() {
 
 void showPage(int tab) {
     if (tab >= 0 && tab < 8) showTab(tab);
+}
+
+void closeWindow() {
+    if (modalMode != M_NONE) onModalB(nullptr);
 }
 
 }

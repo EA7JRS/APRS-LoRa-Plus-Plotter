@@ -225,13 +225,21 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   perdido a los 6 min y fuera a los 12, silenciar por buque, orden «peligrosos primero», 100 blancos), codificador AIS para el
   simulador (`aisEncodePosition`, `aisEncodeName`), 5 blancos simulados con nombres y MMSI inventados, y la pestaña Radar AIS
   (`src/ui.cpp`: norte arriba, tres anillos, alcance 0,75 a 12 mn con − / +, vectores de 6 min, lista de 8 con el riesgo
-  resaltado). Dibujada en el PC: `tools/ui_preview/build.sh <lvgl> salida.ppm 3 300`. Falta: tocar un blanco para ver su ficha,
-  alarma sonora y ventana de colisión, rumbo arriba, guarda, estelas.
+  resaltado). Dibujada en el PC: `tools/ui_preview/build.sh <lvgl> salida.ppm 3 300`. Fusionado en `main` el 2026-11-11.
+- **Alerta de abordaje, ficha de blanco y Carta básica (2026-11-11, rama `carta-alarmas`)**: ventana centrada sobre cualquier
+  pantalla (`lv_layer_top`), como la de emergencias de la app: «COLLISION RISK» con SILENCE ALARM (silencia ese buque) y CLOSE
+  (ese buque no la reabre en 10 min); se cierra sola si deja de haber riesgo. Tocar una fila del radar abre la ficha del
+  blanco (tipo, MMSI, clase, distancia, CPA, velocidad, eslora, silenciar / activar alarma). Pestaña **Carta**, primer paso,
+  **sin teselas**: proyección de `tiles`, barco con vector de 6 min, derrota (`TrackSampler`, 240 puntos que se van
+  aclarando), blancos AIS con nombre y vector, escala, zoom 5 a 18 con + / −, arrastrar para mover y «Centrar barco».
+  Dibujadas en el PC (`tools/ui_preview/build.sh <lvgl> salida.ppm <pestaña> <segundos> [cerrar]`). Falta: teselas de la
+  microSD y costa de reserva, waypoints y rutas, medir, alarma sonora (zumbador externo, pin por decidir), rumbo arriba,
+  zona de guarda y estelas en el radar.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.
 
 ## Siguiente
-1. Hecho el esqueleto (ver Estado). Lo siguiente en la interfaz: Carta (teselas de la microSD, barco, ruta), Radar AIS con la
-   lista de blancos, ventana de alarmas, Ajustes (fuentes, unidades, simulador).
+1. Hechos el esqueleto, Instrumentos, Radar AIS, alerta de abordaje y Carta sin teselas (ver Estado). Lo siguiente:
+   teselas de la microSD en la Carta, waypoints y rutas, Ajustes (fuentes, unidades, simulador), hombre al agua (MOB).
 2. NMEA 2000 por TWAI (librería NMEA2000) y UART / RS485.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
 4. Pendiente de Manuel: marca del piloto automático; comprobar pines libres de la 7B para el anemómetro.

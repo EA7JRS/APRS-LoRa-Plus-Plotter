@@ -44,6 +44,10 @@ int main(int argc, char** argv) {
         if (i % 60 == 0) ui::update();
         lv_timer_handler();
     }
+    if (argc > 4) {                              // cuarto argumento: cerrar la ventana de alerta antes de la foto
+        ui::closeWindow();
+        for (int i = 0; i < 100; i++) { fakeMs += 5; links::loop(); if (i % 60 == 0) ui::update(); lv_timer_handler(); }
+    }
     FILE* f = fopen(argc > 1 ? argv[1] : "out.ppm", "wb");
     fprintf(f, "P6\n%d %d\n255\n", W, H);
     for (uint16_t p : fb) {

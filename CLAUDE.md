@@ -26,6 +26,15 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 - Viento: anemómetro de cazoletas con un imán (un pulso por vuelta, radio ~4 cm): factor inicial 1,2 kn por Hz, sin calibrar,
   rebote 5 ms. Sin veleta: la dirección sale de internet y los ángulos se marcan como estimados; el modo Viento del piloto
   queda bloqueado. Beaufort junto a la velocidad.
+- **Viento, corregido por Manuel (2026-11-11)**: la veleta y el anemómetro son los del **NASA Marine Target 2 Wind (versión 2,
+  con NMEA)**. Según las fichas de producto (seamarknunn.com, waterworldsports.co.uk), la unidad de tope de palo de 3 hilos
+  manda NMEA 0183 a 4800 baudios, sentencia MWV (viento aparente), unas 10 veces por segundo, 0 a 99,9 kn; no vale para los
+  equipos analógicos antiguos de 5 hilos. Consecuencias: hay dirección de viento medida (ya no se estima con internet ni se
+  bloquea el modo Viento del piloto por eso), el anemómetro de pulsos propio deja de hacer falta (el núcleo `wind` lo
+  conserva) y el lector NMEA ya lee MWV relativo. **Pendiente**: cómo entra en la 7B. El único puerto serie (RS485) está a
+  38400 para el AIS Comar y el viento va a 4800: hace falta un segundo puerto serie (pines libres por confirmar), un
+  multiplexor NMEA, o pasarlo por la pasarela XIAO a NMEA 2000 (PGN 130306, ya leído). Sin confirmar: de qué punto se toma
+  la señal (de la unidad del palo o de la pantalla Target) y su nivel eléctrico.
 - Unidades: náutico (profundidad en metros), métrico, imperial y usuario.
 - Piloto automático: solo se da por viable enviar datos de ruta; los mandos dependen de la marca (pendiente saber cuál).
 - Declinación: Modelo Magnético Mundial calculado a bordo, con descarga del archivo de coeficientes cuando caduque.
@@ -289,8 +298,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   aguja A del aparente y R del real, velocidad en el centro), casillas de viento aparente, real (con fuerza Beaufort y su
   nombre), dirección real («viene del O») y ángulo real (ceñida / través / largo / empopada, banda), e historial de 10 min
   (una muestra cada 10 s, mínimo y máximo). El real se calcula con el aparente, la velocidad y el rumbo; si no, se usa el
-  que llegue ya calculado (NMEA 2000). Falta: marcar los datos estimados (dirección de internet sin veleta) y el anemómetro
-  de pulsos propio.
+  que llegue ya calculado (NMEA 2000). La fuente real será el NASA Target 2 Wind (MWV a 4800; ver Decisiones); falta decidir por dónde entra.
 - **Pestaña Piloto (2026-11-11, rama `piloto`)**: rumbo a gobernar (demora al destino) y cuánto caer, rumbo del barco, barra
   de desvío de la ruta (escala ± 0,1 / 0,5 / 2 mn), timón (si llega RSA o el PGN 127245), destino con distancia, tiempo y rumbo
   del tramo, y **salida de datos de ruta**: Apagado / RS485 / servidor TCP (`settings.pilotOut`), APB y RMB (`nmeaRmb`, nuevo
@@ -309,4 +317,4 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
    medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Lo siguiente: Signal K nativo, zumbador, pestaña Meteo, y probar en la placa.
 2. NMEA 2000: hecho en escucha con decodificador propio; más PGN según lo que haya en la red de Manuel.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
-4. Pendiente de Manuel: marca del piloto automático; comprobar pines libres de la 7B para el anemómetro.
+4. Pendiente de Manuel: marca del piloto automático; cómo conectar el NASA Target 2 Wind (4800 baudios) teniendo el AIS a 38400 en el único puerto serie.

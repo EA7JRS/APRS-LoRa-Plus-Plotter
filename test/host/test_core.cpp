@@ -17,6 +17,7 @@
 #include "nmea.h"
 #include "store.h"
 #include "inputs.h"
+#include "signalk.h"
 #include "stream.h"
 #include "units.h"
 #include "wind.h"
@@ -425,6 +426,61 @@ static void testPilot() {
     CHECK(nmeaApb(b, 20, 0.1, false, false, 0, "A", 0, 0, true) == 0);     // no cabe
 }
 
+static void testSignalK() {
+    DataStore st;
+    double v = 0;
+    CHECK(skApply("navigation.position.latitude", 36.5297, Source::Tcp, 10, st));
+    CHECK(skApply("navigation.speedOverGround", 3.0866667, Source::Tcp, 10, st));          // 6 nudos
+    CHECK(st.get(Key::Sog, 20, v)); NEAR(v, 6.0, 1e-5);
+    CHECK(skApply("navigation.courseOverGroundTrue", 4.71238898, Source::Tcp, 10, st));
+    CHECK(st.get(Key::Cog, 20, v)); NEAR(v, 270.0, 1e-5);
+    CHECK(skApply("environment.wind.angleApparent", -0.5235988, Source::Tcp, 10, st));     // 30 grados por babor
+    CHECK(st.get(Key::Awa, 20, v)); NEAR(v, -30.0, 1e-4);
+    CHECK(skApply("environment.wind.angleApparent", 5.7595865, Source::Tcp, 11, st));      // lo mismo dado como 330
+    CHECK(st.get(Key::Awa, 20, v)); NEAR(v, -30.0, 1e-4);
+    CHECK(skApply("environment.water.temperature", 291.65, Source::Tcp, 10, st));
+    CHECK(st.get(Key::WaterTemp, 20, v)); NEAR(v, 18.5, 1e-9);
+    CHECK(skApply("environment.outside.pressure", 101325, Source::Tcp, 10, st));
+    CHECK(st.get(Key::Pressure, 20, v)); NEAR(v, 1013.25, 1e-9);
+    CHECK(skApply("environment.depth.belowTransducer", 7.4, Source::Tcp, 10, st));
+    CHECK(st.get(Key::Depth, 20, v)); NEAR(v, 7.4, 1e-12);
+    CHECK(skApply("propulsion.port.revolutions", 40.0, Source::Tcp, 10, st));              // 40 Hz = 2400 rpm
+    CHECK(st.get(Key::Rpm, 20, v)); NEAR(v, 2400.0, 1e-9);
+    CHECK(skApply("electrical.batteries.1.voltage", 12.6, Source::Tcp, 10, st));
+    CHECK(st.get(Key::BatteryV, 20, v)); NEAR(v, 12.6, 1e-12);
+    CHECK(skApply("navigation.attitude.roll", 0.1745329, Source::Tcp, 10, st));
+    CHECK(st.get(Key::Roll, 20, v)); NEAR(v, 10.0, 1e-4);
+    CHECK(!skApply("propulsion.port.oilPressure", 1, Source::Tcp, 10, st));
+    CHECK(!skApply("propulsion.revolutions", 1, Source::Tcp, 10, st));
+    CHECK(!skApply("propulsion.a.b.revolutions", 1, Source::Tcp, 10, st));
+    CHECK(!skApply("tanks.fuel.0.currentLevel", 0.5, Source::Tcp, 10, st) && !skApply(nullptr, 1, Source::Tcp, 10, st));
+    CHECK(!skApply("navigation.speedOverGround", std::nan(""), Source::Tcp, 10, st));
+
+    char b[160];
+    int n = skSubscribe(b, sizeof(b), 500);
+    CHECK(n > 0 && !std::strcmp(b, "{\"context\":\"vessels.self\",\"subscribe\":[{\"path\":\"*\",\"period\":500}]}\r\n"));
+    CHECK(skSubscribe(b, 10) == 0);
+
+    CHECK(!std::strcmp(skNotificationKey("notifications.mob"), "mob"));
+    CHECK(skNotificationKey("navigation.position") == nullptr && skNotificationKey("notifications.") == nullptr);
+    CHECK(!std::strcmp(skNotificationTitleEs("mob"), "Hombre al agua"));
+    CHECK(!std::strcmp(skNotificationTitleEs(skNotificationKey("notifications.navigation.anchor")), "Garreo"));
+    CHECK(!std::strcmp(skNotificationTitleEs("electrical.batteries.house.voltage"), "Bateria"));
+    CHECK(skNotificationTitleEs("otra.cosa") == nullptr);
+
+    // Plotter como sensor: 12 nudos de viento aparente
+    CHECK(!std::strcmp(skPathFor(Key::Aws), "environment.wind.speedApparent"));
+    NEAR(skToSi(Key::Aws, 12.0), 6.173333, 1e-5);
+    NEAR(skToSi(Key::AirTemp, 21.0), 294.15, 1e-9);
+    NEAR(skToSi(Key::Awa, -30.0), -0.5235988, 1e-6);
+    CHECK(skPathFor(Key::Rpm) == nullptr);
+    n = skDelta(b, sizeof(b), skPathFor(Key::Aws), skToSi(Key::Aws, 12.0));
+    CHECK(n > 0 && !std::strcmp(b, "{\"updates\":[{\"values\":[{\"path\":\"environment.wind.speedApparent\",\"value\":6.173333}]}]}\r\n"));
+    DataStore back;                                                  // ida y vuelta
+    CHECK(skApply(skPathFor(Key::Aws), skToSi(Key::Aws, 12.0), Source::Tcp, 1, back) && back.get(Key::Aws, 2, v));
+    NEAR(v, 12.0, 1e-9);
+}
+
 static void testGpx() {
     // Estilo OpenCPN: extensiones con espacio de nombres propio, que se ignoran
     const char* in =
@@ -489,7 +545,7 @@ static void testStream() {
 }
 
 int main() {
-    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testGpx(); testStream();
+    testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testGpx(); testStream();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

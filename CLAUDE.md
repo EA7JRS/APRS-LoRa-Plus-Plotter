@@ -61,8 +61,16 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   gobernar y el error de rumbo, que limita a 0,15 mn). Puerto de control propio en 23322 (JSON; modos, rumbo, embragar), sin
   estudiar a fondo. El núcleo ya lee HDM / HDG, XDR y RSA y genera APB (`nmeaApb`). Sirve como compás para la tablilla de desvíos.
 
+- Signal K (SignalK/specification, signalk-server, SensESP; estudiado el 2026-11-11; Manuel: «añade al plan lo que sí encaja»).
+  Fase 1: entrada nativa por TCP 8375 (deltas JSON por línea, unidades SI; suscripción a `vessels.self`), descubrimiento mDNS
+  (`_signalk-tcp`, `_signalk-ws`; NMEA del servidor en 10110) y avisos `notifications.*` en la ventana de alertas. Fase 3: rutas y
+  waypoints compartidos (API de recursos), piloto por la API de piloto del servidor, plotter como sensor (publica anemómetro,
+  sondas, sentina). Cuentavueltas con el contador PCNT del ESP32 (idea de SensESP). Núcleo hecho en `signalk` (rutas, unidades,
+  suscripción, títulos de avisos, deltas de salida); el JSON lo lee el firmware con ArduinoJson. Las API REST no se han leído
+  a fondo. **Fuera**: el servidor, sus webapps y complementos. Todo depende de tener una Raspberry con Signal K a bordo.
+
 ## Estado (2026-11-11)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso). 966 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk. 1018 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - Sin firmware todavía: falta `platformio.ini`, los drivers de la 7B y la interfaz LVGL.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.

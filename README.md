@@ -22,6 +22,7 @@ Todavía no hay firmware que compile para la placa.
 | `ais` | Mensajes AIS de buques (1, 2, 3, 5, 18, 19, 24, 27), estaciones base (4), aeronaves SAR (9), seguridad (12, 14) y ayudas a la navegación (21); comprobación de posiciones |
 | `gpx` | Lectura y escritura de GPX 1.1 (waypoints, rutas y tracks) |
 | `inputs` | Entradas de pulsos (corredera, cuentavueltas), interruptores, sondas DS18B20 y niveles de aviso de Signal K |
+| `signalk` | Signal K: rutas y unidades, suscripción, avisos y envío de valores propios |
 | `stream` | Troceo en líneas para serie, TCP y UDP; filtro de tramas repetidas |
 
 ## Pruebas

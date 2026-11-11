@@ -151,6 +151,9 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `https://ideihm.covam.es/wms/lucesIHM` (enlace de Manuel): WMS de **luces** del IHM, la fuente que faltaba para los faros;
   tampoco se han podido ver sus capas ni el formato de la ficha. El núcleo ya arma la consulta del punto tocado
   (`wmsFeatureInfoUrl`, GetFeatureInfo); falta el nombre de capa y un ejemplo de respuesta para leerla y rellenar `LightRecord`.
+  `https://ideihm.covam.es/wms/catalogoENC` (enlace de Manuel): por el nombre, el catálogo de celdas ENC (qué carta
+  electrónica cubre cada zona y a qué escala); tampoco leído. Poco útil en el plotter: como mucho, para saber hasta qué zoom
+  hay carta en un sitio. Maqueta `CartaBase` actualizada: OpenSeaMap, IHM electrónica, IHM de papel, IGN, ortofoto PNOA y relieve.
 
 ## Estado (2026-11-11)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas). 1226 comprobaciones en `test/host/test_core.cpp`

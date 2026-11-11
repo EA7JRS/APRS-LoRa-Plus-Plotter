@@ -54,7 +54,9 @@ El plotter también se conecta a un tracker APRS LoRa+ sin tocar su firmware (co
   Control PIN, `123456` de fábrica). En el plotter: Ajustes > Red > «PIN del tracker (Bluetooth)».
 - Solo las placas del tracker con salida NMEA (`NMEA_OUTPUT`, hoy la T-Beam Supreme) mandan posición: RMC, GGA, VTG, GLL y
   ZDA, además de MDA / XDR (meteorología) y `!AIVDM` (las estaciones APRS oídas, como blancos AIS, y el receptor AIS).
-- El tracker lleva una sola conexión BLE a la vez: **o el plotter o la app del móvil**, no los dos.
+- Con el firmware publicado, el tracker lleva una sola conexión BLE a la vez: **o el plotter o la app del móvil**. La
+  rama `ble-dos-enlaces` del firmware del tracker admite los dos a la vez (sin fusionar, pendiente de probar). Mientras
+  tanto: el móvil conectado al tracker y el plotter tomando el NMEA de la app por la WiFi del móvil (puerto 10110).
 
 ## Elegir el equipo
 

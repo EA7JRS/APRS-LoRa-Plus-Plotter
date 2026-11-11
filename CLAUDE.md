@@ -357,6 +357,13 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   también el servicio KISS, y si el equipo tiene el servicio de control se empareja con el PIN (`settings.blePin`, Ajustes >
   Red) y se suscribe a su NMEA; las estaciones APRS oídas por el tracker entran como blancos AIS. Sin tocar el firmware del
   tracker. Sin probar con un tracker. Límite: plotter y app del móvil no pueden estar conectados a la vez al tracker.
+  **Móvil y plotter a la vez (Manuel, 2026-11-12: «1 y 2»)**: (1) *por el móvil*, sin cambios: la app Android sirve el NMEA
+  del tracker por TCP 10110 en todas sus interfaces (`NmeaServer.kt`, hay que encenderlo en la app) y el plotter, unido al
+  punto de acceso del móvil, lo toma con el servidor vacío en Ajustes > Red; (2) *los dos por BLE*: rama
+  **`ble-dos-enlaces` del firmware del tracker** (`EA7JRS/aprs-lora-plus`, compila en su CI, **sin fusionar** hasta que
+  Manuel la pruebe en la Supreme): tabla de 2 enlaces en `ble_control.cpp` (emparejamiento, MTU y suscripción NMEA por
+  conexión; notificaciones solo a los emparejados), el tracker sigue anunciándose con un equipo conectado, y las
+  suscripciones / OTA / configuración son del enlace que mandó la última orden. El plotter no necesita cambios.
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables

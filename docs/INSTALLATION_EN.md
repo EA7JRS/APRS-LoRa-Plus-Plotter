@@ -216,6 +216,9 @@ labelled «estimado», valid for up to 2 hours. Position, heading, speed, depth 
 **Time**: from GPS (RMC / ZDA from any source, NMEA 2000) and, without GPS, NTP over WiFi: `ntp.roa.es` (Spain's
 official time, ROA), with `hora.roa.es` and `pool.ntp.org` as backups. NTP uses UDP port 123: the network must let it out.
 
+**Declination**: the plotter computes it with the WMM2025 (valid until 2030); with a compass that only gives a magnetic
+heading, the true one is that plus the declination.
+
 ## 7. Settings
 
 | Setting | Options |

@@ -7,6 +7,8 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
+#include <cctype>
+#include <cmath>
 #include <ctime>
 
 #include "board.h"
@@ -28,6 +30,9 @@
 #include "ble.h"
 #include "tiles.h"
 #include "wind.h"
+#include "astro.h"
+#include "wmm.h"
+#include "wxcalc.h"
 
 LV_FONT_DECLARE(dejavu_12)
 LV_FONT_DECLARE(dejavu_14)
@@ -2428,6 +2433,41 @@ static void makeMeteo(lv_obj_t* page) {
     lv_obj_set_style_text_line_space(mNote, 6, 0);
 }
 
+// Sol y luna del dia en la posicion del barco (horas UTC, como el reloj de Ajustes > Estado)
+static void hhmm(char* o, size_t n, double utcMin) {
+    int m = (int)lround(utcMin);
+    m = ((m % 1440) + 1440) % 1440;
+    snprintf(o, n, "%02d:%02d", m / 60, m % 60);
+}
+
+static void skyLine(char* out, size_t n) {
+    uint32_t now = millis();
+    double la, lo;
+    const time_t tt = (time_t)tsync::now();
+    if (!tt || !store->get(Key::Lat, now, la) || !store->get(Key::Lon, now, lo)) { snprintf(out, n, "Sol y luna: hace falta posici\xC3\xB3n y hora."); return; }
+    int y, mo, d; double h;
+    plotter::unixToUtc((long long)tt, y, mo, d, h);
+    double sr, ss, cr, cs, mr, ms;
+    bool hr, hs;
+    char a[8], bb[8], c[8], e[8], f[8], g[8];
+    char sun[64], moon[80];
+    if (plotter::sunTimes(y, mo, d, la, lo, -0.833, sr, ss)) {
+        hhmm(a, sizeof a, sr); hhmm(bb, sizeof bb, ss);
+        if (plotter::sunTimes(y, mo, d, la, lo, -6, cr, cs)) { hhmm(c, sizeof c, cr); hhmm(e, sizeof e, cs); }
+        else { snprintf(c, sizeof c, "--"); snprintf(e, sizeof e, "--"); }
+        snprintf(sun, sizeof sun, "Sol %s-%s (crep\xC3\xBAsculo civil %s-%s)", a, bb, c, e);
+    } else snprintf(sun, sizeof sun, "Sol: no sale ni se pone hoy");
+    double age = plotter::moonAgeDays(y, mo, d, h);
+    plotter::moonTimes(y, mo, d, la, lo, mr, hr, ms, hs);
+    if (hr) hhmm(f, sizeof f, mr); else snprintf(f, sizeof f, "--");
+    if (hs) hhmm(g, sizeof g, ms); else snprintf(g, sizeof g, "--");
+    char ph[24];
+    snprintf(ph, sizeof ph, "%s", plotter::moonPhaseNameEs(plotter::moonPhase8(age)));
+    ph[0] = (char)tolower((unsigned char)ph[0]);
+    snprintf(moon, sizeof moon, "Luna: %s (%d %%), sale %s, se pone %s", ph, (int)lround(plotter::moonIllumination(age) * 100), f, g);
+    snprintf(out, n, "%s \xC2\xB7 %s (UTC).", sun, moon);
+}
+
 // Fuente, antiguedad y si es estimado; el valor de internet se pinta en ambar
 static bool meteoSub(int i, Key k, const char* extra) {
     uint32_t now = millis();
@@ -2461,17 +2501,28 @@ static void updateMeteo() {
         lv_label_set_text(mTile[0].value, b);
         est += meteoSub(0, Key::Pressure, "");
     } else meteoNone(0);
+    // Temperatura con la sensacion termica y humedad con el punto de rocio (wxcalc del nucleo)
+    double airT = NAN, rh = NAN, tws = NAN;
+    store->get(Key::AirTemp, now, airT);
+    store->get(Key::Humidity, now, rh);
+    store->get(Key::Tws, now, tws);
     lv_label_set_text(mTile[1].unit, plotter::label(U.temp));
     if (store->get(Key::AirTemp, now, v)) {
         snprintf(b, sizeof(b), "%.1f", tempFromC(v, U.temp)); comma(b);
         lv_label_set_text(mTile[1].value, b);
-        est += meteoSub(1, Key::AirTemp, "Aire");
+        double fl = feelsLikeC(v, std::isnan(rh) ? -1 : rh, std::isnan(tws) ? -1 : tws * 1.852);
+        if (std::fabs(fl - v) >= 0.5) { snprintf(x, sizeof(x), "Aire \xC2\xB7 sensaci\xC3\xB3n %.0f%s", tempFromC(fl, U.temp), plotter::label(U.temp)); comma(x); }
+        else snprintf(x, sizeof(x), "Aire");
+        est += meteoSub(1, Key::AirTemp, x);
     } else meteoNone(1);
     lv_label_set_text(mTile[2].unit, "%");
     if (store->get(Key::Humidity, now, v)) {
         snprintf(b, sizeof(b), "%.0f", v);
         lv_label_set_text(mTile[2].value, b);
-        est += meteoSub(2, Key::Humidity, "");
+        double dp = std::isnan(airT) ? NAN : dewPointC(airT, v);
+        if (!std::isnan(dp)) { snprintf(x, sizeof(x), "Roc\xC3\xADo %.1f%s", tempFromC(dp, U.temp), plotter::label(U.temp)); comma(x); }
+        else x[0] = 0;
+        est += meteoSub(2, Key::Humidity, x);
     } else meteoNone(2);
     // Viento real: el calculado con los sensores de a bordo o, si faltan, el de internet
     lv_label_set_text(mTile[3].unit, plotter::label(U.windSpeed));
@@ -2504,13 +2555,15 @@ static void updateMeteo() {
     const settings::Values& sv = settings::get();
     const links::Status& ls = links::status();
     const net::Status& ns = net::status();
-    char n[420], last[96];
+    char n[620], last[96];
     if (!sv.owmKey[0]) snprintf(last, sizeof(last), "Sin clave de OpenWeatherMap: se pone en Ajustes > Red.");
     else if (!ns.wifi) snprintf(last, sizeof(last), "Sin WiFi: no se puede pedir el tiempo de internet.");
     else if (!ls.wxMs) snprintf(last, sizeof(last), ns.wxFail ? "OpenWeatherMap no contesta (%u intentos)." : "Esperando la primera observaci\xC3\xB3n de OpenWeatherMap.", (unsigned)ns.wxFail);
     else snprintf(last, sizeof(last), "OpenWeatherMap%s%s \xC2\xB7 hace %u min.", ls.wxPlace[0] ? " \xC2\xB7 " : "", ls.wxPlace, (unsigned)((now - ls.wxMs) / 60000));
-    snprintf(n, sizeof(n), "Datos de internet: %s\nSolo sustituyen a un sensor de a bordo cuando este falta o deja de mandar; en \xC3\xA1mbar y con \xC2\xAB" "estimado\xC2\xBB. "
-             "Al volver el sensor, manda \xC3\xA9l.\nPosici\xC3\xB3n, rumbo, velocidad y sonda no tienen sustituto en internet.", last);
+    char sky[160];
+    skyLine(sky, sizeof(sky));
+    snprintf(n, sizeof(n), "%s\nDatos de internet: %s\nSolo sustituyen a un sensor de a bordo cuando este falta o deja de mandar; en \xC3\xA1mbar y con \xC2\xAB" "estimado\xC2\xBB. "
+             "Al volver el sensor, manda \xC3\xA9l. Posici\xC3\xB3n, rumbo, velocidad y sonda no tienen sustituto en internet.", sky, last);
     (void)est;
     lv_label_set_text(mNote, n);
 }
@@ -2644,10 +2697,14 @@ static void updateSettings() {
     snprintf(b, sizeof(b), "%d %%", v.brightness);
     lv_label_set_text(setBrightLbl, b);
     const links::Status& ls = links::status();
+    char decTxt[40];                                      // declinacion magnetica del WMM en la posicion del barco
+    if (!ls.hasDeclination) snprintf(decTxt, sizeof(decTxt), "sin posici\xC3\xB3n");
+    else snprintf(decTxt, sizeof(decTxt), "%.1f\xC2\xB0 %s (%s)", fabs(ls.declination), ls.declination >= 0 ? "E" : "W", plotter::defaultWmm().name());
+    for (char* c = decTxt; *c; c++) if (*c == '.' && c[1] >= '0' && c[1] <= '9') *c = ',';
     const NmeaStats& ns = links::serialStats();
     uint32_t now = millis();
     snprintf(b, sizeof(b),
-             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nNMEA 2000: %u tramas, %u mensajes\n\xC3\x9Altima trama: %s\nRed: %s\nGPS: %s\nAIS: %u mensajes, %d blancos\nWaypoints: %d de %d\nBluetooth: %u l\xC3\xADneas\nHora: %s",
+             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nNMEA 2000: %u tramas, %u mensajes\n\xC3\x9Altima trama: %s\nRed: %s\nGPS: %s\nAIS: %u mensajes, %d blancos\nWaypoints: %d de %d \xC2\xB7 Bluetooth: %u l\xC3\xADneas\nHora: %s\nDeclinaci\xC3\xB3n: %s",
 #ifdef PLOTTER_VERSION
              PLOTTER_VERSION,
 #else
@@ -2656,7 +2713,7 @@ static void updateSettings() {
              (unsigned)ls.serialLines, (unsigned)(ns.badChecksum + ns.malformed),
              ls.serialLines ? (now - ls.serialLastMs < 5000 ? "ahora" : "hace rato") : "ninguna", (unsigned)ls.canFrames, (unsigned)ls.canMessages,
              !ls.can ? "apagado" : (ls.canFrames ? (now - ls.canLastMs < 5000 ? "ahora" : "hace rato") : "ninguna"), netTxt, gpsTxt, (unsigned)ls.aisMessages, links::targets().count(), wpN, kWps,
-             (unsigned)ls.bleLines, timeTxt);
+             (unsigned)ls.bleLines, timeTxt, decTxt);
     lv_label_set_text(setInfo, b);
 }
 

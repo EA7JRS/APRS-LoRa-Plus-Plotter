@@ -15,6 +15,8 @@
 #include "sk_link.h"
 #include "stream.h"
 #include "tsync.h"
+#include "astro.h"
+#include "wmm.h"
 
 #include <cmath>
 #include <ctime>
@@ -347,6 +349,19 @@ void loop() {
         store->get(Key::Sog, now, sog);
         store->get(Key::Cog, now, cog);
         tgs.compute(own, Mover{{own ? la : 0.0, own ? lo : 0.0}, sog, cog}, now);
+        // Declinacion del WMM en la posicion del barco; rumbo verdadero = magnetico + declinacion si ninguna fuente da el
+        // verdadero (o solo uno calculado)
+        if (own) {
+            int y, mo, d; double h;
+            time_t t = time(nullptr);
+            unixToUtc(t > 1767225600 ? (long long)t : 1798761600LL, y, mo, d, h);   // sin hora todavia: 2027.0
+            st.declination = magneticDeclination(la, lo, decimalYear(y, mo, d, h));
+            st.hasDeclination = true;
+            double hm, ht;
+            if (store->get(Key::HeadingMag, now, hm) &&
+                (!store->get(Key::Heading, now, ht) || store->quality(Key::Heading) == Quality::Computed))
+                store->set(Key::Heading, norm360(hm + st.declination), store->source(Key::HeadingMag, now), now, Quality::Computed);
+        }
     }
 }
 

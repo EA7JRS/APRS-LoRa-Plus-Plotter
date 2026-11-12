@@ -30,7 +30,7 @@ On power-up the APRS LoRa+ welcome screen (logo and version) shows for a couple 
 | Radar AIS | Targets around the boat, with collision risk |
 | Viento (Wind) | Apparent and true wind dial, and a 10-minute history |
 | Piloto (Pilot) | Course to steer, cross-track error and data for the autopilot (Raymarine ST2000+ or generic) |
-| Meteo (Weather) | Pressure, temperature, humidity, wind, gust and visibility |
+| Meteo (Weather) | Pressure, temperature (with feels-like), humidity (with dew point), wind, gust, visibility, sun and moon |
 | Ajustes (Settings) | Simulator, serial port, brightness, units, base map, NMEA 2000, network, Bluetooth and «Acerca de» (About: version, licence, credits and donation QR) |
 
 ## 3. Everyday tasks
@@ -86,4 +86,4 @@ More detail in `USER_MANUAL_EN.md`.
 APRS LoRa+ · © 2026 Manuel - EA7JRS · GPL-3.0-or-later
 
 The clock sets itself: from GPS and, if there is none, from `ntp.roa.es` (Spain's official time) over WiFi. Ajustes >
-Estado > *Hora* («Time»).
+Estado > *Hora* («Time»). The plotter computes the magnetic declination (WMM2025): Ajustes > Estado > *Declinación*.

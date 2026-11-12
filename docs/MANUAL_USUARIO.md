@@ -199,6 +199,11 @@ Presión, temperatura del aire, humedad, viento real, racha y visibilidad. Cada 
 Lo que viene **de internet** sale en **ámbar** y con «estimado»: es un dato de una estación o un modelo cercano, no de
 tu barco. La nota de abajo dice si la consulta a OpenWeatherMap funciona y de dónde es la observación.
 
+Cálculos a bordo: la casilla de temperatura da la **sensación térmica** (enfriamiento por el viento real con frío,
+índice de calor con calor y humedad) cuando se aparta medio grado del aire, y la de humedad el **punto de rocío**
+(fórmula de Magnus). Arriba de la nota, el **sol** (salida y puesta, crepúsculo civil) y la **luna** (fase, iluminada y
+horas de salida y puesta) del día en la posición del barco, en hora UTC.
+
 ## 9. Ajustes
 
 ![Ajustes](img/ajustes.png)
@@ -275,6 +280,11 @@ El reloj interno se pone solo, en UTC, por este orden:
 Mientras la hora del GPS esté al día (6 horas), NTP no la sustituye. Ajustes > Estado > *Hora* dice la hora UTC y quién la
 puso. El plotter pasa su hora al instrumento de viento por Bluetooth (sentencia ZDA) si viene del GPS o de NTP. La hora del
 simulador no cuenta.
+
+**Declinación magnética**: el plotter lleva el Modelo Magnético Mundial (WMM2025, de NOAA y el British Geological Survey,
+válido hasta 2030) y calcula la declinación en la posición del barco. Ajustes > Estado > *Declinación* la muestra. Si
+solo llega el rumbo magnético (HDM / HDG, PGN 127250 magnético, Signal K `headingMagnetic`), el rumbo verdadero sale de
+sumarle la declinación (calidad «calculado»); un rumbo verdadero medido manda siempre.
 
 
 ## 12. Lo que falta en esta versión

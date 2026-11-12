@@ -83,15 +83,22 @@ static void task(void*) {
             xSemaphoreGive(cfgLock);
             client.stop();
             if (udpOn) { udp.stop(); udpOn = false; }
-            if (wifiStarted) WiFi.disconnect(true);
+            if (wifiStarted) WiFi.disconnect(true);                 // solo si la empezo esta libreria
             wifiStarted = false;
             st.wifi = st.tcp = false;
             st.ip[0] = 0;
             lastBegin = lastTry = 0;
             nextWx = now;
         }
-        if (!c.ssid[0]) { vTaskDelay(pdMS_TO_TICKS(300)); continue; }
-        if (WiFi.status() != WL_CONNECTED) {
+        if (c.ownWifi && !c.ssid[0]) { vTaskDelay(pdMS_TO_TICKS(300)); continue; }
+        // WiFi del programa: vale como cliente conectado o como punto de acceso (los equipos se unen a el)
+        const bool apUp = !c.ownWifi && (WiFi.getMode() & WIFI_MODE_AP);
+        if (!c.ownWifi && !apUp && WiFi.status() != WL_CONNECTED) {
+            if (st.wifi) { st.wifi = st.tcp = false; st.ip[0] = 0; client.stop(); if (udpOn) { udp.stop(); udpOn = false; } }
+            vTaskDelay(pdMS_TO_TICKS(500));
+            continue;
+        }
+        if (c.ownWifi && WiFi.status() != WL_CONNECTED) {
             if (st.wifi) { st.wifi = st.tcp = false; st.ip[0] = 0; client.stop(); if (udpOn) { udp.stop(); udpOn = false; } }
             if (!wifiStarted || now - lastBegin > 20000) {         // reintento cada 20 s
                 WiFi.mode(WIFI_STA);
@@ -105,8 +112,8 @@ static void task(void*) {
         }
         if (!st.wifi || now - lastInfo > 5000) {
             lastInfo = now;
-            snprintf(st.ip, sizeof(st.ip), "%s", WiFi.localIP().toString().c_str());
-            st.rssi = WiFi.RSSI();
+            snprintf(st.ip, sizeof(st.ip), "%s", (apUp && WiFi.status() != WL_CONNECTED ? WiFi.softAPIP() : WiFi.localIP()).toString().c_str());
+            st.rssi = WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0;
             st.wifi = true;
         }
         // Tiempo de internet: cada 15 min (a los 2 min si ha fallado), con clave y posicion

@@ -43,6 +43,7 @@ static uint32_t tickMs() { return millis(); }
 void setup() {
     Serial.begin(115200);                       // USB nativo (el UART0 es el RS485 de la veleta)
     Serial.println("\n=== APRS LoRa+ Wind " PLOTTER_VERSION " (" BOARD_ENV ") ===");
+    Serial.println("[INFO][Main] APRS LoRa+ (c) 2026 Manuel - EA7JRS");
     bool ok = board::begin();
 
     lv_init();

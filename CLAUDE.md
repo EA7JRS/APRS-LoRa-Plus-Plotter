@@ -476,6 +476,8 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.
 
+- **Avisos oficiales (2026-11-12, rama `alertas`)**: núcleo `alerts` (AEMET RSS y CAP, MeteoAlarm, NWS, tsunami.gov, USGS / EMSC, SWPC; lista con niveles 0–3), `same` (NOAA Weather Radio: cabeceras y demodulador AFSK 520,83 bd, probado con ruido a 12 / 13,2 / 48 kHz) y `minijson`; pruebas con muestras reales (franlindebl/nomad-pocket, GPL-3; no copiadas al repositorio). `lib/aprs_links/alerts_net` (tarea propia, `-DAPRS_LINKS_ALERTS`; el rotor no lo lleva). Plotter: ventana `M_OFFICIAL` (LIST lleva a Meteo), resumen en Meteo, zonas y país en Ajustes > Red. Lo mismo en el tracker (por la app), la app y la Display. 1644 comprobaciones.
+
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y
    medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Relevo por internet y pestaña Meteo hechos. BLE con la pasarela hecho (lado plotter). Signal K nativo hecho. Lo siguiente: zumbador (pin por decidir), AEMET, lista de equipos BLE, y probar en la placa.

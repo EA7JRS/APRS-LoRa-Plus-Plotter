@@ -30,8 +30,8 @@ using namespace plotter;
 static DataStore* store = nullptr;
 static Status st;
 static NmeaSimulator sim;
-static Nmea0183 simNmea, serialNmea;
-static LineBuffer serialLine;
+static Nmea0183 simNmea, serialNmea, bleNmea;
+static LineBuffer serialLine, bleLine;
 static N2kReader n2k;
 static N2kAddressClaim* claim = nullptr;
 [[maybe_unused]] static bool canRunning = false;
@@ -235,6 +235,16 @@ void loop() {
             int off = wsettings::get().vaneOffset;
             double awa;
             if (off && store->get(Key::Awa, now, awa)) store->set(Key::Awa, norm180(awa + off), Source::Sensor, now);
+        }
+    }
+    // rumbo y velocidad que manda el plotter por Bluetooth: fuente "BLE", por debajo del NMEA 2000 del propio bus
+    uint8_t b[128];
+    for (int round = 0; round < 4; round++) {
+        int n = wble::read(b, sizeof(b));
+        if (n <= 0) break;
+        for (int i = 0; i < n; i++) {
+            if (!bleLine.push((char)b[i])) continue;
+            if (bleNmea.feed(bleLine.line(), Source::Ble, now, *store) == NmeaResult::Data) { st.navLines++; st.navLastMs = now ? now : 1; }
         }
     }
     canLoop(now);

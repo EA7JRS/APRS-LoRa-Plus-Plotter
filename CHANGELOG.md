@@ -10,6 +10,10 @@
   placa**. Manual: `docs/INSTRUMENTO_VIENTO.md` / `docs/WIND_INSTRUMENT_EN.md`.
 - **Instrumento de viento, modo noche y alarmas**: rojos sobre negro (Ajustes > Noche) y alarmas de viento real,
   viento aparente y rolada con la ventana STRONG WIND / WIND SHIFT y el zumbador de la placa (núcleo `windalarm`).
+- **Acerca de** en el plotter (Ajustes > Acerca de) y en el instrumento: versión, copyright, licencia, proyecto,
+  créditos y QR del donativo (paypal.me/ea7jrs), con el mismo marco que APRS LoRa+ Display.
+- **Rumbo y velocidad del plotter al instrumento por Bluetooth** (HDT, VTG y VHW una vez por segundo, característica
+  `…0002` de `docs/BLE_NMEA.md`): el instrumento calcula el viento real aunque no haya NMEA 2000.
 - **Instalador web**: la release lleva las dos placas en `web-site-plotter.zip` (grupo Náutica).
 - **Núcleo**: emisión NMEA 2000 (`n2ktx`: identificador, PGN 130306, NAME y reclamación de dirección); 1493 comprobaciones; alarmas de viento (`windalarm`), 1517.
 

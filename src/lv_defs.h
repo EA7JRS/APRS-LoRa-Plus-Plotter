@@ -7,3 +7,4 @@
 #define LV_USE_STDLIB_MALLOC LV_STDLIB_CLIB
 #define LV_USE_STDLIB_STRING LV_STDLIB_CLIB
 #define LV_USE_STDLIB_SPRINTF LV_STDLIB_CLIB
+#define LV_USE_QRCODE 1                                     // QR del donativo en "Acerca de"

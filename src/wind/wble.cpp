@@ -6,6 +6,8 @@
 
 #ifdef ESP32
 #include <NimBLEDevice.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/stream_buffer.h>
 #endif
 
 namespace wble {
@@ -18,6 +20,17 @@ static const char* const kData = "4c6f5261-2b00-4ea7-b100-000000000003";
 static NimBLEServer* server = nullptr;
 static NimBLECharacteristic* chData = nullptr;
 static bool started = false;
+static StreamBufferHandle_t inBuf = nullptr;                   // lo que escribe el plotter: rumbo y velocidad en NMEA
+
+struct CmdCb : NimBLECharacteristicCallbacks {
+    void onWrite(NimBLECharacteristic* c, NimBLEConnInfo&) override {
+        NimBLEAttValue v = c->getValue();
+        if (!v.size() || !inBuf) return;
+        xStreamBufferSend(inBuf, v.data(), v.size(), 0);          // si el bucle no da abasto, se pierde
+        st.received += (uint32_t)v.size();
+    }
+};
+static CmdCb cmdCb;
 
 struct ServerCb : NimBLEServerCallbacks {
     void onConnect(NimBLEServer*, NimBLEConnInfo&) override { st.connected = true; }
@@ -34,7 +47,10 @@ static void start() {
         server->advertiseOnDisconnect(true);
         NimBLEService* svc = server->createService(kService);
         chData = svc->createCharacteristic(kData, NIMBLE_PROPERTY::NOTIFY);
-        svc->createCharacteristic(kCommands, NIMBLE_PROPERTY::WRITE_NR);      // reservado, como en el borrador del protocolo
+        // el plotter escribe aqui rumbo y velocidad del barco (HDT, VTG, VHW) para el viento real
+        NimBLECharacteristic* cmd = svc->createCharacteristic(kCommands, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+        cmd->setCallbacks(&cmdCb);
+        if (!inBuf) inBuf = xStreamBufferCreate(1024, 1);
         svc->start();
         NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
         adv->addServiceUUID(kService);                                        // el plotter filtra por el servicio
@@ -84,4 +100,12 @@ bool send(const char* text, int len) {
 }
 
 const Status& status() { return st; }
+int read(uint8_t* buf, int max) {
+#ifdef ESP32
+    return inBuf ? (int)xStreamBufferReceive(inBuf, buf, (size_t)max, 0) : 0;
+#else
+    (void)buf; (void)max;
+    return 0;
+#endif
+}
 }

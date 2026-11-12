@@ -102,8 +102,9 @@ triggers, the **STRONG WIND** or **WIND SHIFT** window appears and the board's b
 ![Alarm](img/viento4_alarma.png)
 
 **True wind and drift.** The NASA gives apparent wind. True wind (TWA, TWS, TWD) is computed with boat speed (through
-the water if there is a log, otherwise over ground) and heading, which the instrument listens to on **NMEA 2000**.
-Without them it shows «--» and «Falta rumbo» (heading missing). Drift also needs course and speed over ground.
+the water if there is a log, otherwise over ground) and heading. It takes them from **NMEA 2000** and, if there is
+none, from the **plotter over Bluetooth** (the plotter sends them once a second while linked; the *Bluetooth* row in
+Settings says «rumbo y velocidad del plotter»). With neither it shows «--» and «Falta rumbo» (heading missing). Drift also needs course and speed over ground.
 
 ## 5. Link to the plotter
 
@@ -139,12 +140,15 @@ Without them it shows «--» and «Falta rumbo» (heading missing). Drift also n
 | Bluetooth | On or off |
 | NMEA 2000 | Off, listen or transmit |
 | WiFi… | Network, password, UDP port and on/off |
+| Acerca de | About: version, copyright, licence, project, credits and donation QR (paypal.me/ea7jrs) |
 | Noche | Night mode: red on black |
 | Alarma real | True wind alarm: off, 15 to 40 kn |
 | Alarma aparente | Apparent wind alarm: off, 20 to 45 kn |
 | Alarma rolada | Wind shift alarm: off, 10, 15, 20, 30 or 45 degrees |
 
 They are stored on the board and survive power-off. The web installer keeps them; the full image with esptool erases them.
+
+![About](img/viento4_acerca.png)
 
 ## 7. If something does not work
 
@@ -156,13 +160,13 @@ They are stored on the board and survive power-off. The web installer keeps them
 - **No wind from the sensor**: section 3.
 - **The plotter does not see it over Bluetooth**: check that the instrument's Bluetooth is on and the plotter is
   searching (Ajustes > Bluetooth); if the plotter remembered another device, turn its Bluetooth off and on again.
-- **No true wind**: boat speed and heading are needed on NMEA 2000.
+- **No true wind**: boat speed and heading are needed, on NMEA 2000 or from the plotter over Bluetooth.
 
 ## 8. Not in this version
 
 - Testing on the board and with the NASA.
 - Configurable pages and automatic page cycling.
 - Alarms also notifying the plotter.
-- Receiving heading and speed from the plotter over Bluetooth or Wi-Fi (now only over NMEA 2000).
+- Receiving heading and speed from the plotter over Wi-Fi (over Bluetooth and NMEA 2000, yes).
 - Answering NMEA 2000 product information requests (PGN 126996) and storing the claimed address.
 - Board revisions earlier than V4.0.

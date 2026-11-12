@@ -18,6 +18,7 @@ struct Status {
     uint32_t canFrames = 0, canLastMs = 0;
     uint32_t canSent = 0, canErrors = 0;
     int canAddress = -1;                         // -1 sin reclamar, 254 sin direccion libre
+    uint32_t navLines = 0, navLastMs = 0;        // rumbo y velocidad recibidos del plotter por Bluetooth
 };
 void begin(plotter::DataStore* store);
 void loop();

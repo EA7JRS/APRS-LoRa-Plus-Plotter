@@ -1,4 +1,4 @@
-# Enlace BLE de datos NMEA (pasarela ↔ plotter)
+# Enlace BLE de datos NMEA (pasarela o instrumento de viento ↔ plotter)
 
 Para llevar al plotter los datos de la pasarela (XIAO) sin cable: viento del NASA Target 2 Wind, y lo que la pasarela lea
 del NMEA 2000 o del NMEA 0183. Borrador del 2026-11-11: los UUID y el formato se pueden cambiar mientras la pasarela no
@@ -14,7 +14,7 @@ esté adaptada.
 | | UUID | Uso |
 |---|---|---|
 | Servicio | `4c6f5261-2b00-4ea7-b100-000000000001` | Debe ir en el anuncio (el plotter filtra por él) |
-| Órdenes | `4c6f5261-2b00-4ea7-b100-000000000002` | Escritura sin respuesta, plotter → pasarela. Reservado (datos de ruta para el piloto); el plotter todavía no escribe |
+| Órdenes | `4c6f5261-2b00-4ea7-b100-000000000002` | Escritura (sin respuesta si el equipo lo permite), plotter → equipo. NMEA 0183 en texto: hoy, rumbo y velocidad del barco para el instrumento de viento |
 | Datos | `4c6f5261-2b00-4ea7-b100-000000000003` | Notificación, pasarela → plotter |
 
 Mismo esquema que el servicio de la caja del rotor (`…b000…`: órdenes en `0002`, eventos en `0003`).
@@ -27,6 +27,17 @@ Mismo esquema que el servicio de la caja del rotor (`…b000…`: órdenes en `0
 - Lo que el plotter entiende hoy: RMC, GLL, GGA, VTG, DPT, DBT, MWV (relativo), HDT, HDG, HDM, VHW, MTW, XDR, RSA, GSV,
   GSA y AIS (VDM / VDO).
 - Ritmo: el NASA manda el viento 10 veces por segundo; por BLE basta con 2 a 5 por segundo.
+
+## Del plotter al equipo
+
+Si el equipo tiene la característica de órdenes (`…0002`), el plotter le escribe una vez por segundo lo que tenga de:
+
+- `$IIHDT,ddd.d,T` rumbo verdadero;
+- `$IIVTG,ccc.c,T,,M,s.s,N,k.k,K,A` rumbo y velocidad sobre el fondo;
+- `$IIVHW,ddd.d,T,,M,s.s,N,k.k,K` velocidad en el agua (con el rumbo si lo hay).
+
+Cada tanda va entera, con `\r\n` tras cada sentencia, en trozos del MTU. El instrumento de viento APRS LoRa+ Wind la
+usa para el viento real; la pasarela puede ignorarla. Los datos de ruta para el piloto irían por aquí más adelante.
 
 ## Prioridad y caducidad
 

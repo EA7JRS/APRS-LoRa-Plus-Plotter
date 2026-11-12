@@ -207,10 +207,13 @@ the observation is from.
 | **Mapa base** | OpenSeaMap, IHM, IGN or aerial imagery; each reads its own folder on the card |
 | **NMEA 2000** | Listening to the network over CAN |
 | **Red: WiFi, TCP y UDP** | Network screen, with a keyboard |
-| **Bluetooth** | Link with the tracker or the gateway |
+| **Bluetooth** | Link with the tracker, the gateway or the wind instrument |
 
 **Estado** (Status), on the right: version, lines received on each route, where the position comes from, AIS targets
-and waypoints.
+and waypoints. At its top, the **Acerca de** (About) button: version and board, copyright, licence, project, library
+and chart credits, and the donation QR code (paypal.me/ea7jrs).
+
+![About](img/acerca.png)
 
 ![Network](img/red.png)
 

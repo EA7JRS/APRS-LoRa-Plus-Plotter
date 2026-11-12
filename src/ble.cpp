@@ -21,6 +21,7 @@ const Status& status() { return st; }
 // Servicio de datos NMEA de APRS LoRa+ (docs/BLE_NMEA.md): ...0002 escribe el plotter, ...0003 notifica la pasarela.
 static const NimBLEUUID kSvc("4c6f5261-2b00-4ea7-b100-000000000001");
 static const NimBLEUUID kChrIn("4c6f5261-2b00-4ea7-b100-000000000003");
+static const NimBLEUUID kChrOut("4c6f5261-2b00-4ea7-b100-000000000002");
 // Tambien vale un equipo con el servicio UART de Nordic (muchos puentes NMEA por BLE lo usan)
 static const NimBLEUUID kNus("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
 static const NimBLEUUID kNusTx("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
@@ -36,6 +37,8 @@ static volatile bool wantOn = false;
 static char wantAddr[18] = "";
 static volatile uint32_t cfgVersion = 0;
 static StreamBufferHandle_t sb = nullptr;
+static StreamBufferHandle_t out = nullptr;                      // plotter -> equipo (rumbo y velocidad al instrumento)
+static NimBLERemoteCharacteristic* chOut = nullptr;
 static TaskHandle_t taskHandle = nullptr;
 
 static volatile bool found = false;
@@ -74,6 +77,8 @@ static ClientCb clientCb;
 static bool subscribe(NimBLEClient* c) {
     NimBLERemoteService* s = c->getService(kTrk);
     st.tracker = s != nullptr;
+    chOut = nullptr;
+    st.canSend = false;
     st.pinFailed = false;
     if (s) {                                                       // tracker: primero emparejar; sin eso no manda NMEA
         if (!c->secureConnection() || !c->getConnInfo().isEncrypted() || !c->getConnInfo().isAuthenticated()) { st.pinFailed = true; return false; }
@@ -82,6 +87,9 @@ static bool subscribe(NimBLEClient* c) {
     }
     s = c->getService(kSvc);
     NimBLERemoteCharacteristic* ch = s ? s->getCharacteristic(kChrIn) : nullptr;
+    NimBLERemoteCharacteristic* w = s ? s->getCharacteristic(kChrOut) : nullptr;
+    chOut = w && (w->canWriteNoResponse() || w->canWrite()) ? w : nullptr;
+    st.canSend = chOut != nullptr;
     if (!ch) {                                                     // UART de Nordic: la que notifique de las dos
         s = c->getService(kNus);
         ch = s ? s->getCharacteristic(kNusTx) : nullptr;
@@ -121,9 +129,20 @@ static void task(void*) {
         }
         if (client && client->isConnected() && !linkDown) {
             st.state = CONNECTED;
-            vTaskDelay(pdMS_TO_TICKS(250));
+            // lo que el plotter manda al equipo, en trozos que quepan en el MTU, sin esperar respuesta
+            uint8_t buf[244];
+            int room = (int)client->getMTU() - 3;
+            if (room > (int)sizeof(buf)) room = sizeof(buf);
+            if (room < 20) room = 20;
+            size_t n;
+            while (chOut && out && (n = xStreamBufferReceive(out, buf, (size_t)room, 0)) > 0) {
+                if (chOut->writeValue(buf, n, !chOut->canWriteNoResponse())) st.sent += (uint32_t)n;
+                else break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
+        st.canSend = false;
         linkDown = false;
         if (found) {
             NimBLEDevice::getScan()->stop();
@@ -154,6 +173,7 @@ static void task(void*) {
 void set(bool on, const char* addr, uint32_t pin) {
     wantPin = pin;
     if (!sb) sb = xStreamBufferCreate(4096, 1);
+    if (!out) out = xStreamBufferCreate(1024, 1);
     snprintf(wantAddr, sizeof(wantAddr), "%s", addr ? addr : "");
     wantOn = on;
     cfgVersion = cfgVersion + 1;
@@ -162,10 +182,17 @@ void set(bool on, const char* addr, uint32_t pin) {
 
 int read(uint8_t* b, int max) { return sb ? (int)xStreamBufferReceive(sb, b, (size_t)max, 0) : 0; }
 
+bool write(const char* text, int len) {
+    if (!out || !st.canSend || st.state != CONNECTED || len <= 0) return false;
+    if (xStreamBufferSpacesAvailable(out) < (size_t)len) return false;       // la tanda entera o nada: sin lineas partidas
+    return xStreamBufferSend(out, text, (size_t)len, 0) == (size_t)len;
+}
+
 #else   // en el PC no hay Bluetooth
 
 void set(bool, const char*, uint32_t) {}
 int read(uint8_t*, int) { return 0; }
+bool write(const char*, int) { return false; }
 
 #endif
 

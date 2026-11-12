@@ -17,6 +17,7 @@
 #include "wind.h"
 #include "wlinks.h"
 #include "wnet.h"
+#include "about_text.h"
 #include "windalarm.h"
 #include "wsettings.h"
 
@@ -96,7 +97,7 @@ static lv_obj_t* lblDirFoot = nullptr;
 static lv_obj_t* lblSpdTitle = nullptr;
 
 // Ajustes
-static const int kRows = 4, kSet = 12;
+static const int kRows = 4, kSet = 13;
 static lv_obj_t* rowState[kRows] = {};
 static lv_obj_t* rowLine[kRows] = {};
 static lv_obj_t* setLbl[kSet] = {};
@@ -112,6 +113,7 @@ static lv_obj_t* alarmBox = nullptr;
 static lv_obj_t* alarmTitle = nullptr;
 static lv_obj_t* alarmText = nullptr;
 static bool alarmShown = false;
+static lv_obj_t* aboutScr = nullptr;
 static void build();
 
 static lv_obj_t* box(lv_obj_t* parent, uint32_t color, int radius = 0) {
@@ -361,6 +363,7 @@ static void onSetting(lv_event_t* e) {
         case 8: v.night = !v.night; wsettings::save(); lv_async_call([](void*) { build(); }, nullptr); return;
         case 9: v.twsMax = v.twsMax == 0 ? 15 : (v.twsMax >= 40 ? 0 : v.twsMax + 5); break;
         case 10: v.awsMax = v.awsMax == 0 ? 20 : (v.awsMax >= 45 ? 0 : v.awsMax + 5); break;
+        case 12: lv_obj_set_hidden(aboutScr, false); return;
         case 11: v.shiftMax = v.shiftMax == 0 ? 10 : (v.shiftMax >= 45 ? 0 : v.shiftMax + (v.shiftMax < 20 ? 5 : 10)); break;
         default: break;
     }
@@ -429,6 +432,7 @@ static void refreshSettings() {
     lv_label_set_text(setLbl[10], b);
     if (v.shiftMax) snprintf(b, sizeof(b), "Alarma rolada: %d\xC2\xB0", v.shiftMax); else snprintf(b, sizeof(b), "Alarma rolada: apagada");
     lv_label_set_text(setLbl[11], b);
+    lv_label_set_text(setLbl[12], "Acerca de");
     WindAlarmConfig ac;
     ac.twsMaxKn = v.twsMax; ac.awsMaxKn = v.awsMax; ac.shiftDeg = v.shiftMax;
     alarm.configure(ac);
@@ -556,6 +560,48 @@ static void onAlarmBtn(lv_event_t* e) {
     lv_obj_set_hidden(alarmBox, true);
     board::buzzer(false);
 }
+// "Acerca de": version, copyright, licencia, proyecto, donativo con QR (como en APRS LoRa+ Display) y creditos
+static void onAboutClose(lv_event_t*) { lv_obj_set_hidden(aboutScr, true); }
+static void makeAbout() {
+    aboutScr = box(lv_layer_top(), C_BG, 0);
+    lv_obj_set_size(aboutScr, 480, 480);
+    lv_obj_set_clickable(aboutScr, true);
+    lv_obj_t* bar = box(aboutScr, C_BAR, 0);
+    lv_obj_set_size(bar, 480, TOP_H);
+    lv_obj_align(label(bar, "Acerca de", &dejavu_bold_16, C_TEXT), LV_ALIGN_LEFT_MID, 12, 0);
+    lv_obj_t* l = nullptr;
+    button(aboutScr, 480 - 116, 3, 108, 30, onAboutClose, 0, &l);
+    lv_label_set_text(l, "Cerrar");
+    char v[64];
+    snprintf(v, sizeof(v), "APRS LoRa+ Wind %s", PLOTTER_VERSION);
+    lv_obj_set_pos(label(aboutScr, v, &dejavu_bold_20, C_TEXT), 14, TOP_H + 12);
+    snprintf(v, sizeof(v), "Instrumento de viento \xC2\xB7 %s", BOARD_ENV);
+    lv_obj_set_pos(label(aboutScr, v, &dejavu_12, C_SOFT), 14, TOP_H + 40);
+    lv_obj_t* qw = about::donateQr(aboutScr, 112, C_BG);
+    lv_obj_set_pos(qw, 14, TOP_H + 66);
+    lv_obj_update_layout(qw);
+    int tx = 14 + lv_obj_get_width(qw) + 14, tw = 480 - tx - 12;
+    lv_obj_t* t = label(aboutScr, "APRS LoRa+\n\xC2\xA9 2026 Manuel - EA7JRS", &dejavu_bold_16, C_TEXT);
+    lv_obj_set_width(t, tw);
+    lv_obj_set_pos(t, tx, TOP_H + 66);
+    t = label(aboutScr, about::kProject, &dejavu_14, C_ACC);
+    lv_obj_set_pos(t, tx, TOP_H + 114);
+    t = label(aboutScr, about::kDonateText, &dejavu_14, C_ACC);
+    lv_obj_set_pos(t, tx, TOP_H + 136);
+    t = label(aboutScr, about::kScan, &dejavu_12, C_DIM);
+    lv_obj_set_pos(t, tx, TOP_H + 158);
+    t = label(aboutScr, about::kLicense, &dejavu_12, C_SOFT);
+    lv_obj_set_width(t, 452);
+    lv_obj_set_pos(t, 14, TOP_H + 206);
+    t = label(aboutScr, about::kCredits, &dejavu_12, C_DIM);
+    lv_obj_set_width(t, 452);
+    lv_obj_set_pos(t, 14, TOP_H + 252);
+    t = label(aboutScr, "Viento: NASA Marine Target 2 Wind. Formatos NMEA 2000 contrastados con canboat.", &dejavu_12, C_DIM);
+    lv_obj_set_width(t, 452);
+    lv_obj_set_pos(t, 14, TOP_H + 322);
+    lv_obj_set_hidden(aboutScr, true);
+}
+
 static void makeAlarm() {
     alarmBox = box(lv_layer_top(), C_PANEL, 14);
     lv_obj_set_size(alarmBox, 420, 250);
@@ -626,6 +672,7 @@ static void build() {
         tabBtn[i] = b;
     }
     makeWifi();
+    makeAbout();
     makeAlarm();
     refreshSettings();
     showTab(active);
@@ -779,7 +826,9 @@ void update() {
         lv_label_set_text(rowLine[0], s);
         lv_label_set_text(rowState[1], !bs.on ? "Apagado" : (bs.connected ? "Plotter enlazado" : "Esperando al plotter"));
         lv_obj_set_style_text_color(rowState[1], lv_color_hex(bs.connected ? C_OK : C_DIM), 0);
-        snprintf(s, sizeof(s), "APRS LoRa+ Wind \xC2\xB7 %u env\xC3\xAD" "os", (unsigned)bs.sent);
+        bool nav = ls.navLastMs && now - ls.navLastMs < 5000;
+        snprintf(s, sizeof(s), "APRS LoRa+ Wind \xC2\xB7 %u env\xC3\xAD" "os \xC2\xB7 %s", (unsigned)bs.sent,
+                 nav ? "rumbo y velocidad del plotter" : "sin rumbo del plotter");
         lv_label_set_text(rowLine[1], s);
         if (!ls.can) lv_label_set_text(rowState[2], "Apagado");
         else if (ls.canOut && ls.canAddress == 254) lv_label_set_text(rowState[2], "Sin direcci\xC3\xB3n libre");
@@ -809,6 +858,7 @@ void tick() {
 
 void showPage(int i) { if (i >= 0 && i < kPages) showTab(i); }
 void testWifi() { openWifi(); }
+void testAbout() { lv_obj_set_hidden(aboutScr, false); }
 void testNight() { wsettings::get().night = true; build(); }
 void testAlarm() {
     wsettings::Values& v = wsettings::get();

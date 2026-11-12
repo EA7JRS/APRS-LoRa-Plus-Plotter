@@ -98,8 +98,9 @@ la ventana **STRONG WIND** o **WIND SHIFT** y suena el zumbador de la placa:
 ![Alarma](img/viento4_alarma.png)
 
 **Viento real y deriva.** El NASA da el viento aparente. El real (TWA, TWS, TWD) se calcula con la velocidad del barco
-(en el agua si hay corredera, si no sobre el fondo) y el rumbo, que el instrumento escucha en el **NMEA 2000**. Sin
-esos datos sale «--» y «Falta rumbo». La deriva necesita además el rumbo y la velocidad sobre el fondo.
+(en el agua si hay corredera, si no sobre el fondo) y el rumbo. Los toma del **NMEA 2000** y, si no hay, del **plotter
+por Bluetooth** (el plotter se los manda una vez por segundo cuando está enlazado; la fila *Bluetooth* de Ajustes dice
+«rumbo y velocidad del plotter»). Sin ninguno de los dos sale «--» y «Falta rumbo». La deriva necesita además el rumbo y la velocidad sobre el fondo.
 
 ## 5. Enlace con el plotter
 
@@ -134,12 +135,15 @@ esos datos sale «--» y «Falta rumbo». La deriva necesita además el rumbo y 
 | Bluetooth | Encendido o apagado |
 | NMEA 2000 | Apagado, escucha o emite |
 | WiFi… | Red, clave, puerto UDP y encendido |
+| Acerca de | Versión, copyright, licencia, proyecto, créditos y QR del donativo (paypal.me/ea7jrs) |
 | Noche | Rojos sobre negro |
 | Alarma real | Apagada, 15 a 40 kn |
 | Alarma aparente | Apagada, 20 a 45 kn |
 | Alarma rolada | Apagada, 10, 15, 20, 30 o 45 grados |
 
 Se guardan en la placa y siguen tras apagarla. El instalador web no los borra; la imagen completa con esptool, sí.
+
+![Acerca de](img/viento4_acerca.png)
 
 ## 7. Si algo no funciona
 
@@ -150,13 +154,13 @@ Se guardan en la placa y siguen tras apagarla. El instalador web no los borra; l
 - **Sin viento de la veleta**: apartado 3.
 - **El plotter no lo ve por Bluetooth**: comprueba que el Bluetooth del instrumento está encendido y que el del
   plotter busca (Ajustes > Bluetooth); si el plotter recordaba otro equipo, apágalo y vuelve a encenderlo.
-- **Sin viento real**: hace falta velocidad y rumbo del barco por el NMEA 2000.
+- **Sin viento real**: hace falta velocidad y rumbo del barco, por el NMEA 2000 o del plotter por Bluetooth.
 
 ## 8. Lo que falta en esta versión
 
 - Probarlo en la placa y con el NASA.
 - Páginas configurables y paso automático de páginas.
 - Que las alarmas avisen también al plotter.
-- Recibir rumbo y velocidad del plotter por Bluetooth o WiFi (ahora solo por NMEA 2000).
+- Recibir rumbo y velocidad del plotter por WiFi (por Bluetooth y NMEA 2000, sí).
 - Responder a las peticiones de información de producto del NMEA 2000 (PGN 126996) y guardar la dirección reclamada.
 - Revisiones de la placa anteriores a la V4.0.

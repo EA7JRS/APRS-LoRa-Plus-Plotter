@@ -29,7 +29,7 @@ The on-screen texts are in Spanish; this guide gives each one in Spanish with it
 | Viento (Wind) | Apparent and true wind dial, and a 10-minute history |
 | Piloto (Pilot) | Course to steer, cross-track error and data for the autopilot |
 | Meteo (Weather) | Pressure, temperature, humidity, wind, gust and visibility |
-| Ajustes (Settings) | Simulator, serial port, brightness, units, base map, NMEA 2000, network and Bluetooth |
+| Ajustes (Settings) | Simulator, serial port, brightness, units, base map, NMEA 2000, network, Bluetooth and «Acerca de» (About: version, licence, credits and donation QR) |
 
 ## 3. Everyday tasks
 

@@ -14,5 +14,6 @@ void testStyle(int s);
 void tick();                // zumbador de las alarmas: llamar en cada vuelta del bucle
 void testNight();           // dibujo en el PC: modo noche
 void testAlarm();           // dibujo en el PC: alarma de viento real a 10 kn
+void testAbout();           // dibujo en el PC: "Acerca de"
 void testWifi();            // abre la pantalla de WiFi (dibujo en el PC)         // para el dibujo en el PC: reparto de la pagina Rosa
 }

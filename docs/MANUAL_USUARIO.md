@@ -200,9 +200,13 @@ tu barco. La nota de abajo dice si la consulta a OpenWeatherMap funciona y de d�
 | **Mapa base** | OpenSeaMap, IHM, IGN u ortofoto; cada uno lee su carpeta de la tarjeta |
 | **NMEA 2000** | Escucha de la red por el CAN |
 | **Red: WiFi, TCP y UDP** | Pantalla de red, con teclado |
-| **Bluetooth** | Enlace con el tracker o la pasarela |
+| **Bluetooth** | Enlace con el tracker, la pasarela o el instrumento de viento |
 
 **Estado**, a la derecha: versión, líneas recibidas por cada vía, de dónde sale la posición, blancos AIS y waypoints.
+Arriba, el botón **Acerca de**: versión y placa, copyright, licencia, proyecto, créditos de las librerías y de las cartas,
+y el QR del donativo (paypal.me/ea7jrs).
+
+![Acerca de](img/acerca.png)
 
 ![Red](img/red.png)
 

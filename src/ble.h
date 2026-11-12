@@ -23,6 +23,8 @@ struct Status {
     uint32_t connects = 0;              // conexiones logradas
     bool tracker = false;               // el equipo es un tracker APRS LoRa+ (servicio de control, con PIN)
     bool pinFailed = false;             // el tracker no ha aceptado el PIN
+    bool canSend = false;               // el equipo tiene la caracteristica de ordenes (...0002): el instrumento de viento
+    uint32_t sent = 0;                  // bytes mandados al equipo
 };
 
 // on = false: desconecta y deja de buscar. addr: direccion del equipo ya conocido ("" = el primero que aparezca).
@@ -30,4 +32,6 @@ struct Status {
 void set(bool on, const char* addr, uint32_t pin);
 const Status& status();
 int read(uint8_t* buf, int max);        // bytes recibidos desde la ultima llamada
+// Texto para el equipo (NMEA 0183): rumbo y velocidad al instrumento de viento. false si no hay enlace o no cabe.
+bool write(const char* text, int len);
 }

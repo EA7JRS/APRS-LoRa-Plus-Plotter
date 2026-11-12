@@ -152,6 +152,7 @@ dirección y desde entonces solo se conecta a ese. Apagar y encender lo olvida.
 |---|---|
 | Tracker APRS LoRa+ (T-Beam Supreme) | Hay que poner su **PIN de control** en Ajustes > Red («PIN del tracker»). De fábrica, 123456. Da posición, meteorología y las estaciones APRS oídas como blancos AIS |
 | Pasarela XIAO | Protocolo en `BLE_NMEA.md`. La pasarela todavía no está adaptada |
+| Instrumento de viento APRS LoRa+ Wind | Manda el viento; el plotter le manda rumbo y velocidad del barco una vez por segundo para que calcule el viento real (apartado 5.6) |
 | Puente NMEA con el servicio UART de Nordic | Aceptado |
 
 Con el firmware publicado del tracker, el tracker admite una sola conexión Bluetooth: o el plotter o el móvil. Para
@@ -171,7 +172,9 @@ Accesorio con pantalla de 4" (Waveshare ESP32-S3-Touch-LCD-4) que lee la veleta 
 plotter. En el plotter:
 
 - **NMEA 2000**: nada que hacer; el instrumento emite el PGN 130306 con su propia dirección.
-- **Bluetooth**: Ajustes > *Bluetooth* encendido; se une al instrumento (servicio de datos NMEA de `BLE_NMEA.md`).
+- **Bluetooth**: Ajustes > *Bluetooth* encendido; se une al instrumento (servicio de datos NMEA de `BLE_NMEA.md`). Por
+  el mismo enlace, el plotter le manda una vez por segundo el rumbo (HDT), el rumbo y la velocidad sobre el fondo (VTG) y
+  la velocidad en el agua (VHW) que tenga, para que el instrumento calcule el viento real aunque no haya NMEA 2000.
 - **WiFi**: los dos en la misma red y, en Ajustes > Red, *Puerto UDP* 10110.
 
 Instalación, cableado y uso del instrumento: `INSTRUMENTO_VIENTO.md`. Se graba con el mismo instalador web (grupo

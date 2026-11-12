@@ -156,6 +156,7 @@ remembers its address and from then on only connects to that one. Turning it off
 |---|---|
 | APRS LoRa+ tracker (T-Beam Supreme) | Enter its **control PIN** in Ajustes > Red («PIN del tracker»). Factory default 123456. Gives position, weather and the APRS stations heard as AIS targets |
 | XIAO gateway | Protocol in `BLE_NMEA.md` (Spanish). The gateway has not been adapted yet |
+| APRS LoRa+ Wind instrument | Sends the wind; the plotter sends it boat heading and speed once a second so it can compute true wind (section 5.6) |
 | NMEA bridge with the Nordic UART service | Accepted |
 
 With the published tracker firmware, the tracker accepts a single Bluetooth connection: either the plotter or the
@@ -175,7 +176,9 @@ An accessory with a 4" screen (Waveshare ESP32-S3-Touch-LCD-4) that reads the NA
 wind to the plotter. On the plotter:
 
 - **NMEA 2000**: nothing to do; the instrument sends PGN 130306 with its own address.
-- **Bluetooth**: Ajustes > *Bluetooth* on; it joins the instrument (NMEA data service of `BLE_NMEA.md`).
+- **Bluetooth**: Ajustes > *Bluetooth* on; it joins the instrument (NMEA data service of `BLE_NMEA.md`). Over the same
+  link, once a second, the plotter sends the heading (HDT), course and speed over ground (VTG) and speed through the
+  water (VHW) it has, so the instrument can compute true wind even without NMEA 2000.
 - **Wi-Fi**: both on the same network and, in Ajustes > Red, *Puerto UDP* (UDP port) 10110.
 
 Installation, wiring and use of the instrument: `WIND_INSTRUMENT_EN.md`. It is flashed with the same web installer

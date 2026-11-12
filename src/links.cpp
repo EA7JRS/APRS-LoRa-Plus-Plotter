@@ -5,6 +5,8 @@
 #include "links.h"
 
 #include "ble.h"
+#include "geo.h"
+#include "nmea.h"
 #include "board.h"
 #include "n2k.h"
 #include "net.h"
@@ -145,6 +147,30 @@ static void bleLoop(uint32_t now) {
     }
     settings::Values& v = settings::get();
     const ble::Status& bs = ble::status();
+    // Al instrumento de viento (equipo con la caracteristica de ordenes), una vez por segundo: rumbo verdadero (HDT),
+    // rumbo y velocidad sobre el fondo (VTG) y velocidad en el agua (VHW), para que calcule el viento real
+    static uint32_t tNav = 0;
+    if (bs.state == ble::CONNECTED && bs.canSend && now - tNav >= 1000) {
+        tNav = now;
+        char out[200], body[64];
+        int n = 0;
+        double hdg, cog, sog, stw;
+        bool hHdg = store->get(Key::Heading, now, hdg), hCog = store->get(Key::Cog, now, cog), hSog = store->get(Key::Sog, now, sog);
+        bool hStw = store->get(Key::Stw, now, stw);
+        auto add = [&](const char* b) { n += snprintf(out + n, sizeof(out) - n, "$%s*%02X\r\n", b, nmeaChecksum(b)); };
+        if (hHdg) { snprintf(body, sizeof(body), "IIHDT,%.1f,T", norm360(hdg)); add(body); }
+        if (hSog) {
+            if (hCog) snprintf(body, sizeof(body), "IIVTG,%.1f,T,,M,%.1f,N,%.1f,K,A", norm360(cog), sog, sog * 1.852);
+            else snprintf(body, sizeof(body), "IIVTG,,T,,M,%.1f,N,%.1f,K,A", sog, sog * 1.852);
+            add(body);
+        }
+        if (hStw) {
+            if (hHdg) snprintf(body, sizeof(body), "IIVHW,%.1f,T,,M,%.1f,N,%.1f,K", norm360(hdg), stw, stw * 1.852);
+            else snprintf(body, sizeof(body), "IIVHW,,T,,M,%.1f,N,%.1f,K", stw, stw * 1.852);
+            add(body);
+        }
+        if (n > 0 && ble::write(out, n)) st.bleNavSent++;
+    }
     if (v.bleOn && bs.state == ble::CONNECTED && bs.addr[0] && strcmp(v.bleAddr, bs.addr) != 0) {
         snprintf(v.bleAddr, sizeof(v.bleAddr), "%s", bs.addr);
         settings::save();

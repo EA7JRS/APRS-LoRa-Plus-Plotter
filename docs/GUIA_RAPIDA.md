@@ -27,7 +27,7 @@ Esta primera versión compila, pero **todavía no se ha probado en la placa**: �
 | Viento | Esfera de viento aparente y real, e historial de 10 minutos |
 | Piloto | Rumbo a gobernar, desvío de la ruta y datos para el piloto automático |
 | Meteo | Presión, temperatura, humedad, viento, racha y visibilidad |
-| Ajustes | Simulador, puerto serie, brillo, unidades, mapa base, NMEA 2000, red y Bluetooth |
+| Ajustes | Simulador, puerto serie, brillo, unidades, mapa base, NMEA 2000, red, Bluetooth y «Acerca de» (versión, licencia, créditos y QR del donativo) |
 
 ## 3. Lo más usado
 

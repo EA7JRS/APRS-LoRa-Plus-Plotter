@@ -56,6 +56,10 @@ int main(int argc, char** argv) {
         if (i % 60 == 0) wui::update();
         lv_timer_handler();
     }
+    if (opts.find("about") != std::string::npos) {
+        wui::testAbout();
+        for (int i = 0; i < 100; i++) { fakeMs += 5; lv_timer_handler(); }
+    }
     if (wifi) {
         wui::testWifi();
         for (int i = 0; i < 100; i++) { fakeMs += 5; lv_timer_handler(); }

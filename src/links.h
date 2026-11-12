@@ -35,6 +35,7 @@ struct Status {
     char skMessage[96] = "";
     uint32_t skSeq = 0;                 // cambia con cada aviso recibido
     uint32_t bleLines = 0;              // lineas NMEA recibidas por BLE
+    uint32_t bleNavSent = 0;            // tandas de rumbo y velocidad mandadas al instrumento de viento
     uint32_t pilotSent = 0;             // tramas enviadas al piloto
 };
 

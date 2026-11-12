@@ -11,6 +11,7 @@
 #include "anchor.h"
 #include "signalk.h"
 #include "units.h"
+#include "about_text.h"
 #include "lights.h"
 #include "aistargets.h"
 #include "chartui.h"
@@ -29,6 +30,7 @@ LV_FONT_DECLARE(dejavu_14)
 LV_FONT_DECLARE(dejavu_16)
 LV_FONT_DECLARE(dejavu_bold_16)
 LV_FONT_DECLARE(dejavu_bold_20)
+LV_FONT_DECLARE(dejavu_bold_28)
 LV_FONT_DECLARE(dejavu_num_60)
 LV_FONT_DECLARE(dejavu_num_44)
 
@@ -199,6 +201,7 @@ static lv_obj_t* setCanLbl = nullptr;
 static lv_obj_t* setBleLbl = nullptr;
 // Pantalla de red (WiFi, TCP, UDP) con teclado
 static lv_obj_t* netScr = nullptr;
+static lv_obj_t* aboutScr = nullptr;
 static lv_obj_t* netTa[7] = {};                        // red, clave, servidor, puerto TCP, puerto UDP, clave de OpenWeatherMap
 static lv_obj_t* netKb = nullptr;
 static lv_obj_t* netKindLbl = nullptr;
@@ -1698,6 +1701,8 @@ static const char* const kTcpKinds[] = {"TCP apagado", "TCP: NMEA 0183", "TCP: g
 
 static void onNetField(lv_event_t* e) { lv_keyboard_set_textarea(netKb, (lv_obj_t*)lv_event_get_target(e)); }
 
+void testAbout() { lv_obj_set_hidden(aboutScr, false); }
+
 static void openNet() {
     const settings::Values& v = settings::get();
     char b[12];
@@ -1769,6 +1774,60 @@ static lv_obj_t* netField(int idx, int x, int y, int w, const char* hint, int ma
     lv_obj_add_event_cb(ta, onNetField, LV_EVENT_CLICKED, nullptr);
     netTa[idx] = ta;
     return ta;
+}
+
+// "Acerca de": version, copyright, licencia, proyecto, donativo (con QR) y creditos
+static void onAboutClose(lv_event_t*) { lv_obj_set_hidden(aboutScr, true); }
+static void makeAbout() {
+    aboutScr = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(aboutScr);
+    lv_obj_set_size(aboutScr, board::W, board::H);
+    lv_obj_set_style_bg_color(aboutScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(aboutScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(aboutScr, false);
+    lv_obj_set_clickable(aboutScr, true);
+    lv_obj_t* t = label(aboutScr, "Acerca de", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    lv_obj_t* b = textButton(aboutScr, "Cerrar", 124, 48, onAboutClose, 0);
+    lv_obj_set_pos(b, board::W - 140, 8);
+    lv_obj_t* p = box(aboutScr, C_PANEL, 12);
+    lv_obj_set_size(p, board::W - 32, board::H - 80);
+    lv_obj_set_pos(p, 16, 68);
+    char v[96];
+    snprintf(v, sizeof(v), "APRS LoRa+ Plotter %s", PLOTTER_VERSION);
+    t = label(p, v, &dejavu_bold_28, C_TEXT);
+    lv_obj_set_pos(t, 24, 22);
+    snprintf(v, sizeof(v), "Placa %s \xC2\xB7 ESP32-S3", BOARD_ENV);
+    t = label(p, v, &dejavu_16, C_SOFT);
+    lv_obj_set_pos(t, 24, 66);
+    t = label(p, about::kCopyright, &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 24, 104);
+    t = label(p, about::kLicense, &dejavu_16, C_SOFT);
+    lv_obj_set_width(t, 650);
+    lv_obj_set_pos(t, 24, 140);
+    snprintf(v, sizeof(v), "Proyecto e instalador: %s", about::kProject);
+    t = label(p, v, &dejavu_16, C_TEXT);
+    lv_obj_set_pos(t, 24, 204);
+    t = label(p, about::kCredits, &dejavu_14, C_DIM);
+    lv_obj_set_width(t, 650);
+    lv_obj_set_pos(t, 24, 250);
+    t = label(p, about::kChartCredits, &dejavu_14, C_DIM);
+    lv_obj_set_width(t, 650);
+    lv_obj_set_pos(t, 24, 330);
+    lv_obj_t* qw = about::donateQr(p, 200, C_BG);
+    lv_obj_update_layout(qw);
+    int qx = board::W - 32 - 30 - lv_obj_get_width(qw);
+    lv_obj_set_pos(qw, qx, 30);
+    int qc = qx + lv_obj_get_width(qw) / 2, ty = 30 + lv_obj_get_height(qw) + 14;   // textos centrados bajo el QR
+    t = label(p, about::kDonateText, &dejavu_bold_16, C_ACC);
+    lv_obj_set_width(t, 300);
+    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(t, qc - 150, ty);
+    t = label(p, about::kScan, &dejavu_14, C_DIM);
+    lv_obj_set_width(t, 300);
+    lv_obj_set_style_text_align(t, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(t, qc - 150, ty + 26);
+    lv_obj_set_hidden(aboutScr, true);
 }
 
 static void makeNet() {
@@ -2418,6 +2477,7 @@ static void onSetting(lv_event_t* e) {
     else if (what == 4) { v.units = (v.units + 1) % 3; applyUnits(); }
     else if (what == 6) { v.can = !v.can; links::setCan(v.can); }
     else if (what == 7) { openNet(); return; }
+    else if (what == 9) { lv_obj_set_hidden(aboutScr, false); return; }
     else if (what == 8) {                                 // Bluetooth: encender busca pasarela; apagar la olvida
         v.bleOn = !v.bleOn;
         v.bleAddr[0] = 0;
@@ -2486,8 +2546,8 @@ static void makeSettings(lv_obj_t* page) {
     lv_obj_align(setInfo, LV_ALIGN_TOP_LEFT, 14, 48);
     lv_obj_set_width(setInfo, 346);
     lv_obj_set_style_text_line_space(setInfo, 6, 0);
-    lv_obj_t* about = label(info, "APRS LoRa+ \xC2\xB7 \xC2\xA9 2026 Manuel - EA7JRS \xC2\xB7 GPL-3.0", &dejavu_14, C_DIM);
-    lv_obj_align(about, LV_ALIGN_BOTTOM_LEFT, 14, -8);
+    b = textButton(info, "Acerca de", 150, 40, onSetting, 9);         // arriba a la derecha: el estado ocupa todo el alto
+    lv_obj_align(b, LV_ALIGN_TOP_RIGHT, -12, 8);
 }
 
 static void updateSettings() {
@@ -2680,6 +2740,7 @@ void begin(DataStore* s) {
         tabBtn[i] = b;
     }
     makeNet();                                            // antes que las alertas: estas quedan por encima
+    makeAbout();
     makeModal();
     loadWaypoints();
     applyUnits();

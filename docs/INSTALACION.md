@@ -1,6 +1,6 @@
 # APRS LoRa+ Plotter — Manual de instalación y funcionamiento
 
-Versión 5.4.2 · Waveshare ESP32-S3-Touch-LCD-7B (7", 1024 × 600)
+Versión 5.4.3 · Waveshare ESP32-S3-Touch-LCD-7B (7", 1024 × 600)
 
 **Es una ayuda a la navegación. No sustituye a la carta oficial ni a la vigilancia.**
 
@@ -40,18 +40,18 @@ Cada versión trae dos ficheros:
 
 | Fichero | Para qué | Dirección |
 |---|---|---|
-| `aprs-lora-plus-plotter-7b-5.4.2-full.bin` | Primera instalación: cargador, particiones y firmware | `0x0` |
-| `aprs-lora-plus-plotter-7b-5.4.2-firmware.bin` | Actualizar una placa que ya tiene el plotter | `0x10000` |
+| `aprs-lora-plus-plotter-7b-5.4.3-full.bin` | Primera instalación: cargador, particiones y firmware | `0x0` |
+| `aprs-lora-plus-plotter-7b-5.4.3-firmware.bin` | Actualizar una placa que ya tiene el plotter | `0x10000` |
 
 ```
 pip install esptool
-esptool.py --chip esp32s3 --port PUERTO --baud 460800 write_flash 0x0 aprs-lora-plus-plotter-7b-5.4.2-full.bin
+esptool.py --chip esp32s3 --port PUERTO --baud 460800 write_flash 0x0 aprs-lora-plus-plotter-7b-5.4.3-full.bin
 ```
 
 `PUERTO` es `COM5`, `/dev/ttyACM0`, `/dev/ttyUSB0`... según el sistema. Para actualizar:
 
 ```
-esptool.py --chip esp32s3 --port PUERTO --baud 460800 write_flash 0x10000 aprs-lora-plus-plotter-7b-5.4.2-firmware.bin
+esptool.py --chip esp32s3 --port PUERTO --baud 460800 write_flash 0x10000 aprs-lora-plus-plotter-7b-5.4.3-firmware.bin
 ```
 
 Si no entra en modo de grabación sola: mantén pulsado **BOOT**, pulsa **RESET**, suelta **BOOT** y repite la orden.
@@ -69,7 +69,7 @@ pio run -e waveshare_lcd7b -t upload
 
 ## 3. Primer arranque
 
-1. Al encender sale unos 2 segundos la bienvenida de APRS LoRa+ (el logo y «Plotter 5.4.2»), la misma que en la app y
+1. Al encender sale unos 2 segundos la bienvenida de APRS LoRa+ (el logo y «Plotter 5.4.3»), la misma que en la app y
    en APRS LoRa+ Display.
 
    ![Bienvenida](img/bienvenida.png)

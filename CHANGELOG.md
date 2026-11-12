@@ -1,6 +1,8 @@
 # Changelog
 
-## 5.4.2 — 2026-11-12
+## 5.4.3 — 2026-11-12
+_La 5.4.2 no llegó a publicarse (solo una versión preliminar del plotter): todo lo preparado para ella sale en la 5.4.3._
+
 - **Fórmulas comunes del ecosistema** en el núcleo (las usan también tracker, rotor, Display y app): `wmm` (Modelo
   Magnético Mundial WMM2025 de NOAA / BGS, grado 12, se puede cargar un `WMM.COF` nuevo; igual que pygeomag a 0,002°),
   luna con Meeus (posición topocéntrica con paralaje, salida y puesta, fase en 8 partes; a 0,03° de PyEphem), sol con

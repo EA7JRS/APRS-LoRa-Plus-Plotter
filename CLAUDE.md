@@ -445,6 +445,17 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   origen y AIS con CPA, en las cuatro placas. Tras cambiar `lib/` aquí, volver a copiar en la Display. BLE NMEA en la
   Display sin activar (choca con su cliente NimBLE del tracker). App Android: en Kotlin, se porta el comportamiento
   (cliente del servicio BLE NMEA, gpsd, Signal K, UDP, prioridad de fuentes) con los mismos casos de prueba del núcleo.
+- **Rotor y hora (2026-11-12)**: `lib/aprs_links` también va al rotor (`EA7JRS/APRS-LoRa-Plus-Rotor`, `firmware/lib`, su
+  `tools/sync_links.sh`): `net::Config.ownWifi = false` (la WiFi la lleva el programa, también como punto de acceso),
+  `aprs_net.h` (otro nombre de `net.h`) y `ble` sin hacer nada si NimBLE va sin central. **Hora en todos los equipos salvo el
+  tracker** (Manuel: «para el fork de CA2RXU no»): núcleo `timesync` (`nmeaUtc` RMC / ZDA, `isoUtc`, `n2kUtc`, `ClockSync`:
+  GPS con dos horas que cuadren, manda 6 h sobre NTP; luego la de otro equipo y el RTC) y PGN 126992 / 129029
+  (`N2kReader::takeUtc`); `lib/aprs_links/tsync` (`startNtp`: `ntp.roa.es`, `hora.roa.es`, `pool.ntp.org`; `offer`,
+  `offerNmea`, `status`). Plotter: hora de RMC / ZDA de serie, red y BLE, y del CAN (no del simulador); `net` arranca NTP al
+  conectar; Ajustes > Estado > *Hora*; ZDA al instrumento por BLE (solo con hora de GPS o NTP). Instrumento: ZDA del plotter
+  (fuente `Peer`), CAN, y NTP al conectar su WiFi; fila Bluetooth con la hora. Manuel preguntó por NTPsec: en los ESP32 solo
+  hay SNTP (decenas de ms); NTPsec va en la Raspberry del rotor (`install.sh`, NTS con `nts1.roa.es`, GPS / PPS de gpsd).
+  Tras cambiar `lib/`, volver a copiar en la Display y en el rotor.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.

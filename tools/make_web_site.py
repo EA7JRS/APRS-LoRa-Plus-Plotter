@@ -7,7 +7,7 @@
 # Se llama una vez por placa con la misma carpeta de salida: latest.json va juntando las placas (el instrumento,
 # waveshare_lcd4_wind, sale en el instalador como otra placa del grupo Nautica).
 #
-#   make_web_site.py --board waveshare_lcd7b --version 5.4.3 --build-dir .pio/build/waveshare_lcd7b \
+#   make_web_site.py --board waveshare_lcd7b --version 5.4.4 --build-dir .pio/build/waveshare_lcd7b \
 #                    --boot-app0 RUTA/boot_app0.bin --out site
 #
 # Deja en "site":

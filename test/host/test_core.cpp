@@ -34,6 +34,8 @@
 #include "units.h"
 #include "wind.h"
 #include "wxstation.h"
+#include "wmm.h"
+#include "wxcalc.h"
 
 using namespace plotter;
 
@@ -1546,10 +1548,70 @@ static void testTimeSync() {
     w.noteSet(TimeSource::Ntp, 700000); CHECK(w.source(700000) == TimeSource::Ntp && w.sets() == 4);
 }
 
+static void testFormulas() {
+    // WMM2025 contra pygeomag (implementacion de referencia en Python del WMM de NOAA)
+    MagField f;
+    CHECK(defaultWmm().field(36.53, -6.29, 0, 2026.86, f));
+    CHECK(near(f.decDeg, -0.0318, 0.002) && near(f.incDeg, 49.8584, 0.002) && near(f.fNt, 43262.0, 1) && near(f.hNt, 27890.1, 1));
+    CHECK(defaultWmm().field(89, -121, 28, 2025.0, f) && near(f.decDeg, -99.7746, 0.01) && near(f.zNt, 56194.3, 1));
+    CHECK(defaultWmm().field(-80, 240, 48, 2027.5, f) && near(f.decDeg, 68.2187, 0.01) && near(f.incDeg, -72.0065, 0.01));
+    CHECK(defaultWmm().field(0, 0, 0, 2026.0, f) && near(f.decDeg, -3.8929, 0.002) && near(f.xNt, 27433.5, 1) && near(f.yNt, -1866.8, 1));
+    CHECK(near(magneticDeclination(43, -8, 2029.9), -0.1834, 0.002));
+    CHECK(near(magneticDeclination(-45, 120, 2025.5, 10), -6.1707, 0.002));
+    CHECK(!defaultWmm().field(91, 0, 0, 2026, f) && !defaultWmm().expired(2029.99) && defaultWmm().expired(2030.0));
+    CHECK(near(decimalYear(2026, 1, 1), 2026.0, 1e-9) && near(decimalYear(2026, 7, 2, 12), 2026.5, 1e-9));
+    {
+        Wmm w;
+        CHECK(!w.load("basura") && !w.load("    2030.0  WMM-2030  01/01/2030\n  1  0 -29000 0 0 0\n999999\n"));
+        CHECK(w.epoch() == 2025.0 && std::strcmp(w.name(), "WMM-2025") == 0);
+        std::string cof = "    2030.0            WMM-2030     12/01/2029\n";
+        for (int n = 1; n <= 12; n++)
+            for (int m = 0; m <= n; m++) cof += std::to_string(n) + " " + std::to_string(m) + (n == 1 && m == 0 ? " -30000 0 0 0\n" : " 0 0 0 0\n");
+        cof += "999999999999999999999999999999999999999999999999\n";
+        CHECK(w.load(cof.c_str()) && w.epoch() == 2030.0 && near(w.validUntil(), 2035.0, 1e-9));
+        CHECK(w.field(0, 0, 0, 2030, f) && near(f.decDeg, 0, 1e-6) && f.xNt > 29000);   // dipolo axial: norte puro
+    }
+    // Sol (Meeus) y luna (Meeus 47, topocentrica) contra PyEphem, desde Rota (36,53 N, 6,29 W)
+    double alt, az, dist;
+    sunPosition(2026, 11, 12, 13.5, 36.53, -6.29, alt, az);
+    CHECK(near(alt, 32.434, 0.02) && near(az, 202.895, 0.02));
+    sunPosition(2026, 6, 21, 6, 36.53, -6.29, alt, az);
+    CHECK(near(alt, 8.645, 0.02) && near(az, 67.168, 0.02));
+    moonPosition(2026, 11, 12, 13.5, 36.53, -6.29, alt, az, dist);
+    CHECK(near(alt, 22.708, 0.03) && near(az, 162.424, 0.03) && dist > 400000 && dist < 410000);
+    moonPosition(2026, 3, 20, 13.5, 36.53, -6.29, alt, az, dist);
+    CHECK(near(alt, 63.831, 0.03) && near(az, 174.077, 0.03));
+    moonPosition(1992, 4, 12, 21, 36.53, -6.29, alt, az, dist);
+    CHECK(near(alt, 62.016, 0.03) && near(az, 187.298, 0.03));
+    double rise, set; bool hr, hs;
+    moonTimes(2026, 11, 12, 36.53, -6.29, rise, hr, set, hs);
+    CHECK(hr && hs && near(rise, 606.3, 3) && near(set, 1165.1, 3));
+    moonTimes(1992, 4, 12, 36.53, -6.29, rise, hr, set, hs);
+    CHECK(hr && hs && near(rise, 838.8, 3) && near(set, 168.7, 3));
+    moonTimes(2026, 6, 21, 36.53, -6.29, rise, hr, set, hs);
+    CHECK(hr && !hs);                                               // ese dia UTC no se pone
+    CHECK(moonPhase8(0.2) == 0 && moonPhase8(7.4) == 2 && moonPhase8(14.8) == 4 && moonPhase8(22.1) == 6 && moonPhase8(29.4) == 0);
+    CHECK(std::strcmp(moonPhaseNameEs(4), "Luna llena") == 0 && std::strcmp(moonPhaseNameEn(2), "First quarter") == 0);
+    CHECK(near(refractionDeg(0), 0.48, 0.03) && near(refractionDeg(90), 0, 0.001) && near(refractionDeg(10), 0.09, 0.01));
+    int y, mo, d; double h;
+    unixToUtc(1794463200 + 5400, y, mo, d, h);
+    CHECK(y == 2026 && mo == 11 && d == 12 && near(h, 7.5, 1e-9));
+    unixToUtc(951782400, y, mo, d, h);
+    CHECK(y == 2000 && mo == 2 && d == 29 && near(h, 0, 1e-9));
+    // Meteorologia (valores de las calculadoras del NWS)
+    CHECK(near(dewPointC(20, 50), 9.26, 0.05) && near(dewPointC(30, 80), 26.17, 0.05) && std::isnan(dewPointC(20, 0)));
+    CHECK(near(relHumidityPct(20, dewPointC(20, 63)), 63, 0.01));
+    CHECK(near(windChillC(-10, 30), -19.5, 0.1) && windChillC(15, 30) == 15 && windChillC(-5, 3) == -5);
+    CHECK(near(heatIndexC(32, 70), 40.4, 0.3) && heatIndexC(25, 90) == 25);
+    CHECK(feelsLikeC(-10, -1, 30) == windChillC(-10, 30) && feelsLikeC(32, 70, 10) == heatIndexC(32, 70) && feelsLikeC(18, 50, 20) == 18);
+    CHECK(near(seaLevelPressureHpa(1000, 110, 15), 1013.1, 0.3));
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
     testTimeSync();
+    testFormulas();
     testWindAlarm();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;

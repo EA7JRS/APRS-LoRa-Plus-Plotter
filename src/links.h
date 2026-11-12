@@ -37,6 +37,8 @@ struct Status {
     uint32_t bleLines = 0;              // lineas NMEA recibidas por BLE
     uint32_t bleNavSent = 0;            // tandas de rumbo y velocidad mandadas al instrumento de viento
     uint32_t pilotSent = 0;             // tramas enviadas al piloto
+    bool hasDeclination = false;        // declinacion del WMM en la posicion del barco (grados, + este)
+    double declination = 0;
 };
 
 void begin(plotter::DataStore* store);

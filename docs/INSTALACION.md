@@ -211,6 +211,9 @@ con «estimado», y vale hasta 2 horas. Posición, rumbo, velocidad, sonda y vie
 **Hora**: la del GPS (RMC / ZDA de cualquier fuente, NMEA 2000) y, sin GPS, NTP con la WiFi: `ntp.roa.es` (hora oficial
 de España, ROA), de reserva `hora.roa.es` y `pool.ntp.org`. NTP usa el puerto UDP 123: la red tiene que dejarlo salir.
 
+**Declinación**: la calcula el plotter con el WMM2025 (válido hasta 2030); con un compás que solo da rumbo magnético, el
+verdadero sale de sumarla.
+
 ## 7. Ajustes
 
 | Ajuste | Opciones |

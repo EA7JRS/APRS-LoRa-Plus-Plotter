@@ -1,5 +1,15 @@
 # Changelog
 
+## Próxima versión
+
+- **Fórmulas comunes del ecosistema** en el núcleo (las usan también tracker, rotor, Display y app): `wmm` (Modelo
+  Magnético Mundial WMM2025 de NOAA / BGS, grado 12, se puede cargar un `WMM.COF` nuevo; igual que pygeomag a 0,002°),
+  luna con Meeus (posición topocéntrica con paralaje, salida y puesta, fase en 8 partes; a 0,03° de PyEphem), sol con
+  Meeus (0,02°, antes la serie de NOAA a 0,3°), refracción, `unixToUtc`, y `wxcalc` (punto de rocío, humedad, sensación
+  térmica, índice de calor, presión al nivel del mar). 1586 comprobaciones.
+- Ajustes > Estado > *Declinación*; rumbo verdadero = magnético + declinación si no llega uno verdadero.
+- Meteo: sensación térmica, punto de rocío, sol (salida, puesta, crepúsculo civil) y luna (fase, salida, puesta).
+
 ## 5.4.2 — 2026-11-12
 
 - **Piloto Raymarine ST2000+** (el de Manuel; Piloto > *ST2000+*, de serie, o *Genérico*): RMB y APB con waypoints de 4

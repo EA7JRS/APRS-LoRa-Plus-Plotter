@@ -206,6 +206,11 @@ Anything coming **from the internet** is shown in **amber** and labelled «estim
 station or model, not from your boat. The note at the bottom says whether the OpenWeatherMap request works and where
 the observation is from.
 
+On-board calculations: the temperature tile gives the **feels-like temperature** (wind chill with the true wind when
+cold, heat index when hot and humid) when it differs from the air by half a degree, and the humidity tile the **dew
+point** (Magnus formula). Above the note, the **sun** (rise and set, civil twilight) and the **moon** (phase, lit
+fraction, rise and set) for the day at the boat's position, in UTC.
+
 ## 9. Ajustes (Settings)
 
 ![Settings](img/ajustes.png)
@@ -283,6 +288,11 @@ The internal clock sets itself, in UTC, in this order:
 While the GPS time is current (6 hours), NTP does not replace it. Ajustes > Estado > *Hora* («Time») shows the UTC time and
 who set it. The plotter passes its time to the wind instrument over Bluetooth (ZDA sentence) when it comes from GPS or NTP.
 The simulator time does not count.
+
+**Magnetic declination**: the plotter carries the World Magnetic Model (WMM2025, by NOAA and the British Geological
+Survey, valid until 2030) and computes the declination at the boat's position. Ajustes > Estado > *Declinación* shows
+it. If only the magnetic heading arrives (HDM / HDG, PGN 127250 magnetic, Signal K `headingMagnetic`), the true heading
+is the magnetic one plus the declination (quality «calculated»); a measured true heading always wins.
 
 
 ## 12. Not in this version

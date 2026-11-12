@@ -224,7 +224,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 
 ## Estado (2026-11-12)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), anchor (vigilancia de fondeo), n2k (NMEA 2000), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS). 1466 comprobaciones en `test/host/test_core.cpp`
-  (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
+  (`tools/run_host_tests.sh`; 1493 desde el 2026-11-12 con `n2ktx`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - **Firmware, primer paso (2026-11-11)**: `platformio.ini` (misma base que Display: pioarduino `espressif32 @ 8.0.0`, LVGL
   ~9.6.0, ArduinoJson 7.4.3), placa 7B copiada de Display (`src/board.h`, `board_lcd7b.cpp`, `board_common.*`, `lv_defs.h`,
   fuentes DejaVu en `src/fonts`; los números grandes regenerados con coma y dos puntos: `tools/make_fonts.sh`) más
@@ -399,7 +399,24 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   modo noche. Wiki de Waveshare (con contradicciones internas, contrastar con el esquema): CAN TX 6 / RX 0, RS485 TX 44 /
   RX 43, USB 19 / 20 (no comparte con el CAN, al revés que la 7B), expansor TCA9554 (zumbador en EXIO5, SD_CS en EXIO3),
   RTC, cargador SW6106, entrada 7–36 V. Las fuentes GMI40 de Garmin no se han leído. Sin confirmar: nivel eléctrico de la
-  salida NMEA del NASA (¿vale directo al RS485?). Sin repositorio ni firmware: esperar a que Manuel lo pida.
+  salida NMEA del NASA (¿vale directo al RS485?).
+  **Firmware (2026-11-12, rama `instrumento-viento-fw`; Manuel eligió «lo recomendado»: segundo entorno en este
+  repositorio)**: entorno `waveshare_lcd4_wind` (`build_src_filter`: `src/wind/`, `board_common.cpp`, `board_lcd4.cpp`,
+  fuentes; el del plotter excluye `src/wind/`). `src/board_lcd4.cpp` (revisión **V4.0**: expansor CH32V003 en 0x24 como la
+  7B, ST7701 por SPI de 3 hilos con la secuencia del BSP de Waveshare, pines del BSP y de ESPHome; tiempos del panel de
+  memoria, sin verificar; con TCA9554 en 0x20 = revisión anterior, no soportada). `src/wind/`: `wui` (Rosa en 3 repartos,
+  Viento, Números, Historial 30 min, Ajustes y enlace desplazable, pantalla de WiFi con teclado), `wlinks` (veleta por el
+  RS485 a 4800 como fuente `Sensor`, simulador que se calla con veleta, NMEA 2000 escucha / emite con `n2ktx`,
+  salida 4 Hz de MWV R y T), `wble` (periférico con el servicio de `docs/BLE_NMEA.md`, troceo por MTU), `wnet` (WiFi
+  STA, MWV por UDP de difusión al puerto 10110; el plotter tiene el UDP apagado de serie: hay que poner 10110),
+  `wsettings` (NVS «wind»), `wmain` (consola `APRS-INFO?` → `device=wind`). Núcleo `n2ktx`: `n2kMakeId`, `n2kWind`
+  (130306), NAME (fabricante 2046 sin registrar, clase 85 / función 130) y `N2kAddressClaim` (60928, petición 59904,
+  cambio de dirección; empieza en la 35). Vista previa: `tools/ui_preview/build_wind.sh <lvgl> salida.ppm [página]
+  [segundos] [reparto] [wifi]`. CI y release compilan los dos entornos; `make_web_site.py` junta las dos placas en el
+  mismo `latest.json` (grupo Náutica). Instalador del tracker: `ALIAS` `wind` → `plotter` para que la detección lleve
+  al grupo Náutica. Manual: `docs/INSTRUMENTO_VIENTO.md` / `docs/WIND_INSTRUMENT_EN.md` (+ apartado en los seis).
+  Falta: probar en la placa y con el NASA, alarmas con el zumbador, modo noche, páginas configurables, rumbo y velocidad
+  del plotter por BLE / WiFi, PGN 126996, guardar la dirección reclamada.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.

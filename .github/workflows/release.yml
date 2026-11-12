@@ -1,7 +1,8 @@
 # Copyright (C) 2026 Manuel - EA7JRS — SPDX-License-Identifier: GPL-3.0-or-later
-# Version publicada: compila el firmware de la 7B y crea la release con
-#   - web-site-plotter.zip  -> lo recoge el instalador web de APRS LoRa+ (grupo "Nautica"; docs/WEB_INSTALLER.md del tracker)
-#   - la imagen completa (0x0) y el firmware suelto (0x10000) para grabar con esptool
+# Version publicada: compila el plotter (7B) y el instrumento de viento (LCD-4) y crea la release con
+#   - web-site-plotter.zip  -> lo recoge el instalador web de APRS LoRa+ (grupo "Nautica", con las dos placas;
+#                              docs/WEB_INSTALLER.md del tracker)
+#   - de cada uno, la imagen completa (0x0) y el firmware suelto (0x10000) para grabar con esptool
 # Se lanza al subir una etiqueta vX.Y.Z (la misma que la del tracker), al subir una rama release/vX.Y.Z (la etiqueta
 # la crea entonces la propia release, sobre ese commit) o a mano con la etiqueta.
 name: Release
@@ -47,24 +48,28 @@ jobs:
                       .pio/libdeps
                   key: pio-${{ hashFiles('platformio.ini') }}
                   restore-keys: pio-
-            - name: Compilar el firmware de la 7B
+            - name: Compilar el plotter y el instrumento de viento
               run: |
-                  ok=0
-                  for i in 1 2 3 4 5; do
-                      pio run -e waveshare_lcd7b && { ok=1; break; }
-                      echo "intento $i fallido, reintentando en 30 s"; sleep 30
+                  for env in waveshare_lcd7b waveshare_lcd4_wind; do
+                      ok=0
+                      for i in 1 2 3 4 5; do
+                          pio run -e $env && { ok=1; break; }
+                          echo "intento $i fallido, reintentando en 30 s"; sleep 30
+                      done
+                      [ $ok = 1 ] || { echo "::error::el firmware $env no compila"; exit 1; }
                   done
-                  [ $ok = 1 ] || { echo "::error::el firmware no compila"; exit 1; }
             - name: Ficheros de la version
               run: |
-                  B=.pio/build/waveshare_lcd7b
                   BOOT0=$(find ~/.platformio/packages -name boot_app0.bin | head -1)
                   [ -n "$BOOT0" ] || { echo "::error::no se encuentra boot_app0.bin"; exit 1; }
                   mkdir -p out
-                  python -m esptool --chip esp32s3 merge_bin -o out/aprs-lora-plus-plotter-7b-$VERSION-full.bin \
-                      0x0 $B/bootloader.bin 0x8000 $B/partitions.bin 0xe000 "$BOOT0" 0x10000 $B/firmware.bin
-                  cp $B/firmware.bin out/aprs-lora-plus-plotter-7b-$VERSION-firmware.bin
-                  python tools/make_web_site.py --board waveshare_lcd7b --version "$VERSION" --build-dir $B --boot-app0 "$BOOT0" --out site
+                  for pair in "waveshare_lcd7b aprs-lora-plus-plotter-7b" "waveshare_lcd4_wind aprs-lora-plus-wind-lcd4"; do
+                      set -- $pair; B=.pio/build/$1
+                      python -m esptool --chip esp32s3 merge_bin -o out/$2-$VERSION-full.bin \
+                          0x0 $B/bootloader.bin 0x8000 $B/partitions.bin 0xe000 "$BOOT0" 0x10000 $B/firmware.bin
+                      cp $B/firmware.bin out/$2-$VERSION-firmware.bin
+                      python tools/make_web_site.py --board $1 --version "$VERSION" --build-dir $B --boot-app0 "$BOOT0" --out site
+                  done
                   (cd site && zip -q -r ../out/web-site-plotter.zip .)
                   ls -l out
             - name: Crear o actualizar la release

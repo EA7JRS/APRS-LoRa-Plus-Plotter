@@ -1,5 +1,16 @@
 # Changelog
 
+## Sin publicar
+
+- **Instrumento de viento APRS LoRa+ Wind** (accesorio del plotter, nuevo entorno `waveshare_lcd4_wind`): Waveshare
+  ESP32-S3-Touch-LCD-4 (480 × 480, revisión V4.0) con la veleta NASA Target 2 Wind por el RS485 (MWV a 4800). Páginas
+  Rosa (tres repartos), Viento, Números, Historial de 30 min y Ajustes y enlace; viento real y deriva con la velocidad y
+  el rumbo del NMEA 2000. Pasa el viento al plotter por Bluetooth (servicio de `docs/BLE_NMEA.md`), NMEA 2000 (PGN
+  130306 con reclamación de dirección) y WiFi (UDP a la red). Diseño propio. Compila en la CI; **sin probar en la
+  placa**. Manual: `docs/INSTRUMENTO_VIENTO.md` / `docs/WIND_INSTRUMENT_EN.md`.
+- **Instalador web**: la release lleva las dos placas en `web-site-plotter.zip` (grupo Náutica).
+- **Núcleo**: emisión NMEA 2000 (`n2ktx`: identificador, PGN 130306, NAME y reclamación de dirección); 1493 comprobaciones.
+
 ## 5.4.1 — 2026-11-12 — primera versión (preliminar)
 
 Mismo número de versión que el resto de APRS LoRa+. Compila en la CI; **sin probar en la placa**.

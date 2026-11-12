@@ -2,8 +2,10 @@
 # Copyright (C) 2026 Manuel - EA7JRS
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Prepara los ficheros del plotter para el instalador web de APRS LoRa+ (https://ea7jrs.github.io/APRS-LoRa-Plus/, grupo
-# "Nautica"): el contrato esta en docs/WEB_INSTALLER.md del repositorio del tracker.
+# Prepara los ficheros del plotter y de su instrumento de viento para el instalador web de APRS LoRa+
+# (https://ea7jrs.github.io/APRS-LoRa-Plus/, grupo "Nautica"): el contrato esta en docs/WEB_INSTALLER.md del tracker.
+# Se llama una vez por placa con la misma carpeta de salida: latest.json va juntando las placas (el instrumento,
+# waveshare_lcd4_wind, sale en el instalador como otra placa del grupo Nautica).
 #
 #   make_web_site.py --board waveshare_lcd7b --version 5.4.1 --build-dir .pio/build/waveshare_lcd7b \
 #                    --boot-app0 RUTA/boot_app0.bin --out site
@@ -59,8 +61,9 @@ def main():
         {"path": "../firmware/%s/boot_app0.bin" % a.board, "offset": 0xE000},
         {"path": "../firmware/%s/firmware.bin" % a.board, "offset": 0x10000},
     ]
+    product = "APRS LoRa+ Wind" if "wind" in a.board else "APRS LoRa+ Plotter"
     manifest = {
-        "name": "APRS LoRa+ Plotter %s" % a.board,
+        "name": "%s %s" % (product, a.board),
         "version": a.version,
         "new_install_prompt_erase": False,
         "builds": [{"chipFamily": "ESP32-S3", "parts": parts}],
@@ -76,13 +79,20 @@ def main():
         "size": os.path.getsize(fw),
         "sha256": sha256(fw),
         "url": "firmware/%s/firmware.bin" % a.board,
-        "ota": False,                                     # el plotter solo se actualiza por USB
+        "ota": False,                                     # plotter e instrumento solo se actualizan por USB
     }
     with open(os.path.join(a.out, "ota", a.board + ".json"), "w") as f:
         json.dump(ota, f, indent=2)
 
-    latest = {"device": "plotter", "version": a.version, "boards": {a.board: {"version": a.version, "chip": "esp32s3", "ota": False}}}
-    with open(os.path.join(a.out, "latest.json"), "w") as f:
+    path = os.path.join(a.out, "latest.json")
+    latest = {"device": "plotter", "version": a.version, "boards": {}}
+    if os.path.isfile(path):
+        with open(path) as f:
+            latest = json.load(f)
+        if latest.get("version") != a.version:
+            sys.exit("latest.json tiene la version %s y esta placa la %s" % (latest.get("version"), a.version))
+    latest["boards"][a.board] = {"version": a.version, "chip": "esp32s3", "ota": False}
+    with open(path, "w") as f:
         json.dump(latest, f, indent=2)
     print("%s: version %s, %d bytes" % (a.board, a.version, ota["size"]))
 

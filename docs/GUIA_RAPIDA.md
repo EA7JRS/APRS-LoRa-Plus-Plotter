@@ -71,6 +71,7 @@ Salen en una ventana sobre cualquier pantalla:
 | Móvil con la app APRS LoRa+ | Ajustes > Red: la WiFi del móvil, «TCP: NMEA 0183», servidor vacío, puerto 10110 |
 | Tracker APRS LoRa+ o pasarela | Ajustes > Bluetooth (el PIN del tracker, en Ajustes > Red) |
 | Tiempo de internet | Ajustes > Red: clave de OpenWeatherMap |
+| Instrumento de viento APRS LoRa+ Wind | Solo: NMEA 2000; o Ajustes > Bluetooth; o Ajustes > Red, puerto UDP 10110 (`INSTRUMENTO_VIENTO.md`) |
 
 Si un sensor deja de mandar, el plotter usa la siguiente fuente que tenga ese dato. Lo que viene de internet sale en
 ámbar y con «estimado».

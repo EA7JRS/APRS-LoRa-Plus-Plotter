@@ -14,6 +14,7 @@ Instalador web (Chrome o Edge, placa por USB): **https://ea7jrs.github.io/APRS-L
 | Guía rápida | [GUIA_RAPIDA.md](docs/GUIA_RAPIDA.md) | [QUICK_GUIDE_EN.md](docs/QUICK_GUIDE_EN.md) |
 | Manual de usuario | [MANUAL_USUARIO.md](docs/MANUAL_USUARIO.md) | [USER_MANUAL_EN.md](docs/USER_MANUAL_EN.md) |
 | Instalación y funcionamiento | [INSTALACION.md](docs/INSTALACION.md) | [INSTALLATION_EN.md](docs/INSTALLATION_EN.md) |
+| Instrumento de viento (accesorio) | [INSTRUMENTO_VIENTO.md](docs/INSTRUMENTO_VIENTO.md) | [WIND_INSTRUMENT_EN.md](docs/WIND_INSTRUMENT_EN.md) |
 
 Cambios de cada versión: [CHANGELOG.md](CHANGELOG.md).
 

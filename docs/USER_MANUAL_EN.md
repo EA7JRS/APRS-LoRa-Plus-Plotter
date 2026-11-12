@@ -167,6 +167,9 @@ Tap a row to see the **target card**: type, MMSI, class, call sign, speed, cours
   empopada = running).
 - **History** of 10 minutes, with minimum and maximum.
 
+Wind can come from the **APRS LoRa+ Wind instrument** (4" screen with the NASA Target 2 Wind sensor), which passes it
+to the plotter over NMEA 2000, Bluetooth or Wi-Fi: see `WIND_INSTRUMENT_EN.md`.
+
 ## 7. Piloto (Pilot)
 
 ![Pilot](img/piloto.png)

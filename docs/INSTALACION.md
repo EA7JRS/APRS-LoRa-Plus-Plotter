@@ -165,6 +165,18 @@ envía las sentencias APB y RMB una vez por segundo. Por la red usa el servidor 
 
 El plotter **solo da datos**: el piloto se embraga y se manda desde su propio mando. Las demoras van en verdadero.
 
+### 5.6 Instrumento de viento APRS LoRa+ Wind
+
+Accesorio con pantalla de 4" (Waveshare ESP32-S3-Touch-LCD-4) que lee la veleta NASA Target 2 Wind y pasa el viento al
+plotter. En el plotter:
+
+- **NMEA 2000**: nada que hacer; el instrumento emite el PGN 130306 con su propia dirección.
+- **Bluetooth**: Ajustes > *Bluetooth* encendido; se une al instrumento (servicio de datos NMEA de `BLE_NMEA.md`).
+- **WiFi**: los dos en la misma red y, en Ajustes > Red, *Puerto UDP* 10110.
+
+Instalación, cableado y uso del instrumento: `INSTRUMENTO_VIENTO.md`. Se graba con el mismo instalador web (grupo
+Náutica, placa `waveshare_lcd4_wind`).
+
 ## 6. Cómo decide qué dato enseñar
 
 Cada dato puede llegar por varias vías. Gana la de más prioridad:

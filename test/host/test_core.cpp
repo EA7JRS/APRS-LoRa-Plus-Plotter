@@ -23,6 +23,7 @@
 #include "inputs.h"
 #include "lights.h"
 #include "n2k.h"
+#include "n2ktx.h"
 #include "route.h"
 #include "signalk.h"
 #include "sim.h"
@@ -1372,8 +1373,66 @@ static void testN2k() {
     CHECK(st3.get(Key::Lat, 600, v) && near(v, 53.1801876, 1e-7));
 }
 
+// Emision NMEA 2000 del instrumento de viento: lo que se manda lo tiene que leer el plotter igual
+static void testN2kTx() {
+    CHECK(n2kMakeId(2, 130306, 0x23) == 0x09FD0223u);
+    CHECK(n2kMakeId(6, 60928, 0x23, 255) == 0x18EEFF23u);
+    CHECK(n2kMakeId(6, 59904, 0x23, 5) == 0x18EA0523u);
+    N2kId id = n2kParseId(n2kMakeId(2, 130306, 0x47));
+    CHECK(id.pgn == 130306 && id.src == 0x47 && id.prio == 2);
+    uint8_t d[8];
+    n2kWind(7, 3.37 / (1852.0 / 3600.0), 112.1, 2, d);            // el mismo viento que la muestra de canboat de testN2k
+    CHECK(d[0] == 7 && d[1] == 0x51 && d[2] == 0x01 && d[5] == 0xFA && d[6] == 0xFF && d[7] == 0xFF);
+    N2kReader r;
+    DataStore st;
+    double v = 0;
+    n2kWind(1, 17.4, -18.0, 2, d);                                // 18 grados por babor
+    CHECK(r.feedFrame(n2kMakeId(2, 130306, 0x30), d, 8, Source::Can, 1000, st) == N2kResult::Data);
+    CHECK(st.get(Key::Awa, 1000, v)); NEAR(v, -18.0, 0.01);
+    CHECK(st.get(Key::Aws, 1000, v)); NEAR(v, 17.4, 0.02);
+    n2kWind(2, 10.1, 239.0, 0, d);                                // real, del 239
+    r.feedFrame(n2kMakeId(2, 130306, 0x30), d, 8, Source::Can, 1100, st);
+    CHECK(st.get(Key::Twd, 1100, v)); NEAR(v, 239.0, 0.01);
+    CHECK(st.get(Key::Tws, 1100, v)); NEAR(v, 10.1, 0.02);
+    n2kWind(3, 5.0, NAN, 2, d);                                   // sin angulo
+    CHECK(d[3] == 0xFF && d[4] == 0xFF);
+    n2kWind(3, 0.0, 359.9999, 2, d);
+    CHECK(d[3] == 0 && d[4] == 0);
+    // NAME: los campos van en su sitio
+    N2kName nm; nm.unique = 0x12345;
+    uint64_t name = n2kNameValue(nm);
+    CHECK((name & 0x1FFFFF) == 0x12345 && ((name >> 21) & 0x7FF) == 2046 && ((name >> 40) & 0xFF) == 130);
+    CHECK(((name >> 49) & 0x7F) == 85 && ((name >> 60) & 7) == 4 && (name >> 63) == 1);
+    // Reclamacion de direccion
+    N2kAddressClaim ac(name, 35);
+    N2kAddressClaim::Frame f;
+    ac.start(0, f);
+    CHECK(f.id == 0x18EEFF23u && f.len == 8 && f.d[0] == 0x45 && f.d[7] == (uint8_t)(name >> 56));
+    CHECK(!ac.ready(100) && ac.ready(260));
+    uint8_t req[3] = {0x00, 0xEE, 0x00};                          // peticion ISO de reclamaciones, a todos
+    CHECK(ac.onFrame(n2kMakeId(6, 59904, 0x05, 255), req, 3, 300, f) && f.id == 0x18EEFF23u);
+    CHECK(!ac.onFrame(n2kMakeId(6, 59904, 0x05, 0x10), req, 3, 300, f));   // dirigida a otro
+    uint8_t other[8];
+    uint64_t worse = name + 1, better = name - 1;
+    for (int i = 0; i < 8; i++) other[i] = (uint8_t)(worse >> (8 * i));
+    CHECK(ac.onFrame(n2kMakeId(6, 60928, 35, 255), other, 8, 400, f) && ac.address() == 35);   // gana: repite la suya
+    for (int i = 0; i < 8; i++) other[i] = (uint8_t)(better >> (8 * i));
+    uint8_t other36[8];
+    for (int i = 0; i < 8; i++) other36[i] = (uint8_t)((better - 5) >> (8 * i));
+    ac.onFrame(n2kMakeId(6, 60928, 36, 255), other36, 8, 450, f);              // la 36 la tiene otro
+    CHECK(ac.onFrame(n2kMakeId(6, 60928, 35, 255), other, 8, 500, f));        // pierde la 35
+    CHECK(ac.address() == 37 && (f.id & 0xFF) == 37 && ac.changes() == 1);
+    CHECK(!ac.ready(600) && ac.ready(760));
+    N2kName fixed; fixed.arbitraryAddress = false;
+    N2kAddressClaim nf(n2kNameValue(fixed), 40);
+    nf.start(0, f);
+    uint8_t low[8] = {0};
+    CHECK(nf.onFrame(n2kMakeId(6, 60928, 40, 255), low, 8, 10, f) && nf.lost() && (f.id & 0xFF) == 254 && !nf.ready(1000));
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
+    testN2kTx();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

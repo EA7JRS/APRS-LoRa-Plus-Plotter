@@ -162,6 +162,9 @@ ahí puedes **silenciar** su alarma.
 - **Ángulo real**: y el rumbo de vela (ceñida, través, largo, empopada).
 - **Historial** de 10 minutos, con mínimo y máximo.
 
+El viento puede venir del **instrumento de viento APRS LoRa+ Wind** (pantalla de 4" con la veleta NASA Target 2
+Wind), que se lo pasa al plotter por NMEA 2000, Bluetooth o WiFi: ver `INSTRUMENTO_VIENTO.md`.
+
 ## 7. Piloto
 
 ![Piloto](img/piloto.png)

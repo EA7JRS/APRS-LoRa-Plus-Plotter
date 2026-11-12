@@ -33,28 +33,31 @@ jobs:
                   key: pio-${{ hashFiles('platformio.ini') }}
                   restore-keys: pio-
             # Las descargas de GitHub Releases dan 504 de vez en cuando: reintentar (como en APRS LoRa+ Display)
-            - name: Compilar el firmware de la 7B
+            - name: Compilar el plotter (7B) y el instrumento de viento (LCD-4)
               run: |
-                  ok=0
-                  for i in 1 2 3 4 5; do
-                      pio run -e waveshare_lcd7b && { ok=1; break; }
-                      echo "intento $i fallido, reintentando en 30 s"; sleep 30
+                  for env in waveshare_lcd7b waveshare_lcd4_wind; do
+                      ok=0
+                      for i in 1 2 3 4 5; do
+                          pio run -e $env && { ok=1; break; }
+                          echo "intento $i fallido, reintentando en 30 s"; sleep 30
+                      done
+                      [ $ok = 1 ] || { echo "::error::el firmware $env no compila"; exit 1; }
                   done
-                  [ $ok = 1 ] || { echo "::error::el firmware no compila"; exit 1; }
             # Imagen completa (cargador, particiones y firmware) para grabar de una vez en la direccion 0x0
-            - name: Imagen completa
+            - name: Imagenes completas
               run: |
                   pip install "esptool==4.8.1"
-                  B=.pio/build/waveshare_lcd7b
                   BOOT0=$(find ~/.platformio/packages -name boot_app0.bin | head -1)
                   [ -n "$BOOT0" ] || { echo "::error::no se encuentra boot_app0.bin"; exit 1; }
-                  python -m esptool --chip esp32s3 merge_bin -o $B/aprs-lora-plus-plotter-7b-full.bin \
-                      0x0 $B/bootloader.bin 0x8000 $B/partitions.bin 0xe000 "$BOOT0" 0x10000 $B/firmware.bin
-                  cp $B/firmware.bin $B/aprs-lora-plus-plotter-7b-firmware.bin
-                  ls -l $B/*.bin
+                  mkdir -p out
+                  for pair in "waveshare_lcd7b aprs-lora-plus-plotter-7b" "waveshare_lcd4_wind aprs-lora-plus-wind-lcd4"; do
+                      set -- $pair; B=.pio/build/$1
+                      python -m esptool --chip esp32s3 merge_bin -o out/$2-full.bin \
+                          0x0 $B/bootloader.bin 0x8000 $B/partitions.bin 0xe000 "$BOOT0" 0x10000 $B/firmware.bin
+                      cp $B/firmware.bin out/$2-firmware.bin
+                  done
+                  ls -l out
             - uses: actions/upload-artifact@v4
               with:
-                  name: firmware-waveshare_lcd7b
-                  path: |
-                      .pio/build/waveshare_lcd7b/aprs-lora-plus-plotter-7b-full.bin
-                      .pio/build/waveshare_lcd7b/aprs-lora-plus-plotter-7b-firmware.bin
+                  name: firmware
+                  path: out/*.bin

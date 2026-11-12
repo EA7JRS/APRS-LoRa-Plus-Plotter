@@ -169,6 +169,18 @@ uses the TCP server from Ajustes > Red (Pypilot: port 20220).
 
 The plotter **only provides data**: the pilot is engaged and commanded from its own control head. Bearings are true.
 
+### 5.6 APRS LoRa+ Wind instrument
+
+An accessory with a 4" screen (Waveshare ESP32-S3-Touch-LCD-4) that reads the NASA Target 2 Wind sensor and passes the
+wind to the plotter. On the plotter:
+
+- **NMEA 2000**: nothing to do; the instrument sends PGN 130306 with its own address.
+- **Bluetooth**: Ajustes > *Bluetooth* on; it joins the instrument (NMEA data service of `BLE_NMEA.md`).
+- **Wi-Fi**: both on the same network and, in Ajustes > Red, *Puerto UDP* (UDP port) 10110.
+
+Installation, wiring and use of the instrument: `WIND_INSTRUMENT_EN.md`. It is flashed with the same web installer
+(Náutica group, board `waveshare_lcd4_wind`).
+
 ## 6. How it decides which value to show
 
 Each value can arrive by several routes. The highest priority wins:

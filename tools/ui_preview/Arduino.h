@@ -23,6 +23,7 @@ struct String {
 };
 struct HardwareSerial {
     void begin(unsigned long, int = 0, int = -1, int = -1) {}
+    void end() {}
     void setRxBufferSize(size_t) {}
     void updateBaudRate(unsigned long) {}
     int available() { return 0; }

@@ -30,3 +30,24 @@ Dudas a comprobar con la placa delante:
 - Un receptor AIS con salida RS-232 o RS-422 (Comar SLR200G) necesita adaptador a RS485 / nivel correcto: no conectarlo directo.
 - Pines libres para el anemómetro de pulsos y las sondas DS18B20: mirar el conector de expansión de la 7B.
 - Con el CAN activo no hay USB nativo; la consola y la carga del firmware van por el puerto del CH343.
+
+# Placa del instrumento de viento: Waveshare ESP32-S3-Touch-LCD-4 (V4.0)
+
+`src/board_lcd4.cpp`. Pines del BSP de Waveshare (`waveshareteam/Waveshare-ESP32-components`, `bsp/esp32_s3_touch_lcd_4`)
+y del modelo `WAVESHARE-4-480X480` de ESPHome, que coinciden. **Sin probar en la placa.**
+
+| Función | Pines |
+|---|---|
+| Panel ST7701, RGB 480×480 | HSYNC 38, VSYNC 39, DE 40, PCLK 41; datos B 5 45 48 47 21, G 14 13 12 11 10 9, R 46 3 8 18 17 |
+| Configuración del ST7701 | SPI de 3 hilos por software: CS 42, SCL 2, SDA 1 (solo al arrancar) |
+| I2C | SDA 15, SCL 7: expansor, táctil y reloj |
+| Expansor CH32V003 | 0x24 (el de la 7B): EXIO1 reset del táctil, EXIO2 INT del táctil, EXIO3 reset del LCD, EXIO5 SYS_EN, EXIO6 zumbador, EXIO7 INT del reloj; registro 0x05 PWM de la luz (al revés) |
+| Táctil GT911 | 0x5D o 0x14 (el INT va por el expansor: se busca) |
+| CAN (TJA1051) | TX 6, RX 0; no comparte con el USB |
+| RS485 | GPIO 43 / 44; la tabla de Waveshare da 43 = RX, otra fuente al revés: Ajustes los intercambia |
+| Consola | USB nativo (CDC), GPIO 19 / 20 |
+
+Sin verificar: tiempos del panel (los de `ST7701_480_480_PANEL_60HZ_RGB_TIMING` de esp_lcd_st7701, de memoria: pulso
+10, porches 10 / 20 horizontales y 10 / 10 verticales, 16 MHz), qué GPIO es la recepción del RS485, y si el PWM de la
+luz tiene el mismo límite que en la 7B. La tarjeta TF (SDMMC en GPIO 1, 2, 4) no se usa. Revisiones anteriores a la V4.0:
+expansor TCA9554 en 0x20, no soportadas.

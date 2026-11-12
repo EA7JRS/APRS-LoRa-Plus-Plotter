@@ -20,8 +20,8 @@ funciona en la 7B. Lo que el plotter añade está sin probar en la placa.
 | Simulador | Hecho. Encendido al arrancar; `SIM 0` / `SIM 1` por la consola |
 | RS485 a 38400 (AIS) o 4800 (NMEA) | Código hecho (`src/links.cpp`), **sin probar en la placa** |
 | NMEA 2000 por CAN | Solo escucha, 250 kbit/s (`links.cpp`, núcleo `n2k`); Ajustes > NMEA 2000. Sin probar en la placa |
-| WiFi (NMEA por TCP / UDP, gpsd, Signal K) | Hecho (`src/net.cpp`, `src/sk_link.cpp`); Ajustes > Red. Sin probar en la placa |
-| Bluetooth (pasarela y tracker APRS LoRa+) | Hecho (`src/ble.cpp`, `docs/BLE_NMEA.md`). Sin probar con ningún equipo |
+| WiFi (NMEA por TCP / UDP, gpsd, Signal K) | Hecho (`lib/aprs_links`: `net`, `sk_link`); Ajustes > Red. Sin probar en la placa |
+| Bluetooth (pasarela y tracker APRS LoRa+) | Hecho (`lib/aprs_links`: `ble`; `docs/BLE_NMEA.md`). Sin probar con ningún equipo |
 | Internet (OpenWeatherMap) | Hecho: datos de reserva si falta un sensor. Sin probar contra el servidor |
 
 Dudas a comprobar con la placa delante:

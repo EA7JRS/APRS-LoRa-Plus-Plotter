@@ -41,7 +41,20 @@ jobs:
                       echo "intento $i fallido, reintentando en 30 s"; sleep 30
                   done
                   [ $ok = 1 ] || { echo "::error::el firmware no compila"; exit 1; }
+            # Imagen completa (cargador, particiones y firmware) para grabar de una vez en la direccion 0x0
+            - name: Imagen completa
+              run: |
+                  pip install "esptool==4.8.1"
+                  B=.pio/build/waveshare_lcd7b
+                  BOOT0=$(find ~/.platformio/packages -name boot_app0.bin | head -1)
+                  [ -n "$BOOT0" ] || { echo "::error::no se encuentra boot_app0.bin"; exit 1; }
+                  python -m esptool --chip esp32s3 merge_bin -o $B/aprs-lora-plus-plotter-7b-full.bin \
+                      0x0 $B/bootloader.bin 0x8000 $B/partitions.bin 0xe000 "$BOOT0" 0x10000 $B/firmware.bin
+                  cp $B/firmware.bin $B/aprs-lora-plus-plotter-7b-firmware.bin
+                  ls -l $B/*.bin
             - uses: actions/upload-artifact@v4
               with:
                   name: firmware-waveshare_lcd7b
-                  path: .pio/build/waveshare_lcd7b/firmware.bin
+                  path: |
+                      .pio/build/waveshare_lcd7b/aprs-lora-plus-plotter-7b-full.bin
+                      .pio/build/waveshare_lcd7b/aprs-lora-plus-plotter-7b-firmware.bin

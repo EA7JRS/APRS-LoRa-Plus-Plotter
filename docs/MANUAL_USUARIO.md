@@ -244,10 +244,17 @@ Una alerta abre una ventana sobre cualquier pantalla. Los textos van en inglés,
 | **ANCHOR WATCH · NO GPS FIX** | Fondeado y 1 min sin posición | Igual |
 | **SIGNAL K ALARM / EMERGENCY** | Aviso del servidor Signal K | Se cierra sola cuando el servidor lo baja de nivel |
 | **RS485 COMPARTIDO** | La salida al piloto usa el puerto por el que entran datos | Apagar salida · Seguir así |
+| **RED / ORANGE / YELLOW WARNING, EARTHQUAKE, TSUNAMI, SPACE WEATHER** | Aviso oficial nuevo para la zona (por internet, ver abajo) | LIST: pestaña Meteo · CLOSE: no vuelve salvo que suba de nivel |
 
 Las de abordaje y garreo se cierran solas cuando el peligro pasa.
 
 **MOB**: marca la posición, pone rumbo de vuelta y muestra la distancia, la demora y el tiempo transcurrido.
+
+**Avisos oficiales** (con WiFi con salida a internet, *Ajustes > Red*): meteorológicos (AEMET en España, por el RSS público de
+Meteoalerta; MeteoAlarm en el resto de Europa, con el país en *País ISO*; NWS en EE. UU.), tsunamis (tsunami.gov), terremotos (USGS y
+EMSC: por magnitud y distancia, por ejemplo M5 a menos de 600 km) y tiempo espacial (SWPC de la NOAA: escalas G / R / S, Kp, flujo
+solar), cada 15 min en su propia tarea. *Avisos: zonas* filtra por las palabras de la zona («Huelva, Cádiz»; sin poner nada, todo el
+país, y con MeteoAlarm solo salta la ventana de los rojos). La pestaña Meteo los resume, con el tiempo espacial.
 
 **En esta versión las alertas no suenan.** No dejes el plotter como única alarma de fondeo o de abordaje.
 

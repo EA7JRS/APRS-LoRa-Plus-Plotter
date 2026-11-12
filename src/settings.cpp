@@ -26,6 +26,9 @@ void load() {
     v.tcpPort = p.getInt("tcpPort", 10110);
     v.udpPort = p.getInt("udpPort", 0);
     p.getString("owm", v.owmKey, sizeof(v.owmKey));
+    v.alertsOn = p.getBool("alerts", true);
+    p.getString("azones", v.alertZones, sizeof(v.alertZones));
+    p.getString("acountry", v.alertCountry, sizeof(v.alertCountry));
     v.bleOn = p.getBool("ble", false);
     p.getString("bleAddr", v.bleAddr, sizeof(v.bleAddr));
     v.blePin = p.getInt("blePin", 123456);
@@ -66,6 +69,9 @@ void save() {
     p.putInt("tcpPort", v.tcpPort);
     p.putInt("udpPort", v.udpPort);
     p.putString("owm", v.owmKey);
+    p.putBool("alerts", v.alertsOn);
+    p.putString("azones", v.alertZones);
+    p.putString("acountry", v.alertCountry);
     p.putBool("ble", v.bleOn);
     p.putString("bleAddr", v.bleAddr);
     p.putInt("blePin", v.blePin);

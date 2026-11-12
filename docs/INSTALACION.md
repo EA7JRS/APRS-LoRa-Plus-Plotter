@@ -148,6 +148,8 @@ conecta al equipo que da la WiFi.
 **Clave de OpenWeatherMap**: en la misma pantalla. Con ella, el plotter pide el tiempo de la posición del barco cada
 15 minutos y lo usa de reserva (apartado 6).
 
+**Avisos oficiales**: en la misma pantalla, *Avisos: zonas* (palabras de la zona separadas por comas; vacío = todas) y *País ISO* (vacío = por la posición: España o EE. UU.; para MeteoAlarm en otro país, su código, «PT», «FR»...). Se descargan cada 15 min con la misma WiFi, sin clave.
+
 ### 5.4 Bluetooth
 
 Ajustes > botón **Bluetooth**. Al encenderlo, el plotter busca y se conecta al primer equipo compatible, recuerda su

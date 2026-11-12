@@ -251,12 +251,19 @@ An alert opens a window over any screen. Alert texts are in English, as in the A
 | **ANCHOR WATCH · NO GPS FIX** | Anchored and 1 min without a position | Same |
 | **SIGNAL K ALARM / EMERGENCY** | Notification from the Signal K server | Closes by itself when the server lowers its level |
 | **RS485 COMPARTIDO** (shared RS485) | The pilot output uses the port data is coming in on | Apagar salida (turn output off) · Seguir así (keep going) |
+| **RED / ORANGE / YELLOW WARNING, EARTHQUAKE, TSUNAMI, SPACE WEATHER** | New official alert for the area (from the internet, see below) | LIST: Meteo tab · CLOSE: it does not come back unless its level rises |
 
 Collision and anchor alerts close by themselves when the danger is over.
 
 **MOB**: marks the position, sets the course back and shows distance, bearing and elapsed time.
 
 **In this version alerts make no sound.** Do not rely on the plotter as your only anchor or collision alarm.
+
+**Official alerts** (Wi-Fi with internet access, *Ajustes > Red*): weather (AEMET in Spain, from the public Meteoalerta RSS;
+MeteoAlarm in the rest of Europe, with the country in *País ISO*; NWS in the US), tsunamis (tsunami.gov), earthquakes (USGS and EMSC, by
+magnitude and distance, e.g. M5 under 600 km) and space weather (NOAA SWPC: G / R / S scales, Kp, solar flux), every 15 min in their own
+task. *Avisos: zonas* filters by words of the zone ("Huelva, Cádiz"; empty = the whole country, and with MeteoAlarm only red alerts open
+the window). The Meteo tab sums them up, with the space weather.
 
 ## 11. Where the data comes from
 

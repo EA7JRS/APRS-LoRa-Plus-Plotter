@@ -28,6 +28,7 @@
 #include "net.h"
 #include "tsync.h"
 #include "ble.h"
+#include "alerts_net.h"
 #include "tiles.h"
 #include "wind.h"
 #include "astro.h"
@@ -92,7 +93,7 @@ static lv_obj_t* lblAisBadge = nullptr;
 static uint32_t rowMmsi[kRows] = {};
 
 // Ventana centrada sobre cualquier pantalla: ficha de un blanco o alerta de abordaje (la misma que las emergencias de la app)
-enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK };
+enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK, M_OFFICIAL };
 static lv_obj_t* modalBack = nullptr;
 static lv_obj_t* modalHead = nullptr;
 static lv_obj_t* modalTitle = nullptr;
@@ -211,7 +212,7 @@ static lv_obj_t* setBleLbl = nullptr;
 // Pantalla de red (WiFi, TCP, UDP) con teclado
 static lv_obj_t* netScr = nullptr;
 static lv_obj_t* aboutScr = nullptr;
-static lv_obj_t* netTa[7] = {};                        // red, clave, servidor, puerto TCP, puerto UDP, clave de OpenWeatherMap
+static lv_obj_t* netTa[9] = {};                        // red, clave, servidor, puerto TCP, puerto UDP, clave de OpenWeatherMap
 static lv_obj_t* netKb = nullptr;
 static lv_obj_t* netKindLbl = nullptr;
 static lv_obj_t* netStatus = nullptr;
@@ -512,7 +513,10 @@ static void closeModal() {
     if (modalBack) lv_obj_set_hidden(modalBack, true);
 }
 
+static void showTab(int i);
+static const int kMeteoTab = 6;
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
+    if (modalMode == M_OFFICIAL) { closeOfficial(); showTab(kMeteoTab); return; }   // LIST: la pestana Meteo
     if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta
     if (modalMode == M_SIGNALK) { closeModal(); return; }  // el aviso sigue en el servidor; aqui solo se cierra
     if (modalMode == M_RS485) {                            // apagar la salida al piloto
@@ -534,6 +538,7 @@ static void onModalA(lv_event_t*) {                       // silenciar la alarma
 }
 
 static void onModalB(lv_event_t*) {                       // cerrar
+    if (modalMode == M_OFFICIAL) { closeOfficial(); return; }
     if (modalMode == M_ANCHOR) {                           // cerrar: si sigue garreando vuelve en 2 min
         anchorQuiet = true;
         anchorQuietMs = millis() + 2 * 60000u;
@@ -631,6 +636,80 @@ static void updateMobModal() {
     lv_label_set_text(modalBtnBLbl, "CLOSE");
 }
 
+// ---- Avisos oficiales (meteorologicos, tsunamis, terremotos, tiempo espacial) por la WiFi (alerts_net) ----
+static plotter::AlertList oaList;
+static plotter::SpaceWx oaSpace;
+static std::vector<std::string> oaUnseen;               // nuevos o que han subido de nivel, para la ventana
+static std::vector<std::string> oaShown;                // "id#nivel" ya vistos (cerrados)
+static std::string oaModalId;
+
+static void pollOfficial() {
+    std::vector<plotter::Alert> v;
+    plotter::SpaceWx sw;
+    if (!alertsnet::take(v, sw)) return;
+    if (sw.valid()) oaSpace = sw;
+    for (const auto& a : v) {
+        std::string key = a.id + "#" + std::to_string((int)a.level);
+        bool seen = false;
+        for (const auto& k : oaShown) if (k == key) seen = true;
+        if (seen || a.level < 1) continue;
+        // MeteoAlarm sin zonas: el pais entero, solo los rojos
+        if (a.src == plotter::AlertSrc::MeteoAlarm && !settings::get().alertZones[0] && a.level < 3) continue;
+        bool queued = false;
+        for (const auto& u : oaUnseen) if (u == a.id) queued = true;
+        if (!queued) oaUnseen.push_back(a.id);
+    }
+    oaList.clear();
+    for (const auto& a : v) oaList.upsert(a);
+    if (oaShown.size() > 80) oaShown.erase(oaShown.begin(), oaShown.begin() + 20);
+}
+
+static const plotter::Alert* oaNext() {
+    const plotter::Alert* best = nullptr;
+    for (const auto& id : oaUnseen) { const plotter::Alert* a = oaList.find(id); if (a && (!best || a->level > best->level)) best = a; }
+    return best;
+}
+
+static uint32_t oaColor(uint8_t lv) { return lv >= 3 ? C_RED : lv == 2 ? 0xFF9A3C : lv == 1 ? 0xFFD84D : C_DIM; }
+
+static void oaWhen(char* o, size_t n, int64_t t) {
+    if (t <= 0) { o[0] = 0; return; }
+    time_t tt = (time_t)t;
+    struct tm tmv;
+    gmtime_r(&tt, &tmv);
+    static const char* const D[] = {"dom", "lun", "mar", "mi\xC3\xA9", "jue", "vie", "s\xC3\xA1" "b"};
+    snprintf(o, n, "%s %02d:%02d UTC", D[tmv.tm_wday], tmv.tm_hour, tmv.tm_min);
+}
+
+static void updateOfficialModal() {
+    const plotter::Alert* a = oaList.find(oaModalId);
+    if (!a) { closeModal(); return; }
+    const bool quake = a->src == plotter::AlertSrc::Usgs || a->src == plotter::AlertSrc::Emsc;
+    const char* title = quake ? "EARTHQUAKE" : a->src == plotter::AlertSrc::Tsunami ? (a->level >= 3 ? "TSUNAMI WARNING" : "TSUNAMI")
+                      : a->src == plotter::AlertSrc::Swpc ? "SPACE WEATHER"
+                      : a->level >= 3 ? "RED WARNING" : a->level == 2 ? "ORANGE WARNING" : "YELLOW WARNING";
+    lv_obj_set_style_bg_color(modalHead, lv_color_hex(oaColor(a->level)), 0);
+    lv_label_set_text(modalTitle, title);
+    char sub[96], b[420], f[32], t[32];
+    snprintf(sub, sizeof(sub), "%s \xC2\xB7 %s", plotter::alertSrcName(a->src), plotter::alertLevelName(a->level));
+    lv_label_set_text(modalSub, sub);
+    lv_label_set_text(modalName, a->event.c_str());
+    oaWhen(f, sizeof f, a->onset);
+    oaWhen(t, sizeof t, a->expires);
+    snprintf(b, sizeof(b), "%s\n%s%s%s%s%s", a->area.c_str(), a->text.c_str(), f[0] || t[0] ? "\n" : "", f, t[0] ? " \xE2\x80\x93 " : "", t);
+    lv_label_set_text(modalBody, b);
+    lv_label_set_text(modalBtnALbl, "LIST");
+    lv_label_set_text(modalBtnBLbl, "CLOSE");
+}
+
+static void closeOfficial() {
+    const plotter::Alert* a = oaList.find(oaModalId);
+    if (a) oaShown.push_back(a->id + "#" + std::to_string((int)a->level));
+    for (size_t i = 0; i < oaUnseen.size(); i++) if (oaUnseen[i] == oaModalId) { oaUnseen.erase(oaUnseen.begin() + (long)i); break; }
+    oaModalId.clear();
+    closeModal();
+}
+
 // Aviso del servidor Signal K (notifications.*) en estado de alarma o emergencia
 static bool skAlarmState(const char* s) { return !strcmp(s, "alarm") || !strcmp(s, "emergency"); }
 
@@ -704,6 +783,7 @@ static void updateModal() {
     if (modalMode == M_ANCHOR) { updateAnchorModal(); return; }
     if (modalMode == M_RS485) { updateRs485Modal(); return; }
     if (modalMode == M_SIGNALK) { updateSkModal(); return; }
+    if (modalMode == M_OFFICIAL) { updateOfficialModal(); return; }
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i < 0) { closeModal(); return; }
@@ -773,6 +853,16 @@ static void checkCollision() {
         openModal(M_COLLISION, t.mmsi);
         return;
     }
+}
+
+// Aviso oficial nuevo: la ventana, si no hay otra de mas prioridad abierta
+static void checkOfficial() {
+    pollOfficial();
+    if (modalMode != M_NONE) return;
+    const plotter::Alert* a = oaNext();
+    if (!a) return;
+    oaModalId = a->id;
+    openModal(M_OFFICIAL, 0);
 }
 
 static void onRow(lv_event_t* e) {
@@ -1723,6 +1813,8 @@ static void openNet() {
     snprintf(b, sizeof(b), "%d", v.udpPort);
     lv_textarea_set_text(netTa[4], v.udpPort ? b : "");
     lv_textarea_set_text(netTa[5], v.owmKey);
+    lv_textarea_set_text(netTa[7], v.alertZones);
+    lv_textarea_set_text(netTa[8], v.alertCountry);
     snprintf(b, sizeof(b), "%06d", v.blePin);
     lv_textarea_set_text(netTa[6], b);
     netKind = v.tcpKind;
@@ -1743,6 +1835,9 @@ static void onNetBtn(lv_event_t* e) {
         snprintf(v.wifiPass, sizeof(v.wifiPass), "%s", lv_textarea_get_text(netTa[1]));
         snprintf(v.tcpHost, sizeof(v.tcpHost), "%s", lv_textarea_get_text(netTa[2]));
         snprintf(v.owmKey, sizeof(v.owmKey), "%s", lv_textarea_get_text(netTa[5]));
+        snprintf(v.alertZones, sizeof(v.alertZones), "%s", lv_textarea_get_text(netTa[7]));
+        snprintf(v.alertCountry, sizeof(v.alertCountry), "%s", lv_textarea_get_text(netTa[8]));
+        for (char* c = v.alertCountry; *c; c++) *c = (char)toupper((unsigned char)*c);
         if (lv_textarea_get_text(netTa[6])[0]) v.blePin = atoi(lv_textarea_get_text(netTa[6]));
         v.tcpKind = netKind;
         int port = atoi(lv_textarea_get_text(netTa[3]));
@@ -1864,8 +1959,10 @@ static void makeNet() {
     netField(2, 232, 126, 420, "Servidor (vac\xC3\xADo: el tel\xC3\xA9" "fono que da la WiFi)", 39, false);
     netField(3, 668, 126, 140, "Puerto", 5, true);
     netField(4, 824, 126, 184, "Puerto UDP", 5, true);
-    netField(5, 16, 184, 700, "Clave de OpenWeatherMap: tiempo de internet, de reserva si falla un sensor", 39, false);
-    netField(6, 732, 184, 276, "PIN del tracker (Bluetooth)", 6, true);
+    netField(5, 16, 184, 330, "Clave de OpenWeatherMap (tiempo de internet)", 39, false);
+    netField(7, 358, 184, 330, "Avisos: zonas (vac\xC3\xADo = todas)", 63, false);
+    netField(8, 700, 184, 120, "Pa\xC3\xADs ISO", 2, false);
+    netField(6, 832, 184, 176, "PIN del tracker", 6, true);
     netKb = lv_keyboard_create(netScr);
     lv_obj_set_size(netKb, board::W, 360);
     lv_obj_align(netKb, LV_ALIGN_BOTTOM_MID, 0, 0);
@@ -2562,8 +2659,19 @@ static void updateMeteo() {
     else snprintf(last, sizeof(last), "OpenWeatherMap%s%s \xC2\xB7 hace %u min.", ls.wxPlace[0] ? " \xC2\xB7 " : "", ls.wxPlace, (unsigned)((now - ls.wxMs) / 60000));
     char sky[160];
     skyLine(sky, sizeof(sky));
-    snprintf(n, sizeof(n), "%s\nDatos de internet: %s\nSolo sustituyen a un sensor de a bordo cuando este falta o deja de mandar; en \xC3\xA1mbar y con \xC2\xAB" "estimado\xC2\xBB. "
-             "Al volver el sensor, manda \xC3\xA9l. Posici\xC3\xB3n, rumbo, velocidad y sonda no tienen sustituto en internet.", sky, last);
+    // Avisos oficiales en vigor (el mas grave primero) y tiempo espacial
+    char oa[220], spc[120] = "";
+    if (!sv.alertsOn) snprintf(oa, sizeof(oa), "Avisos oficiales: apagados.");
+    else if (oaList.size() == 0) snprintf(oa, sizeof(oa), "Avisos oficiales: ninguno en vigor%s%s.", alertsnet::status().msg[0] ? " \xC2\xB7 " : "", alertsnet::status().msg);
+    else {
+        int k = snprintf(oa, sizeof(oa), "Avisos (%u):", (unsigned)oaList.size());
+        for (size_t i = 0; i < oaList.size() && i < 3 && k < (int)sizeof(oa) - 8; i++)
+            k += snprintf(oa + k, sizeof(oa) - k, "%s %s %s, %s", i ? ";" : "", plotter::alertLevelName(oaList[i].level), oaList[i].event.c_str(), oaList[i].area.c_str());
+    }
+    if (oaSpace.valid()) snprintf(spc, sizeof(spc), "\nEspacio (SWPC): G%d R%d S%d \xC2\xB7 Kp %.1f%s", oaSpace.g < 0 ? 0 : oaSpace.g, oaSpace.r < 0 ? 0 : oaSpace.r,
+                                  oaSpace.s < 0 ? 0 : oaSpace.s, oaSpace.kpNow() < 0 ? 0.0 : oaSpace.kpNow(), oaSpace.sfi > 0 ? "" : "");
+    if (oaSpace.valid() && oaSpace.sfi > 0) { size_t l = strlen(spc); snprintf(spc + l, sizeof(spc) - l, " \xC2\xB7 SFI %.0f", oaSpace.sfi); }
+    snprintf(n, sizeof(n), "%s\nDatos de internet: %s (solo si falta el sensor; en \xC3\xA1mbar, estimado)\n%s%s", sky, last, oa, spc);
     (void)est;
     lv_label_set_text(mNote, n);
 }
@@ -2933,6 +3041,7 @@ void update() {
     updateNet();
     if (active == 3) updateRadar();
     checkCollision();
+    checkOfficial();
     updateModal();
     show(T_SOG, Key::Sog, 1);
     show(T_COG, Key::Cog, 0, true);

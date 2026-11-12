@@ -60,6 +60,7 @@ Salen en una ventana sobre cualquier pantalla:
 | ANCHOR WATCH · NO GPS FIX | Fondeado y un minuto sin posición |
 | SIGNAL K ALARM / EMERGENCY | Aviso del servidor Signal K |
 | RS485 COMPARTIDO | La salida al piloto usa el mismo puerto por el que entran datos |
+| Avisos oficiales (RED / ORANGE / YELLOW WARNING, EARTHQUAKE, TSUNAMI, SPACE WEATHER) | Aviso nuevo de AEMET, MeteoAlarm, NWS, tsunami.gov, USGS / EMSC o SWPC por la WiFi (*Ajustes > Red*: zonas y país) |
 
 **En esta versión las alertas no suenan**: falta el zumbador.
 

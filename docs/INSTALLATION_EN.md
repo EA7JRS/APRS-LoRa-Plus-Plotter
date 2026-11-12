@@ -152,6 +152,8 @@ plotter connects to the device providing the Wi-Fi.
 **OpenWeatherMap key**: on the same screen. With it, the plotter requests the weather at the boat's position every
 15 minutes and uses it as a fallback (section 6).
 
+**Official alerts**: on the same screen, *Avisos: zonas* (words of the zone, comma separated; empty = all) and *País ISO* (empty = from the position: Spain or the US; for MeteoAlarm in another country, its code, "PT", "FR"...). Downloaded every 15 min over the same Wi-Fi, no key needed.
+
 ### 5.4 Bluetooth
 
 Ajustes > **Bluetooth** button. When turned on, the plotter scans and connects to the first compatible device,

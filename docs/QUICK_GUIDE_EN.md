@@ -63,6 +63,7 @@ They appear in a window over any screen:
 | ANCHOR WATCH · NO GPS FIX | Anchored and one minute without a position |
 | SIGNAL K ALARM / EMERGENCY | Notification from the Signal K server |
 | RS485 COMPARTIDO (shared RS485) | The pilot output uses the same port data is coming in on |
+| Official alerts (RED / ORANGE / YELLOW WARNING, EARTHQUAKE, TSUNAMI, SPACE WEATHER) | New alert from AEMET, MeteoAlarm, NWS, tsunami.gov, USGS / EMSC or SWPC over Wi-Fi (*Ajustes > Red*: zones and country) |
 
 **In this version alerts make no sound**: the buzzer is not implemented yet.
 

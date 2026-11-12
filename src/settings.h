@@ -20,6 +20,9 @@ struct Values {
     int tcpPort = 10110;
     int udpPort = 0;                // 0 = sin escucha
     char owmKey[40] = "";          // clave de OpenWeatherMap (datos de reserva de internet)
+    bool alertsOn = true;           // avisos oficiales por la WiFi (meteorologia, tsunamis, terremotos, tiempo espacial)
+    char alertZones[64] = "";      // zonas (MeteoAlarm / RSS de AEMET): palabras separadas por comas; vacio = todas
+    char alertCountry[3] = "";     // pais ISO (vacio = por la posicion: Espana y EE. UU.)
     bool bleOn = false;             // enlace BLE con la pasarela
     int blePin = 123456;            // PIN de control del tracker APRS LoRa+ (para recibir su NMEA por BLE)
     char bleAddr[18] = "";          // equipo recordado ("" = el primero que aparezca)

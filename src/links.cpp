@@ -10,6 +10,7 @@
 #include "board.h"
 #include "n2k.h"
 #include "net.h"
+#include "alerts_net.h"
 #include "settings.h"
 #include "sim.h"
 #include "sk_link.h"
@@ -130,6 +131,11 @@ void applyNetwork() {
     c.udpPort = v.udpPort;
     snprintf(c.owmKey, sizeof(c.owmKey), "%s", v.owmKey);
     net::apply(c);
+    alertsnet::Config a;                                   // avisos oficiales: con la misma WiFi, en su propia tarea
+    a.on = v.alertsOn && v.wifiSsid[0];
+    snprintf(a.zones, sizeof(a.zones), "%s", v.alertZones);
+    snprintf(a.country, sizeof(a.country), "%s", v.alertCountry);
+    alertsnet::apply(a);
 }
 
 void applyBle() {
@@ -202,7 +208,7 @@ static void internetLoop(uint32_t now) {
     static uint32_t tPos = 0;
     if (now - tPos >= 30000 || tPos == 0) {
         double la, lo;
-        if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) { net::setPosition(la, lo); tPos = now ? now : 1; }
+        if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) { net::setPosition(la, lo); alertsnet::setPosition(la, lo); tPos = now ? now : 1; }
     }
     net::Weather w;
     if (!net::takeWeather(w)) return;

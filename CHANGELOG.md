@@ -1,6 +1,6 @@
 # Changelog
 
-## Sin publicar
+## 5.4.2 — 2026-11-12
 
 - **Piloto Raymarine ST2000+** (el de Manuel; Piloto > *ST2000+*, de serie, o *Genérico*): RMB y APB con waypoints de 4
   letras («W001»: el ST2000+ solo lee cuatro), VWR con el viento aparente para su modo WindTrim (acepta VWR, no MWV) y VHW,

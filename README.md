@@ -20,7 +20,7 @@ Cambios de cada versión: [CHANGELOG.md](CHANGELOG.md).
 
 ## Estado
 
-Versión 5.4.1, preliminar. El núcleo de cálculo (`lib/plotter_core`) no depende de Arduino y tiene pruebas en el PC. El firmware de la
+Versión 5.4.2, preliminar. El núcleo de cálculo (`lib/plotter_core`) no depende de Arduino y tiene pruebas en el PC. El firmware de la
 7B compila en la CI (Instrumentos, Carta, Rutas, Radar AIS, Viento, Piloto, Meteo y Ajustes); **todavía sin probar en la placa**.
 
 | Módulo | Contenido |

@@ -394,6 +394,9 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   tocar la NVS, imágenes y `ota/`), la imagen completa (0x0) y el firmware (0x10000). En el tracker: lanzador «Náutica»
   en `web/index.html` y `plotter` en `pages.yml`. Para que salga en el sitio: el secreto `FLASHER_TOKEN` del tracker debe
   poder leer este repositorio, y hay que volver a desplegar las Pages del tracker con esa etiqueta.
+- **Versión 5.4.2 (2026-11-12; Manuel: «actualiza todos los repositorios, si es necesario subimos el release al siguiente
+  nivel»)**: `PLOTTER_VERSION` 5.4.2 (y `library.json` de las dos librerías), notas en `docs/releases/v5.4.2.md`, release
+  por la rama `release/v5.4.2` a la vez que tracker, rotor, Display y app.
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - **Accesorio: instrumento de viento de 4″ (pedido 2026-11-12)**: equipo aparte sobre la **Waveshare
   ESP32-S3-Touch-LCD-4** (SKU 28154, 480×480, táctil, 16 MB + 8 MB; confirmada por Manuel, no la 4.3C) que lee el NASA

@@ -1,6 +1,6 @@
 # APRS LoRa+ Wind — Wind instrument (plotter accessory)
 
-Version 5.4.1 · Waveshare ESP32-S3-Touch-LCD-4 (4", 480 × 480), revision V4.0
+Version 5.4.2 · Waveshare ESP32-S3-Touch-LCD-4 (4", 480 × 480), revision V4.0
 
 **It is a navigation aid. It does not replace a proper lookout.**
 
@@ -34,12 +34,12 @@ Web installer: open **https://ea7jrs.github.io/APRS-LoRa-Plus/#nautica** in Chro
 
 esptool, the full image from the release (erases the settings):
 
-    python -m esptool --chip esp32s3 write_flash 0x0 aprs-lora-plus-wind-lcd4-5.4.1-full.bin
+    python -m esptool --chip esp32s3 write_flash 0x0 aprs-lora-plus-wind-lcd4-5.4.2-full.bin
 
 From source: `pio run -e waveshare_lcd4_wind -t upload`.
 
 The console is on the board's USB at 115200 baud: `APRS-INFO?` answers
-`APRS-LoRa-Plus: device=wind board=waveshare_lcd4_wind version=5.4.1 …`, and `SIM 0` / `SIM 1` turn the simulator
+`APRS-LoRa-Plus: device=wind board=waveshare_lcd4_wind version=5.4.2 …`, and `SIM 0` / `SIM 1` turn the simulator
 off or on.
 
 ## 3. Connecting the wind sensor
@@ -60,7 +60,7 @@ Wire colours and NASA terminals are not given here: see its documentation.
 
 ## 4. The pages
 
-At power-up, for about 2 s, the APRS LoRa+ welcome screen (the logo and «Wind 5.4.1»), as on the plotter and the Display.
+At power-up, for about 2 s, the APRS LoRa+ welcome screen (the logo and «Wind 5.4.2»), as on the plotter and the Display.
 
 ![Welcome](img/viento4_bienvenida.png)
 

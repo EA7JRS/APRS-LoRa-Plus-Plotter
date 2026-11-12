@@ -515,6 +515,7 @@ static void closeModal() {
 
 static void showTab(int i);
 static const int kMeteoTab = 6;
+static void closeOfficial();
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
     if (modalMode == M_OFFICIAL) { closeOfficial(); showTab(kMeteoTab); return; }   // LIST: la pestana Meteo
     if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta

@@ -15,6 +15,7 @@
 #include "nmea.h"
 #include "sim.h"
 #include "stream.h"
+#include "tsync.h"
 #include "wble.h"
 #include "wnet.h"
 #include "wsettings.h"
@@ -105,6 +106,8 @@ static void canStop() {
         st.canAddress = claim->address();
     }
     n2k.feedFrame(id, d, len, Source::Can, now, *store);
+    int64_t utc;
+    if (n2k.takeUtc(utc)) tsync::offer(plotter::TimeSource::Gps, utc);   // GPS de la red NMEA 2000
 }
 
 static void canLoop(uint32_t now) {
@@ -244,6 +247,7 @@ void loop() {
         if (n <= 0) break;
         for (int i = 0; i < n; i++) {
             if (!bleLine.push((char)b[i])) continue;
+            tsync::offerNmea(bleLine.line(), plotter::TimeSource::Peer);   // ZDA del plotter: pone el reloj
             if (bleNmea.feed(bleLine.line(), Source::Ble, now, *store) == NmeaResult::Data) { st.navLines++; st.navLastMs = now ? now : 1; }
         }
     }

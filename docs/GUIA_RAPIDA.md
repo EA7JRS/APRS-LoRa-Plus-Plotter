@@ -78,6 +78,8 @@ Salen en una ventana sobre cualquier pantalla:
 Si un sensor deja de mandar, el plotter usa la siguiente fuente que tenga ese dato. Lo que viene de internet sale en
 ámbar y con «estimado».
 
+La hora se pone sola: la del GPS y, si no hay, la de `ntp.roa.es` (hora oficial de España) por la WiFi. Ajustes > Estado > *Hora*.
+
 Más detalle en `MANUAL_USUARIO.md`.
 
 APRS LoRa+ · © 2026 Manuel - EA7JRS · GPL-3.0-or-later

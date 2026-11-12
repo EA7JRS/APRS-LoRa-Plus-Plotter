@@ -34,7 +34,8 @@ Si el equipo tiene la característica de órdenes (`…0002`), el plotter le esc
 
 - `$IIHDT,ddd.d,T` rumbo verdadero;
 - `$IIVTG,ccc.c,T,,M,s.s,N,k.k,K,A` rumbo y velocidad sobre el fondo;
-- `$IIVHW,ddd.d,T,,M,s.s,N,k.k,K` velocidad en el agua (con el rumbo si lo hay).
+- `$IIVHW,ddd.d,T,,M,s.s,N,k.k,K` velocidad en el agua (con el rumbo si lo hay);
+- `$IIZDA,hhmmss.00,dd,mm,aaaa,00,00` hora UTC, solo si la del plotter viene del GPS o de NTP (el instrumento pone su reloj).
 
 Cada tanda va entera, con `\r\n` tras cada sentencia, en trozos del MTU. El instrumento de viento APRS LoRa+ Wind la
 usa para el viento real; la pasarela puede ignorarla. Los datos de ruta para el piloto irían por aquí más adelante.

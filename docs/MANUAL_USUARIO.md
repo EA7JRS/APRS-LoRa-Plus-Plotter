@@ -253,6 +253,21 @@ Cuando la fuente mejor vuelve, manda otra vez. No hay que tocar nada.
 Internet solo sustituye a la meteorología: viento real, racha, presión, temperatura, humedad y visibilidad. La
 **posición, el rumbo, la velocidad y la sonda no tienen sustituto**: si faltan, la casilla dice «Sin datos».
 
+### La hora
+
+El reloj interno se pone solo, en UTC, por este orden:
+
+1. **GPS**: la hora de las sentencias RMC o ZDA que lleguen por cualquier vía (receptor AIS, tracker, gpsd, el móvil) y
+   la del bus NMEA 2000 (PGN 126992 y 129029). Hacen falta dos horas seguidas que cuadren entre sí: la primera de un GPS
+   recién encendido puede venir mal.
+2. **NTP** por internet, con la WiFi de Ajustes > Red: `ntp.roa.es`, la hora oficial de España (Real Instituto y
+   Observatorio de la Armada), y de reserva `hora.roa.es` y `pool.ntp.org`.
+
+Mientras la hora del GPS esté al día (6 horas), NTP no la sustituye. Ajustes > Estado > *Hora* dice la hora UTC y quién la
+puso. El plotter pasa su hora al instrumento de viento por Bluetooth (sentencia ZDA) si viene del GPS o de NTP. La hora del
+simulador no cuenta.
+
+
 ## 12. Lo que falta en esta versión
 
 - Sonido de las alertas.

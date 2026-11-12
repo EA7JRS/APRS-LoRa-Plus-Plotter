@@ -132,6 +132,10 @@ Settings says «rumbo y velocidad del plotter»). With neither it shows «--» a
 
 ![Wi-Fi](img/viento4_wifi.png) ![Settings](img/viento4_ajustes.png)
 
+- **Time**: the instrument clock is set from the GPS time on the NMEA 2000 bus (PGN 126992 / 129029), from the time the
+  plotter sends over Bluetooth (ZDA, once a second) or, with WiFi, from NTP (`ntp.roa.es`, Spain's official time). The
+  **Bluetooth** row shows the UTC time and where it came from.
+
 ## 6. Settings
 
 | Button | What it does |

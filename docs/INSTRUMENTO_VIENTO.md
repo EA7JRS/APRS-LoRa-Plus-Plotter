@@ -124,6 +124,9 @@ por Bluetooth** (el plotter se los manda una vez por segundo cuando está enlaza
   tiene resistencia de terminación de 120 Ω; déjala desconectada salvo que el instrumento esté en un extremo del bus.
 - **WiFi**: botón *WiFi…* → red, clave y puerto UDP con el teclado, *WiFi: encendido* y *Guardar*. La fila **WiFi**
   enseña la dirección IP y lo enviado.
+- **Hora**: el reloj del instrumento se pone con la del GPS del bus NMEA 2000 (PGN 126992 / 129029), con la que manda el
+  plotter por Bluetooth (ZDA, una vez por segundo) o, con WiFi, con NTP (`ntp.roa.es`, hora oficial de España). La fila
+  **Bluetooth** enseña la hora UTC y de dónde viene.
 
 ![WiFi](img/viento4_wifi.png) ![Ajustes](img/viento4_ajustes.png)
 

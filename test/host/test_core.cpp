@@ -23,6 +23,7 @@
 #include "inputs.h"
 #include "lights.h"
 #include "n2k.h"
+#include "timesync.h"
 #include "n2ktx.h"
 #include "windalarm.h"
 #include "route.h"
@@ -1293,7 +1294,11 @@ static void testN2k() {
     CHECK(st2.get(Key::SatsUsed, 1000, v) && near(v, 14, 1e-9));
     CHECK(st2.get(Key::Hdop, 1000, v) && near(v, 0.52, 1e-9));
     CHECK(st2.source(Key::Lat, 1000) == Source::Can);
-    CHECK(n2kMsg(r, st, 126992, "00,00,00,00,00,00,00,00") == N2kResult::Unknown);
+    { int64_t t = 0; CHECK(r.takeUtc(t) && t == 20644LL * 86400 + 23277 && !r.takeUtc(t)); }   // 2026-07-10 06:27:57 UTC
+    // 126992: hora del sistema 2026-11-12 06:00:00 (dia 20769, 21600 s)
+    { DataStore st3; int64_t t = 0;
+      CHECK(n2kMsg(r, st3, 126992, "01,f0,21,51,00,e6,df,0c") != N2kResult::Unknown && r.takeUtc(t) && t == 1794463200); }
+    CHECK(n2kMsg(r, st, 127493, "00,00,00,00,00,00,00,00") == N2kResult::Unknown);
 
     // AIS clase A: MMSI 244700322, 53,17006 N 5,412295 E, COG 276,7, parado, estado 13
     CHECK(n2kMsg(r, st, 129038, "01,a2,d4,95,0e,c6,d9,39,03,78,1b,b1,1f,01,ad,bc,00,00,8e,00,01,ff,ff,ff,7f,cd,f8,ff") == N2kResult::Ais);
@@ -1489,9 +1494,54 @@ static void testWindAlarm() {
     CHECK(r.active() == WindAlarmKind::None);
 }
 
+static void testTimeSync() {
+    // Fechas: 2026-11-12 06:00:00 UTC, bisiesto, invalidas
+    CHECK(utcToUnix(1970, 1, 1, 0, 0, 0) == 0);
+    CHECK(utcToUnix(2026, 11, 12, 6, 0, 0) == 1794463200);
+    CHECK(utcToUnix(2028, 2, 29, 0, 0, 0) > 0 && utcToUnix(2026, 2, 29, 0, 0, 0) == -1 && utcToUnix(2026, 13, 1, 0, 0, 0) == -1);
+    CHECK(utcToUnix(2000, 3, 1, 0, 0, 0) == 951868800);
+    // RMC y ZDA (gpsd: $GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A)
+    int64_t t = 0; int ms = -1;
+    CHECK(nmeaUtc("$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A", t, ms) && ms == 0);
+    CHECK(t == utcToUnix(1994, 3, 23, 12, 35, 19));                 // dos cifras: 80-99 = 19xx, 00-79 = 20xx
+    CHECK(!nmeaUtc("$GPRMC,123519,V,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*7D", t, ms));   // sin posicion valida
+    CHECK(!nmeaUtc("$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*00", t, ms));   // suma mal
+    CHECK(nmeaUtc("$GPZDA,060000.25,12,11,2026,00,00", t, ms) && t == utcToUnix(2026, 11, 12, 6, 0, 0) && ms == 250);
+    CHECK(nmeaUtc("\\s:gpsd,c:1794463200*00\\$GNZDA,060001,12,11,2026,,", t, ms) && t == utcToUnix(2026, 11, 12, 6, 0, 1));
+    CHECK(!nmeaUtc("$GPZDA,060000,,,,00,00", t, ms) && !nmeaUtc("$GPGGA,060000,3631.8,N,00617.0,W,1,08,1.0,10,M,,,,", t, ms));
+    CHECK(isoUtc("2026-11-12T06:00:00Z", t) && t == 1794463200 && isoUtc("2026-11-12T06:00:01.250Z", t) && t == 1794463201);
+    CHECK(!isoUtc("2026-11-12T07:00:00+01:00", t) && !isoUtc("2026-11-12", t) && !isoUtc("2026-02-30T00:00:00Z", t));
+    CHECK(n2kUtc(0xFFFF, 0) == -1 && n2kUtc(1, 10000) == 86401);
+    CHECK(std::string(timeSourceName(TimeSource::Ntp)) == "NTP" && std::string(kNtpDefault) == "ntp.roa.es");
+
+    // Quien pone el reloj
+    const int64_t T = utcToUnix(2026, 11, 12, 6, 0, 0);
+    ClockSync c;
+    CHECK(!c.offer(TimeSource::Gps, 315964800, 0, 1000));            // 1980: no vale
+    CHECK(!c.offer(TimeSource::Gps, T, 0, 1000));                    // la primera del GPS: espera a la segunda
+    CHECK(c.offer(TimeSource::Gps, T + 1, 0, 2000) && c.source(2000) == TimeSource::Gps);
+    CHECK(!c.offer(TimeSource::Gps, T + 2, T + 2, 3000));            // ya va bien
+    CHECK(!c.offer(TimeSource::Gps, T + 60, T + 3, 4000));           // salto que no cuadra con la anterior: espera
+    CHECK(c.offer(TimeSource::Gps, T + 61, T + 4, 5000) && c.lastOffset() == 57);   // la siguiente lo confirma
+    CHECK(!c.offer(TimeSource::Ntp, T + 5, T + 3, 6000));            // manda el GPS
+    c.noteSet(TimeSource::Ntp, 6000); CHECK(c.source(6000) == TimeSource::Gps);   // el SNTP del sistema tampoco le quita el puesto
+    CHECK(!c.offer(TimeSource::Peer, T + 5, T + 3, 6500));
+    // Sin GPS 6 h: entra NTP
+    const uint32_t later = 5000 + c.keepMs + 1;
+    CHECK(c.source(later) == TimeSource::None && c.offer(TimeSource::Ntp, T + 30000, 0, later) && c.source(later) == TimeSource::Ntp);
+    // Un equipo sin GPS ni NTP: la hora del plotter (peer) y luego la del RTC no la pisa
+    ClockSync w;
+    CHECK(w.offer(TimeSource::Peer, T, 0, 100) && !w.offer(TimeSource::Rtc, T + 100, T, 200));
+    CHECK(!w.offer(TimeSource::Peer, T + 1, T + 1, 1100));           // misma fuente, ya cuadra
+    CHECK(w.offer(TimeSource::Peer, T + 5, T + 1, 1200) && w.lastOffset() == 4);   // se ha ido 4 s: se corrige
+    CHECK(w.offer(TimeSource::Peer, T + 700, T + 700, 1200 + 600001));             // repaso cada 10 min
+    w.noteSet(TimeSource::Ntp, 700000); CHECK(w.source(700000) == TimeSource::Ntp && w.sets() == 4);
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
+    testTimeSync();
     testWindAlarm();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;

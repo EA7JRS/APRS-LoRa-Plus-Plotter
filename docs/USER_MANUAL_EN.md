@@ -261,6 +261,21 @@ When the better source returns, it leads again. Nothing needs to be touched.
 The internet only stands in for weather: true wind, gust, pressure, temperature, humidity and visibility.
 **Position, heading, speed and depth have no substitute**: if they are missing, the tile says «Sin datos».
 
+### The time
+
+The internal clock sets itself, in UTC, in this order:
+
+1. **GPS**: the time in RMC or ZDA sentences arriving by any route (AIS receiver, tracker, gpsd, the phone) and the time on
+   the NMEA 2000 bus (PGN 126992 and 129029). Two consecutive times that agree are needed: the first one from a GPS that
+   has just been switched on can be wrong.
+2. **NTP** over the internet, with the WiFi in Ajustes > Red: `ntp.roa.es`, Spain's official time (Real Instituto y
+   Observatorio de la Armada), with `hora.roa.es` and `pool.ntp.org` as backups.
+
+While the GPS time is current (6 hours), NTP does not replace it. Ajustes > Estado > *Hora* («Time») shows the UTC time and
+who set it. The plotter passes its time to the wind instrument over Bluetooth (ZDA sentence) when it comes from GPS or NTP.
+The simulator time does not count.
+
+
 ## 12. Not in this version
 
 - Alert sound.

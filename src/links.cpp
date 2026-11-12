@@ -14,8 +14,10 @@
 #include "sim.h"
 #include "sk_link.h"
 #include "stream.h"
+#include "tsync.h"
 
 #include <cmath>
+#include <ctime>
 
 #ifdef ESP32
 #include "driver/twai.h"
@@ -78,6 +80,8 @@ static void canLoop(uint32_t now) {
             tgs.update(n2k.ais(), now);
             st.aisMessages++;
         }
+        int64_t utc;
+        if (n2k.takeUtc(utc)) tsync::offer(plotter::TimeSource::Gps, utc);   // hora del bus (GPS de la red NMEA 2000)
     }
     st.canMessages = n2k.stats().known;
     static uint32_t tCheck = 0;
@@ -139,6 +143,7 @@ static void bleLoop(uint32_t now) {
         for (int i = 0; i < n; i++) {
             if (!bleLine.push((char)buf[i])) continue;
             st.bleLines++;
+            tsync::offerNmea(bleLine.line());                     // hora del GPS del tracker o de la pasarela
             if (bleNmea.feed(bleLine.line(), Source::Ble, now, *store) == NmeaResult::Ais) {
                 tgs.update(bleNmea.ais(), now);
                 st.aisMessages++;
@@ -167,6 +172,16 @@ static void bleLoop(uint32_t now) {
         if (hStw) {
             if (hHdg) snprintf(body, sizeof(body), "IIVHW,%.1f,T,,M,%.1f,N,%.1f,K", norm360(hdg), stw, stw * 1.852);
             else snprintf(body, sizeof(body), "IIVHW,,T,,M,%.1f,N,%.1f,K", stw, stw * 1.852);
+            add(body);
+        }
+        // Hora (ZDA) para el reloj del instrumento, solo si la del plotter viene de GPS o NTP
+        const tsync::Status ts = tsync::status();
+        const time_t t = (time_t)tsync::now();
+        if (t && (ts.source == plotter::TimeSource::Gps || ts.source == plotter::TimeSource::Ntp)) {
+            struct tm u;
+            gmtime_r(&t, &u);
+            snprintf(body, sizeof(body), "IIZDA,%02d%02d%02d.00,%02d,%02d,%04d,00,00", u.tm_hour, u.tm_min, u.tm_sec, u.tm_mday, u.tm_mon + 1,
+                     u.tm_year + 1900);
             add(body);
         }
         if (n > 0 && ble::write(out, n)) st.bleNavSent++;
@@ -247,6 +262,7 @@ static void netLoop(uint32_t now) {
                 if (!lb.push((char)buf[i])) continue;
                 lines++;
                 st.netLastMs = now;
+                tsync::offerNmea(lb.line());                       // gpsd, el movil, un multiplexor...
                 if (rd.feed(lb.line(), Source::Tcp, now, *store) == NmeaResult::Ais) {
                     tgs.update(rd.ais(), now);
                     st.aisMessages++;
@@ -271,6 +287,8 @@ void injectCanFrame(uint32_t canId, const uint8_t* data, int len) {
         tgs.update(n2k.ais(), now);
         st.aisMessages++;
     }
+    int64_t utc;
+    if (n2k.takeUtc(utc)) tsync::offer(plotter::TimeSource::Gps, utc);
     st.canMessages = n2k.stats().known;
 }
 
@@ -293,6 +311,7 @@ void loop() {
         if (!serialLine.push((char)Serial1.read())) continue;
         st.serialLines++;
         st.serialLastMs = now;
+        tsync::offerNmea(serialLine.line());                       // el Comar y las emisoras sacan RMC
         if (serialNmea.feed(serialLine.line(), Source::Uart, now, *store) == NmeaResult::Ais) {
             tgs.update(serialNmea.ais(), now);
             st.aisMessages++;

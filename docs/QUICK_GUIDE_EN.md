@@ -84,3 +84,6 @@ labelled «estimado» (estimated).
 More detail in `USER_MANUAL_EN.md`.
 
 APRS LoRa+ · © 2026 Manuel - EA7JRS · GPL-3.0-or-later
+
+The clock sets itself: from GPS and, if there is none, from `ntp.roa.es` (Spain's official time) over WiFi. Ajustes >
+Estado > *Hora* («Time»).

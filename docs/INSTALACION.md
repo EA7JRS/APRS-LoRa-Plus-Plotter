@@ -203,6 +203,9 @@ posición.
 **Internet como reserva**: viento real, racha, presión, temperatura del aire, humedad y visibilidad. Sale en ámbar y
 con «estimado», y vale hasta 2 horas. Posición, rumbo, velocidad, sonda y viento aparente no tienen sustituto.
 
+**Hora**: la del GPS (RMC / ZDA de cualquier fuente, NMEA 2000) y, sin GPS, NTP con la WiFi: `ntp.roa.es` (hora oficial
+de España, ROA), de reserva `hora.roa.es` y `pool.ntp.org`. NTP usa el puerto UDP 123: la red tiene que dejarlo salir.
+
 ## 7. Ajustes
 
 | Ajuste | Opciones |

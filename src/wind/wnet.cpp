@@ -5,6 +5,7 @@
 #include "wnet.h"
 
 #include "wsettings.h"
+#include "tsync.h"
 
 #ifdef ESP32
 #include <WiFi.h>
@@ -42,6 +43,7 @@ void loop() {
         if (c) {
             snprintf(st.ip, sizeof(st.ip), "%s", WiFi.localIP().toString().c_str());
             Serial.printf("[wifi] conectado, %s\n", st.ip);
+            tsync::startNtp(nullptr);                            // hora de internet: ntp.roa.es (ROA)
         } else st.ip[0] = 0;
     }
     if (c) st.rssi = WiFi.RSSI();

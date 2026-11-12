@@ -7,6 +7,8 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
+#include <ctime>
+
 #include "board.h"
 #include "anchor.h"
 #include "signalk.h"
@@ -22,6 +24,7 @@
 #include "route.h"
 #include "settings.h"
 #include "net.h"
+#include "tsync.h"
 #include "ble.h"
 #include "tiles.h"
 #include "wind.h"
@@ -2577,13 +2580,25 @@ static void updateSettings() {
         else snprintf(gpsTxt, sizeof(gpsTxt), "%s", sourceName(store->source(Key::Lat, t)));
     }
     netSummary(netTxt, sizeof(netTxt), false);
+    char timeTxt[48];                                     // reloj interno: hora UTC y quien la puso (GPS, NTP del ROA...)
+    {
+        const time_t tt = (time_t)tsync::now();
+        const tsync::Status ts = tsync::status();
+        if (!tt) snprintf(timeTxt, sizeof(timeTxt), "sin hora");
+        else {
+            struct tm u;
+            gmtime_r(&tt, &u);
+            snprintf(timeTxt, sizeof(timeTxt), "%02d:%02d:%02d UTC (%s)", u.tm_hour, u.tm_min, u.tm_sec,
+                     ts.source == plotter::TimeSource::None ? "sin sincronizar" : plotter::timeSourceName(ts.source));
+        }
+    }
     snprintf(b, sizeof(b), "%d %%", v.brightness);
     lv_label_set_text(setBrightLbl, b);
     const links::Status& ls = links::status();
     const NmeaStats& ns = links::serialStats();
     uint32_t now = millis();
     snprintf(b, sizeof(b),
-             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nNMEA 2000: %u tramas, %u mensajes\n\xC3\x9Altima trama: %s\nRed: %s\nGPS: %s\nAIS: %u mensajes, %d blancos\nWaypoints: %d de %d\nBluetooth: %u l\xC3\xADneas",
+             "Versi\xC3\xB3n %s\nPuerto serie: %u l\xC3\xADneas, %u con error\n\xC3\x9Altima l\xC3\xADnea: %s\nNMEA 2000: %u tramas, %u mensajes\n\xC3\x9Altima trama: %s\nRed: %s\nGPS: %s\nAIS: %u mensajes, %d blancos\nWaypoints: %d de %d\nBluetooth: %u l\xC3\xADneas\nHora: %s",
 #ifdef PLOTTER_VERSION
              PLOTTER_VERSION,
 #else
@@ -2592,7 +2607,7 @@ static void updateSettings() {
              (unsigned)ls.serialLines, (unsigned)(ns.badChecksum + ns.malformed),
              ls.serialLines ? (now - ls.serialLastMs < 5000 ? "ahora" : "hace rato") : "ninguna", (unsigned)ls.canFrames, (unsigned)ls.canMessages,
              !ls.can ? "apagado" : (ls.canFrames ? (now - ls.canLastMs < 5000 ? "ahora" : "hace rato") : "ninguna"), netTxt, gpsTxt, (unsigned)ls.aisMessages, links::targets().count(), wpN, kWps,
-             (unsigned)ls.bleLines);
+             (unsigned)ls.bleLines, timeTxt);
     lv_label_set_text(setInfo, b);
 }
 

@@ -2,6 +2,14 @@
 
 ## Sin publicar
 
+- **Hora en todos los equipos**: el reloj interno se pone con la hora del GPS (RMC / ZDA de cualquier fuente NMEA, PGN
+  126992 y 129029 de NMEA 2000; dos horas seguidas que cuadren) y, sin GPS, con NTP: `ntp.roa.es` (hora oficial de España,
+  Real Instituto y Observatorio de la Armada), de reserva `hora.roa.es` y `pool.ntp.org`. Núcleo `timesync` (`ClockSync`:
+  el GPS manda 6 h sobre NTP, luego la hora de otro equipo y al final el RTC) y módulo `tsync` de `lib/aprs_links`.
+  Ajustes > Estado > *Hora*; el plotter manda la hora al instrumento por Bluetooth (ZDA). 1549 comprobaciones.
+- **`lib/aprs_links` para el rotor**: la WiFi puede ser del programa (`ownWifi`), `aprs_net.h` y Bluetooth central
+  opcional.
+
 - **Instrumento de viento APRS LoRa+ Wind** (accesorio del plotter, nuevo entorno `waveshare_lcd4_wind`): Waveshare
   ESP32-S3-Touch-LCD-4 (480 × 480, revisión V4.0) con la veleta NASA Target 2 Wind por el RS485 (MWV a 4800). Páginas
   Rosa (tres repartos), Viento, Números, Historial de 30 min y Ajustes y enlace; viento real y deriva con la velocidad y

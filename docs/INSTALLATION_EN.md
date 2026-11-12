@@ -207,6 +207,9 @@ Estado (Status) shows where the position comes from.
 **Internet as a fallback**: true wind, gust, pressure, air temperature, humidity and visibility. Shown in amber and
 labelled «estimado», valid for up to 2 hours. Position, heading, speed, depth and apparent wind have no substitute.
 
+**Time**: from GPS (RMC / ZDA from any source, NMEA 2000) and, without GPS, NTP over WiFi: `ntp.roa.es` (Spain's
+official time, ROA), with `hora.roa.es` and `pool.ntp.org` as backups. NTP uses UDP port 123: the network must let it out.
+
 ## 7. Settings
 
 | Setting | Options |

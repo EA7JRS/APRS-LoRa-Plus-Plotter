@@ -7,6 +7,10 @@
  */
 #include "wui.h"
 
+#include <ctime>
+
+#include "tsync.h"
+
 #include <Arduino.h>
 #include <lvgl.h>
 
@@ -831,8 +835,16 @@ void update() {
         lv_label_set_text(rowState[1], !bs.on ? "Apagado" : (bs.connected ? "Plotter enlazado" : "Esperando al plotter"));
         lv_obj_set_style_text_color(rowState[1], lv_color_hex(bs.connected ? C_OK : C_DIM), 0);
         bool nav = ls.navLastMs && now - ls.navLastMs < 5000;
-        snprintf(s, sizeof(s), "APRS LoRa+ Wind \xC2\xB7 %u env\xC3\xAD" "os \xC2\xB7 %s", (unsigned)bs.sent,
-                 nav ? "rumbo y velocidad del plotter" : "sin rumbo del plotter");
+        char clk[40] = "sin hora";                                // reloj: del plotter (ZDA), del bus o de NTP
+        if (const time_t tt = (time_t)tsync::now()) {
+            struct tm u;
+            gmtime_r(&tt, &u);
+            const tsync::Status ts = tsync::status();
+            snprintf(clk, sizeof(clk), "%02d:%02d UTC (%s)", u.tm_hour, u.tm_min,
+                     ts.source == plotter::TimeSource::Peer ? "plotter" : plotter::timeSourceName(ts.source));
+        }
+        snprintf(s, sizeof(s), "%u env\xC3\xAD" "os \xC2\xB7 %s \xC2\xB7 %s", (unsigned)bs.sent,
+                 nav ? "rumbo del plotter" : "sin rumbo del plotter", clk);
         lv_label_set_text(rowLine[1], s);
         if (!ls.can) lv_label_set_text(rowState[2], "Apagado");
         else if (ls.canOut && ls.canAddress == 254) lv_label_set_text(rowState[2], "Sin direcci\xC3\xB3n libre");

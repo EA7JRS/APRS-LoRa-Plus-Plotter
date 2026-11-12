@@ -391,7 +391,10 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   Target 2 Wind v2 (MWV a 4800 por el RS485), lo muestra y lo pasa al plotter por BLE (`docs/BLE_NMEA.md`), CAN (PGN
   130306) o WiFi (UDP). Manuel pidió replicar la interfaz del Garmin GMI 20: **no se copia**; diseño propio con el lenguaje
   del plotter y los mismos datos (AWA, AWS, TWA, TWS, TWD, deriva). Maquetas en la página «Accesorio» del lienzo
-  (`Inst4Viento`, `Inst4Numeros`, `Inst4Historial`, `Inst4Enlace`; generador `gen4.py`). Del manual del GMI 20, solo
+  (`Inst4Viento`, `Inst4Numeros`, `Inst4Historial`, `Inst4Enlace`; generador `gen4.py`). Página «Rosa» en tres
+  repartos (`Inst4Rosa` banda única, `Inst4RosaBandas`, `Inst4RosaColumna`): a Manuel le gustan los tres (2026-11-12), así
+  que serán estilos elegibles en Ajustes. Pidió también los valores en las esquinas como en el GMI 20: rechazado, sería la
+  pantalla de Garmin. Del manual del GMI 20, solo
   funciones: páginas configurables de 1 a 4 datos, paso automático, vistas de aguja / gráfica / número, alarmas de viento,
   modo noche. Wiki de Waveshare (con contradicciones internas, contrastar con el esquema): CAN TX 6 / RX 0, RS485 TX 44 /
   RX 43, USB 19 / 20 (no comparte con el CAN, al revés que la 7B), expansor TCA9554 (zumbador en EXIO5, SD_CS en EXIO3),

@@ -5,10 +5,22 @@ Repositorio aparte por ahora; la idea es integrarlo después en APRS-LoRa-Plus-D
 
 **Es una ayuda a la navegación. No sustituye a la carta oficial ni a la vigilancia.**
 
+## Instalar y usar
+
+Instalador web (Chrome o Edge, placa por USB): **https://ea7jrs.github.io/APRS-LoRa-Plus/#nautica**, grupo **Náutica**.
+
+| | Español | English |
+|---|---|---|
+| Guía rápida | [GUIA_RAPIDA.md](docs/GUIA_RAPIDA.md) | [QUICK_GUIDE_EN.md](docs/QUICK_GUIDE_EN.md) |
+| Manual de usuario | [MANUAL_USUARIO.md](docs/MANUAL_USUARIO.md) | [USER_MANUAL_EN.md](docs/USER_MANUAL_EN.md) |
+| Instalación y funcionamiento | [INSTALACION.md](docs/INSTALACION.md) | [INSTALLATION_EN.md](docs/INSTALLATION_EN.md) |
+
+Cambios de cada versión: [CHANGELOG.md](CHANGELOG.md).
+
 ## Estado
 
-Fase 1 en curso. El núcleo de cálculo (`lib/plotter_core`) no depende de Arduino y tiene pruebas en el PC. El firmware de la
-7B compila en la CI (Instrumentos, Carta, Rutas, Radar AIS, Viento, Piloto y Ajustes); todavía sin probar en la placa.
+Versión 5.4.1, preliminar. El núcleo de cálculo (`lib/plotter_core`) no depende de Arduino y tiene pruebas en el PC. El firmware de la
+7B compila en la CI (Instrumentos, Carta, Rutas, Radar AIS, Viento, Piloto, Meteo y Ajustes); **todavía sin probar en la placa**.
 
 | Módulo | Contenido |
 |---|---|

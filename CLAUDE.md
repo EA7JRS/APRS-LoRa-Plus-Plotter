@@ -222,7 +222,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   con control de tiempo de 48 h (viento, racha, lluvia, rayos, presión, temperatura, nubes) y rayos como aviso. Maqueta
   `CartaPrevision`. Fase 3, sin programar.
 
-## Estado (2026-11-11)
+## Estado (2026-11-12)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), anchor (vigilancia de fondeo), n2k (NMEA 2000), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS). 1466 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - **Firmware, primer paso (2026-11-11)**: `platformio.ini` (misma base que Display: pioarduino `espressif32 @ 8.0.0`, LVGL
@@ -371,6 +371,19 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   en español del núcleo; se cierra sola cuando el servidor los baja de nivel. Líneas de hasta 4 KB. Compila en la CI; el
   lector JSON **no se ha ejecutado nunca** (en el PC no hay ArduinoJson) ni se ha probado con un servidor. Falta: otros
   barcos del servidor como blancos AIS, mDNS para encontrarlo solo, y publicar datos del plotter.
+- **Primera versión 5.4.1 y manuales (2026-11-12, pedido por Manuel)**: `CHANGELOG.md`, notas en `docs/releases/v5.4.1.md`,
+  y en `docs/`: `GUIA_RAPIDA.md` / `QUICK_GUIDE_EN.md`, `MANUAL_USUARIO.md` / `USER_MANUAL_EN.md` (con capturas de
+  `docs/img`, dibujadas en el PC: rehacerlas con `tools/ui_preview/build.sh` si cambia la interfaz) e `INSTALACION.md` /
+  `INSTALLATION_EN.md` (instalación y funcionamiento). **Cada función nueva se documenta en los seis.** La interfaz está
+  solo en español; los manuales en inglés dan cada texto en español con su significado.
+- **Instalador web, grupo «Náutica» (Manuel, 2026-11-12)**: el plotter se instala con el instalador web de APRS LoRa+
+  (`https://ea7jrs.github.io/APRS-LoRa-Plus/#nautica`), junto a Tracker, Rotor, Gateway y Display. Contrato en
+  `docs/WEB_INSTALLER.md` del tracker: `.github/workflows/release.yml` (al subir la etiqueta `vX.Y.Z`, **la misma que la
+  del tracker**) compila, comprueba que la etiqueta coincide con `PLOTTER_VERSION` y crea la release (preliminar) con
+  `web-site-plotter.zip` (`tools/make_web_site.py`: `latest.json` con `device: plotter`, manifiesto de ESP Web Tools sin
+  tocar la NVS, imágenes y `ota/`), la imagen completa (0x0) y el firmware (0x10000). En el tracker: lanzador «Náutica»
+  en `web/index.html` y `plotter` en `pages.yml`. Para que salga en el sitio: el secreto `FLASHER_TOKEN` del tracker debe
+  poder leer este repositorio, y hay que volver a desplegar las Pages del tracker con esa etiqueta.
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables

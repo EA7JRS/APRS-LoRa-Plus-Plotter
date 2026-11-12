@@ -11,5 +11,8 @@ void begin(plotter::DataStore* store);
 void update();                 // unas 3 veces por segundo
 void showPage(int i);          // 0 Rosa, 1 Viento, 2 Numeros, 3 Historial, 4 Ajustes
 void testStyle(int s);
+void tick();                // zumbador de las alarmas: llamar en cada vuelta del bucle
+void testNight();           // dibujo en el PC: modo noche
+void testAlarm();           // dibujo en el PC: alarma de viento real a 10 kn
 void testWifi();            // abre la pantalla de WiFi (dibujo en el PC)         // para el dibujo en el PC: reparto de la pagina Rosa
 }

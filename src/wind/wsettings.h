@@ -20,6 +20,10 @@ struct Values {
     char wifiSsid[33] = "";
     char wifiPass[65] = "";
     int udpPort = 10110;
+    bool night = false;             // modo noche: todo en rojos sobre negro
+    int twsMax = 0;                 // alarmas, 0 = apagada: viento real y aparente (kn) y rolada (grados)
+    int awsMax = 0;
+    int shiftMax = 0;
 };
 Values& get();
 void load();

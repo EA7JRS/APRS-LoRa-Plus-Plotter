@@ -74,6 +74,29 @@ Abajo, cinco pestañas. Arriba, cuatro luces: **Veleta**, **BLE**, **CAN** y **W
 
 ![Viento](img/viento4_viento.png) ![Historial](img/viento4_historial.png)
 
+**Modo noche.** Ajustes > *Noche*: toda la pantalla pasa a rojos sobre negro, para no perder la vista nocturna. Baja
+además el *Brillo* (20 o 40 %).
+
+![Noche](img/viento4_noche.png)
+
+**Alarmas.** Tres, cada una con su botón en Ajustes (apagadas de serie):
+
+- *Alarma real*: viento real por encima de 15 a 40 kn (de 5 en 5).
+- *Alarma aparente*: viento aparente por encima de 20 a 45 kn.
+- *Alarma rolada*: el viento real cambia de dirección más de 10, 15, 20, 30 o 45 grados respecto a la referencia
+  (útil fondeado o en un bordo largo). La referencia se toma a los 30 s de tener dirección real, y la dirección se suaviza
+  con 30 s, así que un rolón de pocos segundos no avisa.
+
+Las de velocidad saltan si el viento pasa el límite 5 s seguidos y se apagan cuando baja del límite menos un 5 %
+(al menos 1 kn) durante 10 s; una racha suelta no avisa. La rolada salta si pasa el límite 10 s seguidos. Al saltar sale
+la ventana **STRONG WIND** o **WIND SHIFT** y suena el zumbador de la placa:
+
+- **SILENCIAR 10 MIN**: calla ventana y zumbador 10 minutos; si sigue, vuelve.
+- **CERRAR**: en las de velocidad, no vuelve hasta que el viento baje y vuelva a pasar el límite; en la rolada, la
+  dirección de ahora pasa a ser la referencia.
+
+![Alarma](img/viento4_alarma.png)
+
 **Viento real y deriva.** El NASA da el viento aparente. El real (TWA, TWS, TWD) se calcula con la velocidad del barco
 (en el agua si hay corredera, si no sobre el fondo) y el rumbo, que el instrumento escucha en el **NMEA 2000**. Sin
 esos datos sale «--» y «Falta rumbo». La deriva necesita además el rumbo y la velocidad sobre el fondo.
@@ -111,6 +134,10 @@ esos datos sale «--» y «Falta rumbo». La deriva necesita además el rumbo y 
 | Bluetooth | Encendido o apagado |
 | NMEA 2000 | Apagado, escucha o emite |
 | WiFi… | Red, clave, puerto UDP y encendido |
+| Noche | Rojos sobre negro |
+| Alarma real | Apagada, 15 a 40 kn |
+| Alarma aparente | Apagada, 20 a 45 kn |
+| Alarma rolada | Apagada, 10, 15, 20, 30 o 45 grados |
 
 Se guardan en la placa y siguen tras apagarla. El instalador web no los borra; la imagen completa con esptool, sí.
 
@@ -128,7 +155,8 @@ Se guardan en la placa y siguen tras apagarla. El instalador web no los borra; l
 ## 8. Lo que falta en esta versión
 
 - Probarlo en la placa y con el NASA.
-- Alarmas de viento con el zumbador de la placa, modo noche, páginas configurables y paso automático de páginas.
+- Páginas configurables y paso automático de páginas.
+- Que las alarmas avisen también al plotter.
 - Recibir rumbo y velocidad del plotter por Bluetooth o WiFi (ahora solo por NMEA 2000).
 - Responder a las peticiones de información de producto del NMEA 2000 (PGN 126996) y guardar la dirección reclamada.
 - Revisiones de la placa anteriores a la V4.0.

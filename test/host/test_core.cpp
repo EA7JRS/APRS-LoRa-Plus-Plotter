@@ -24,6 +24,7 @@
 #include "lights.h"
 #include "n2k.h"
 #include "n2ktx.h"
+#include "windalarm.h"
 #include "route.h"
 #include "signalk.h"
 #include "sim.h"
@@ -1430,9 +1431,68 @@ static void testN2kTx() {
     CHECK(nf.onFrame(n2kMakeId(6, 60928, 40, 255), low, 8, 10, f) && nf.lost() && (f.id & 0xFF) == 254 && !nf.ready(1000));
 }
 
+// Alarmas del instrumento de viento
+static void testWindAlarm() {
+    WindAlarm a;
+    WindAlarmConfig c; c.twsMaxKn = 25; c.awsMaxKn = 30; c.shiftDeg = 20;
+    a.configure(c);
+    uint32_t t = 1000;
+    for (int i = 0; i < 3; i++, t += 1000) a.update(t, 27, 20, 240);   // 3 s por encima: aun no
+    CHECK(a.active() == WindAlarmKind::None);
+    a.update(t, 10, 20, 240); t += 1000;                                // vuelve a bajar: se reinicia la cuenta
+    for (int i = 0; i < 5; i++, t += 1000) a.update(t, 27, 20, 240);
+    CHECK(a.active() == WindAlarmKind::None);
+    a.update(t, 27, 20, 240); t += 1000;                                // 5 s seguidos
+    CHECK(a.active() == WindAlarmKind::Tws && a.alerting(t));
+    NEAR(a.value(), 27, 1e-9); NEAR(a.limit(), 25, 1e-9);
+    a.update(t, NAN, 20, 240); t += 1000;                               // sin dato: sigue
+    CHECK(a.active() == WindAlarmKind::Tws);
+    for (int i = 0; i < 15; i++, t += 1000) a.update(t, 24.5, 20, 240); // por debajo del limite pero dentro de la histeresis
+    CHECK(a.active() == WindAlarmKind::Tws);
+    a.silence(t);
+    CHECK(!a.alerting(t + 1000) && a.alerting(t + 600001));
+    a.dismiss(t);
+    CHECK(!a.alerting(t + 700000));                                     // cerrada: no vuelve mientras dure
+    for (int i = 0; i < 11; i++, t += 1000) a.update(t, 20, 20, 240);   // 10 s por debajo de 24: se apaga
+    CHECK(a.active() == WindAlarmKind::None);
+    for (int i = 0; i < 6; i++, t += 1000) a.update(t, 28, 20, 240);
+    CHECK(a.active() == WindAlarmKind::Tws && a.alerting(t + 700000));  // vuelve a saltar, sin cerrar
+    // aparente: la real manda si las dos estan
+    for (int i = 0; i < 6; i++, t += 1000) a.update(t, 28, 33, 240);
+    CHECK(a.active() == WindAlarmKind::Tws);
+    for (int i = 0; i < 11; i++, t += 1000) a.update(t, 15, 33, 240);
+    CHECK(a.active() == WindAlarmKind::Aws);
+    for (int i = 0; i < 11; i++, t += 1000) a.update(t, 15, 15, 240);
+    CHECK(a.active() == WindAlarmKind::None);
+    // rolada: referencia la primera direccion; el suavizado de 30 s tarda en llegar
+    WindAlarm r;
+    WindAlarmConfig cs; cs.shiftDeg = 20;
+    r.configure(cs);
+    t = 1000;
+    for (int i = 0; i < 60; i++, t += 1000) r.update(t, 12, 15, 350 + (i % 2 ? 3 : -3));   // oscila alrededor del 350
+    CHECK(r.active() == WindAlarmKind::None && r.hasReference());
+    NEAR(r.shiftDeg(), 0, 3);
+    for (int i = 0; i < 10; i++, t += 1000) r.update(t, 12, 15, 15);    // rola 25 a la derecha, pasando por el norte
+    CHECK(r.active() == WindAlarmKind::None);                           // el suavizado aun no ha llegado
+    for (int i = 0; i < 120; i++, t += 1000) r.update(t, 12, 15, 15);
+    CHECK(r.active() == WindAlarmKind::Shift && r.alerting(t));
+    CHECK(r.value() > 20 && r.value() < 26);
+    r.dismiss(t);                                                       // nueva referencia: el 15
+    CHECK(r.active() == WindAlarmKind::None);
+    for (int i = 0; i < 30; i++, t += 1000) r.update(t, 12, 15, 15);
+    CHECK(r.active() == WindAlarmKind::None);
+    NEAR(r.shiftDeg(), 0, 1);
+    for (int i = 0; i < 200; i++, t += 1000) r.update(t, 12, 15, 345);  // ahora 30 a la izquierda
+    CHECK(r.active() == WindAlarmKind::Shift && r.value() < -20);
+    cs.shiftDeg = 0; r.configure(cs);
+    r.update(t, 12, 15, 345);
+    CHECK(r.active() == WindAlarmKind::None);
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
+    testWindAlarm();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

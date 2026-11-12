@@ -103,6 +103,7 @@ void loop() {
     wlinks::loop();
     static uint32_t t = 0;
     if (millis() - t > 300) { t = millis(); wui::update(); }
+    wui::tick();
     lv_timer_handler();
     delay(5);
 }

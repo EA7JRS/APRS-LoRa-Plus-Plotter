@@ -78,6 +78,29 @@ Five tabs at the bottom. Four lights at the top: **Veleta** (sensor), **BLE**, *
 
 ![Wind](img/viento4_viento.png) ![History](img/viento4_historial.png)
 
+**Night mode.** Settings > *Noche* (night): the whole screen turns red on black, to keep night vision. Also lower the
+*Brillo* (brightness, 20 or 40 %).
+
+![Night](img/viento4_noche.png)
+
+**Alarms.** Three, each with its own button in Settings (off by default):
+
+- *Alarma real* (true wind alarm): true wind above 15 to 40 kn (in 5 kn steps).
+- *Alarma aparente* (apparent wind alarm): apparent wind above 20 to 45 kn.
+- *Alarma rolada* (wind shift alarm): true wind direction changes more than 10, 15, 20, 30 or 45 degrees from the
+  reference (useful at anchor or on a long tack). The reference is taken after 30 s of true direction, and the
+  direction is smoothed over 30 s, so a shift of a few seconds does not trigger it.
+
+Speed alarms trigger if the wind stays above the limit for 5 s and clear when it stays below the limit minus 5 % (at
+least 1 kn) for 10 s; a single gust does not trigger. The shift alarm triggers after 10 s above the limit. When one
+triggers, the **STRONG WIND** or **WIND SHIFT** window appears and the board's buzzer sounds:
+
+- **SILENCIAR 10 MIN** (silence 10 min): window and buzzer quiet for 10 minutes; if it persists, it comes back.
+- **CERRAR** (close): for speed alarms, it does not come back until the wind drops and exceeds the limit again; for
+  the shift alarm, the current direction becomes the new reference.
+
+![Alarm](img/viento4_alarma.png)
+
 **True wind and drift.** The NASA gives apparent wind. True wind (TWA, TWS, TWD) is computed with boat speed (through
 the water if there is a log, otherwise over ground) and heading, which the instrument listens to on **NMEA 2000**.
 Without them it shows «--» and «Falta rumbo» (heading missing). Drift also needs course and speed over ground.
@@ -116,6 +139,10 @@ Without them it shows «--» and «Falta rumbo» (heading missing). Drift also n
 | Bluetooth | On or off |
 | NMEA 2000 | Off, listen or transmit |
 | WiFi… | Network, password, UDP port and on/off |
+| Noche | Night mode: red on black |
+| Alarma real | True wind alarm: off, 15 to 40 kn |
+| Alarma aparente | Apparent wind alarm: off, 20 to 45 kn |
+| Alarma rolada | Wind shift alarm: off, 10, 15, 20, 30 or 45 degrees |
 
 They are stored on the board and survive power-off. The web installer keeps them; the full image with esptool erases them.
 
@@ -134,7 +161,8 @@ They are stored on the board and survive power-off. The web installer keeps them
 ## 8. Not in this version
 
 - Testing on the board and with the NASA.
-- Wind alarms with the board's buzzer, night mode, configurable pages and automatic page cycling.
+- Configurable pages and automatic page cycling.
+- Alarms also notifying the plotter.
 - Receiving heading and speed from the plotter over Bluetooth or Wi-Fi (now only over NMEA 2000).
 - Answering NMEA 2000 product information requests (PGN 126996) and storing the claimed address.
 - Board revisions earlier than V4.0.

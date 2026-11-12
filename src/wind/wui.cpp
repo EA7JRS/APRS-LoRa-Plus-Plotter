@@ -17,6 +17,7 @@
 #include "wind.h"
 #include "wlinks.h"
 #include "wnet.h"
+#include "windalarm.h"
 #include "wsettings.h"
 
 LV_FONT_DECLARE(dejavu_12)
@@ -33,8 +34,19 @@ namespace wui {
 
 using namespace plotter;
 
-static const uint32_t C_BG = 0x0B1622, C_BAR = 0x0F2033, C_PANEL = 0x13263A, C_LINE = 0x1E3A56, C_TEXT = 0xEAF2FA, C_DIM = 0x9DB2C7,
-                      C_SOFT = 0xB7C8D9, C_ACC = 0x4DA3FF, C_APP = 0xFF9F43, C_OK = 0x3FA65A, C_PORT = 0xD9413A, C_OFF = 0x5E7A96;
+// Paleta: la de dia y la de noche (rojos sobre negro, para no perder la vista nocturna). Al cambiar, se rehace todo.
+static uint32_t C_BG, C_BAR, C_PANEL, C_LINE, C_TEXT, C_DIM, C_SOFT, C_ACC, C_APP, C_OK, C_PORT, C_OFF, C_BORDER, C_ALERT;
+static void palette(bool night) {
+    if (!night) {
+        C_BG = 0x0B1622; C_BAR = 0x0F2033; C_PANEL = 0x13263A; C_LINE = 0x1E3A56; C_TEXT = 0xEAF2FA; C_DIM = 0x9DB2C7;
+        C_SOFT = 0xB7C8D9; C_ACC = 0x4DA3FF; C_APP = 0xFF9F43; C_OK = 0x3FA65A; C_PORT = 0xD9413A; C_OFF = 0x5E7A96;
+        C_BORDER = 0x2F5F88; C_ALERT = 0xE5484D;
+    } else {
+        C_BG = 0x000000; C_BAR = 0x0C0202; C_PANEL = 0x160404; C_LINE = 0x2C0909; C_TEXT = 0xE0342A; C_DIM = 0x8C1F18;
+        C_SOFT = 0xB02A21; C_ACC = 0xC2345E; C_APP = 0xFF7A33; C_OK = 0x5A6A1E; C_PORT = 0x8F1D16; C_OFF = 0x3A0E0B;
+        C_BORDER = 0x4A1210; C_ALERT = 0xFF3B30;
+    }
+}
 static const int TOP_H = 36, NAV_H = 44, PAD = 8, BODY = 480 - TOP_H - NAV_H - 2 * PAD;      // 384
 static const int kPages = 5;
 static const char* const kTabs[kPages] = {"Rosa", "Viento", "N\xC3\xBAmeros", "Historial", "Ajustes"};
@@ -84,7 +96,7 @@ static lv_obj_t* lblDirFoot = nullptr;
 static lv_obj_t* lblSpdTitle = nullptr;
 
 // Ajustes
-static const int kRows = 4, kSet = 8;
+static const int kRows = 4, kSet = 12;
 static lv_obj_t* rowState[kRows] = {};
 static lv_obj_t* rowLine[kRows] = {};
 static lv_obj_t* setLbl[kSet] = {};
@@ -94,6 +106,13 @@ static lv_obj_t* wifiTa[3] = {};
 static lv_obj_t* wifiKb = nullptr;
 static lv_obj_t* wifiOnLbl = nullptr;
 static bool wifiOnEdit = false;
+// Alarma de viento
+static WindAlarm alarm;
+static lv_obj_t* alarmBox = nullptr;
+static lv_obj_t* alarmTitle = nullptr;
+static lv_obj_t* alarmText = nullptr;
+static bool alarmShown = false;
+static void build();
 
 static lv_obj_t* box(lv_obj_t* parent, uint32_t color, int radius = 0) {
     lv_obj_t* o = lv_obj_create(parent);
@@ -144,7 +163,7 @@ static void makeDial(Dial& d, lv_obj_t* parent, int size) {
     lv_obj_t* root = box(parent, C_BG, LV_RADIUS_CIRCLE);
     lv_obj_set_size(root, size, size);
     lv_obj_center(root);
-    lv_obj_set_style_border_color(root, lv_color_hex(0x2F5F88), 0);
+    lv_obj_set_style_border_color(root, lv_color_hex(C_BORDER), 0);
     lv_obj_set_style_border_width(root, 2, 0);
     lv_obj_set_clickable(root, false);
     int aw = big ? 12 : 9;
@@ -339,6 +358,10 @@ static void onSetting(lv_event_t* e) {
             wlinks::setCan(v.can, v.canOut);
             break;
         case 7: openWifi(); return;
+        case 8: v.night = !v.night; wsettings::save(); lv_async_call([](void*) { build(); }, nullptr); return;
+        case 9: v.twsMax = v.twsMax == 0 ? 15 : (v.twsMax >= 40 ? 0 : v.twsMax + 5); break;
+        case 10: v.awsMax = v.awsMax == 0 ? 20 : (v.awsMax >= 45 ? 0 : v.awsMax + 5); break;
+        case 11: v.shiftMax = v.shiftMax == 0 ? 10 : (v.shiftMax >= 45 ? 0 : v.shiftMax + (v.shiftMax < 20 ? 5 : 10)); break;
         default: break;
     }
     wsettings::save();
@@ -354,7 +377,7 @@ static lv_obj_t* button(lv_obj_t* parent, int x, int y, int w, int h, lv_event_c
     lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(b, lv_color_hex(C_LINE), LV_STATE_PRESSED);
     lv_obj_set_style_radius(b, 8, 0);
-    lv_obj_set_style_border_color(b, lv_color_hex(0x2F5F88), 0);
+    lv_obj_set_style_border_color(b, lv_color_hex(C_BORDER), 0);
     lv_obj_set_style_border_width(b, 1, 0);
     lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, (void*)data);
     *lbl = label(b, "", &dejavu_14, C_TEXT);
@@ -399,6 +422,16 @@ static void refreshSettings() {
     lv_label_set_text(setLbl[5], v.bleOn ? "Bluetooth: encendido" : "Bluetooth: apagado");
     lv_label_set_text(setLbl[6], !v.can ? "NMEA 2000: apagado" : (v.canOut ? "NMEA 2000: emite" : "NMEA 2000: escucha"));
     lv_label_set_text(setLbl[7], v.wifiOn && v.wifiSsid[0] ? "WiFi: encendido \xE2\x80\xA6" : "WiFi \xE2\x80\xA6");
+    lv_label_set_text(setLbl[8], v.night ? "Noche: encendido" : "Noche: apagado");
+    if (v.twsMax) snprintf(b, sizeof(b), "Alarma real: %d kn", v.twsMax); else snprintf(b, sizeof(b), "Alarma real: apagada");
+    lv_label_set_text(setLbl[9], b);
+    if (v.awsMax) snprintf(b, sizeof(b), "Alarma aparente: %d kn", v.awsMax); else snprintf(b, sizeof(b), "Alarma aparente: apagada");
+    lv_label_set_text(setLbl[10], b);
+    if (v.shiftMax) snprintf(b, sizeof(b), "Alarma rolada: %d\xC2\xB0", v.shiftMax); else snprintf(b, sizeof(b), "Alarma rolada: apagada");
+    lv_label_set_text(setLbl[11], b);
+    WindAlarmConfig ac;
+    ac.twsMaxKn = v.twsMax; ac.awsMaxKn = v.awsMax; ac.shiftDeg = v.shiftMax;
+    alarm.configure(ac);
     for (int s = 0; s < 3; s++) lv_obj_set_hidden(roseStyle[s], s != v.roseStyle);
 }
 
@@ -446,7 +479,7 @@ static void makeWifi() {
         lv_obj_set_style_text_font(ta, &dejavu_16, 0);
         lv_obj_set_style_bg_color(ta, lv_color_hex(C_PANEL), 0);
         lv_obj_set_style_text_color(ta, lv_color_hex(C_TEXT), 0);
-        lv_obj_set_style_border_color(ta, lv_color_hex(0x2F5F88), 0);
+        lv_obj_set_style_border_color(ta, lv_color_hex(C_BORDER), 0);
         lv_obj_set_style_border_color(ta, lv_color_hex(C_ACC), LV_STATE_FOCUSED);
         lv_obj_add_event_cb(ta, onWifiTa, LV_EVENT_FOCUSED, nullptr);
         wifiTa[i] = ta;
@@ -514,9 +547,46 @@ static lv_obj_t* statusDot(lv_obj_t* bar, const char* name, int rightX) {
     return d;
 }
 
-void begin(DataStore* s) {
-    store = s;
+// La ventana de alarma, sobre todo lo demas, como las del plotter
+static void onAlarmBtn(lv_event_t* e) {
+    uint32_t now = millis();
+    if ((intptr_t)lv_event_get_user_data(e) == 0) alarm.silence(now);
+    else alarm.dismiss(now);
+    alarmShown = false;
+    lv_obj_set_hidden(alarmBox, true);
+    board::buzzer(false);
+}
+static void makeAlarm() {
+    alarmBox = box(lv_layer_top(), C_PANEL, 14);
+    lv_obj_set_size(alarmBox, 420, 250);
+    lv_obj_center(alarmBox);
+    lv_obj_set_style_border_color(alarmBox, lv_color_hex(C_ALERT), 0);
+    lv_obj_set_style_border_width(alarmBox, 4, 0);
+    alarmTitle = label(alarmBox, "", &dejavu_bold_28, C_ALERT);
+    lv_obj_align(alarmTitle, LV_ALIGN_TOP_MID, 0, 22);
+    alarmText = label(alarmBox, "", &dejavu_16, C_TEXT);
+    lv_obj_set_width(alarmText, 380);
+    lv_obj_set_style_text_align(alarmText, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(alarmText, LV_ALIGN_TOP_MID, 0, 80);
+    static const char* const bt[2] = {"SILENCIAR 10 MIN", "CERRAR"};
+    for (int i = 0; i < 2; i++) {
+        lv_obj_t* l = nullptr;
+        lv_obj_t* b = button(alarmBox, 18 + i * 196, 176, 188, 54, onAlarmBtn, i, &l);
+        lv_label_set_text(l, bt[i]);
+        lv_obj_set_style_text_font(l, &dejavu_bold_16, 0);
+        if (i == 0) lv_obj_set_style_border_color(b, lv_color_hex(C_ALERT), 0);
+    }
+    lv_obj_set_hidden(alarmBox, true);
+}
+
+// Construye toda la interfaz con la paleta de ahora. Se llama al arrancar y al cambiar el modo noche.
+static void build() {
+    palette(wsettings::get().night);
     lv_obj_t* scr = lv_screen_active();
+    lv_obj_clean(scr);
+    lv_obj_clean(lv_layer_top());
+    for (int d = 0; d < D_COUNT; d++) valN[d] = subN[d] = 0;
+    alarmShown = false;
     lv_obj_set_style_bg_color(scr, lv_color_hex(C_BG), 0);
     lv_obj_set_scrollable(scr, false);
 
@@ -556,8 +626,15 @@ void begin(DataStore* s) {
         tabBtn[i] = b;
     }
     makeWifi();
+    makeAlarm();
     refreshSettings();
-    showTab(0);
+    showTab(active);
+    update();
+}
+
+void begin(DataStore* s) {
+    store = s;
+    build();
 }
 
 using WindNow = wlinks::Wind;
@@ -673,6 +750,28 @@ void update() {
     setDot(dotCan, can);
     setDot(dotWifi, wnet::status().connected);
     if (active == 3) updateHistory(w);
+    // alarmas: con el viento de ahora; la ventana sale una vez y se queda hasta silenciar o cerrar
+    alarm.update(now, w.tru ? w.tws : NAN, w.app ? w.aws : NAN, w.tru ? w.twd : NAN);
+    bool alert = alarm.alerting(now);
+    if (alert) {
+        WindAlarmKind k = alarm.active();
+        if (k == WindAlarmKind::Shift) {
+            lv_label_set_text(alarmTitle, "WIND SHIFT");
+            snprintf(s, sizeof(s), "El viento real ha rolado %.0f\xC2\xB0 a la %s\nL\xC3\xADmite %.0f\xC2\xB0 \xC2\xB7 ahora del %03.0f\xC2\xB0",
+                     fabs(alarm.value()), alarm.value() >= 0 ? "derecha" : "izquierda", alarm.limit(), w.tru ? w.twd : 0.0);
+        } else {
+            lv_label_set_text(alarmTitle, "STRONG WIND");
+            snprintf(s, sizeof(s), "Viento %s %.1f kn \xC2\xB7 fuerza %d\nL\xC3\xADmite %.0f kn", k == WindAlarmKind::Tws ? "real" : "aparente",
+                     alarm.value(), beaufort(alarm.value()), alarm.limit());
+            comma(s);
+        }
+        lv_label_set_text(alarmText, s);
+    }
+    if (alert != alarmShown) {
+        alarmShown = alert;
+        lv_obj_set_hidden(alarmBox, !alert);
+        if (!alert) board::buzzer(false);
+    }
     if (active == 4) {
         lv_label_set_text(rowState[0], vane ? "Recibiendo" : (ls.simulator ? "Simulador" : "Sin datos"));
         lv_obj_set_style_text_color(rowState[0], lv_color_hex(vane ? C_OK : C_DIM), 0);
@@ -701,8 +800,21 @@ void update() {
     }
 }
 
+// El zumbador de la placa, con la alarma en la ventana: 0,15 s encendido cada segundo. Desde el bucle principal.
+void tick() {
+    static bool on = false;
+    bool want = alarmShown && (millis() % 1000) < 150;
+    if (want != on) { on = want; board::buzzer(on); }
+}
+
 void showPage(int i) { if (i >= 0 && i < kPages) showTab(i); }
 void testWifi() { openWifi(); }
+void testNight() { wsettings::get().night = true; build(); }
+void testAlarm() {
+    wsettings::Values& v = wsettings::get();
+    v.twsMax = 10; v.awsMax = 0; v.shiftMax = 0;
+    refreshSettings();
+}
 void testStyle(int s) { if (s >= 0 && s < 3) { wsettings::get().roseStyle = s; refreshSettings(); } }
 
 }

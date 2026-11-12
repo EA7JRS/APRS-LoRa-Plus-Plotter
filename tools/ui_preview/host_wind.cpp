@@ -17,6 +17,7 @@
 
 namespace board {
 void setBacklight(int) {}
+void buzzer(bool) {}
 }
 static uint32_t fakeMs = 0;
 uint32_t hostMillis() { return fakeMs; }
@@ -43,7 +44,10 @@ int main(int argc, char** argv) {
     wlinks::begin(&store);
     wui::begin(&store);
     if (argc > 4) wui::testStyle(atoi(argv[4]));
-    bool wifi = argc > 5 && std::string(argv[5]) == "wifi";
+    std::string opts = argc > 5 ? argv[5] : "";
+    bool wifi = opts.find("wifi") != std::string::npos;
+    if (opts.find("night") != std::string::npos) wui::testNight();
+    if (opts.find("alarm") != std::string::npos) wui::testAlarm();
     wui::showPage(argc > 2 ? atoi(argv[2]) : 0);
     int seconds = argc > 3 ? atoi(argv[3]) : 20;
     for (int i = 0; i < seconds * 200 + 100; i++) {      // reloj simulado, 5 ms por vuelta

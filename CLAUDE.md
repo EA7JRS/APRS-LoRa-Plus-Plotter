@@ -224,7 +224,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 
 ## Estado (2026-11-12)
 - `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), anchor (vigilancia de fondeo), n2k (NMEA 2000), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS). 1466 comprobaciones en `test/host/test_core.cpp`
-  (`tools/run_host_tests.sh`; 1493 desde el 2026-11-12 con `n2ktx`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
+  (`tools/run_host_tests.sh`; 1517 desde el 2026-11-12 con `n2ktx` y `windalarm`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - **Firmware, primer paso (2026-11-11)**: `platformio.ini` (misma base que Display: pioarduino `espressif32 @ 8.0.0`, LVGL
   ~9.6.0, ArduinoJson 7.4.3), placa 7B copiada de Display (`src/board.h`, `board_lcd7b.cpp`, `board_common.*`, `lv_defs.h`,
   fuentes DejaVu en `src/fonts`; los números grandes regenerados con coma y dos puntos: `tools/make_fonts.sh`) más
@@ -415,8 +415,14 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   [segundos] [reparto] [wifi]`. CI y release compilan los dos entornos; `make_web_site.py` junta las dos placas en el
   mismo `latest.json` (grupo Náutica). Instalador del tracker: `ALIAS` `wind` → `plotter` para que la detección lleve
   al grupo Náutica. Manual: `docs/INSTRUMENTO_VIENTO.md` / `docs/WIND_INSTRUMENT_EN.md` (+ apartado en los seis).
-  Falta: probar en la placa y con el NASA, alarmas con el zumbador, modo noche, páginas configurables, rumbo y velocidad
-  del plotter por BLE / WiFi, PGN 126996, guardar la dirección reclamada.
+  **Modo noche y alarmas (2026-11-12, «Avanza»)**: paleta cambiable en `wui` (`palette`, `build()` rehace toda la
+  interfaz con `lv_async_call`; noche = rojos sobre negro), núcleo `windalarm` (viento real / aparente fuerte con 5 s para
+  saltar e histéresis del 5 % y 10 s para apagarse; rolada del viento real suavizada 30 s, referencia a los 30 s,
+  salta a los 10 s; silenciar 10 min / cerrar), ventana STRONG WIND / WIND SHIFT en `lv_layer_top` y zumbador EXIO6
+  (`wui::tick`, 0,15 s cada segundo). Ajustes: 12 botones (+ Noche, Alarma real 15–40 kn, aparente 20–45 kn, rolada
+  10–45°). Vista previa: quinto argumento con `wifi`, `night`, `alarm`. 1517 comprobaciones.
+  Falta: probar en la placa y con el NASA, páginas configurables, rumbo y velocidad del plotter por BLE / WiFi, que las
+  alarmas lleguen al plotter, PGN 126996, guardar la dirección reclamada.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.

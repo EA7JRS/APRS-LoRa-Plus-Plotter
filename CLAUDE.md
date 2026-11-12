@@ -459,8 +459,8 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   (cliente del servicio BLE NMEA, gpsd, Signal K, UDP, prioridad de fuentes) con los mismos casos de prueba del núcleo.
 - **Rotor y hora (2026-11-12)**: `lib/aprs_links` también va al rotor (`EA7JRS/APRS-LoRa-Plus-Rotor`, `firmware/lib`, su
   `tools/sync_links.sh`): `net::Config.ownWifi = false` (la WiFi la lleva el programa, también como punto de acceso),
-  `aprs_net.h` (otro nombre de `net.h`) y `ble` sin hacer nada si NimBLE va sin central. **Hora en todos los equipos salvo el
-  tracker** (Manuel: «para el fork de CA2RXU no»): núcleo `timesync` (`nmeaUtc` RMC / ZDA, `isoUtc`, `n2kUtc`, `ClockSync`:
+  `aprs_net.h` (otro nombre de `net.h`) y `ble` sin hacer nada si NimBLE va sin central. **Hora en todos los equipos, también el
+  tracker** (5.4.2, `include/time_sync.h` del tracker; Manuel: «los dispositivos APRS LoRa+ tracker no son fork de CA2RXU»): núcleo `timesync` (`nmeaUtc` RMC / ZDA, `isoUtc`, `n2kUtc`, `ClockSync`:
   GPS con dos horas que cuadren, manda 6 h sobre NTP; luego la de otro equipo y el RTC) y PGN 126992 / 129029
   (`N2kReader::takeUtc`); `lib/aprs_links/tsync` (`startNtp`: `ntp.roa.es`, `hora.roa.es`, `pool.ntp.org`; `offer`,
   `offerNmea`, `status`). Plotter: hora de RMC / ZDA de serie, red y BLE, y del CAN (no del simulador); `net` arranca NTP al

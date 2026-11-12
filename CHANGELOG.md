@@ -1,5 +1,11 @@
 # Changelog
 
+## Sin publicar
+
+- **Avisos meteorológicos:** avisos oficiales de AEMET (con su clave de OpenData, por la posición del barco) o de
+  Meteoalarm (por país y zonas): ventana emergente con el color del nivel, lista en la pestaña Meteo y ajustes en
+  Ajustes > Red. Sin probar contra los servidores.
+
 ## 5.4.1 — 2026-11-12 — primera versión (preliminar)
 
 Mismo número de versión que el resto de APRS LoRa+. Compila en la CI; **sin probar en la placa**.

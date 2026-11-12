@@ -223,7 +223,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `CartaPrevision`. Fase 3, sin programar.
 
 ## Estado (2026-11-12)
-- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), anchor (vigilancia de fondeo), n2k (NMEA 2000), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS). 1466 comprobaciones en `test/host/test_core.cpp`
+- `lib/plotter_core`: geo, motion, wind, units, astro, store, nmea, ais, gpx, stream (líneas y tramas repetidas), inputs (pulsos, interruptores, DS18B20, niveles de aviso), signalk, route (seguimiento de ruta, derrota, sonda), gnss (satélites), lights (luces, balizamiento, borneo), anchor (vigilancia de fondeo), n2k (NMEA 2000), navwarn (radioavisos), tiles (teselas de mapa), chartui (medir, formato de posición, vistas), wxstation (estación meteo cercana), sim (simulador NMEA y blancos AIS), aistargets (tabla de blancos AIS), wxwarn (avisos meteorológicos). 1484 comprobaciones en `test/host/test_core.cpp`
   (`tools/run_host_tests.sh`), con valores de referencia publicados (Vincenty: Flinders Peak - Buninyong; AIS: ejemplos de gpsd).
 - **Firmware, primer paso (2026-11-11)**: `platformio.ini` (misma base que Display: pioarduino `espressif32 @ 8.0.0`, LVGL
   ~9.6.0, ArduinoJson 7.4.3), placa 7B copiada de Display (`src/board.h`, `board_lcd7b.cpp`, `board_common.*`, `lv_defs.h`,
@@ -404,6 +404,15 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.
 - `astro` usa la serie de NOAA (~1 min); las pruebas del sol son de coherencia, no contra un almanaque.
+- **Avisos meteorológicos emergentes (2026-11-12, rama `avisos-meteo`; Manuel: llevar a la app y al plotter los del
+  Display)**: núcleo `wxwarn` (el mismo lector que el Display: CAP de AEMET con polígono, Atom de Meteoalarm, `Scanner`
+  del flujo). `net.cpp`: cada 15 min (3 si falla) AEMET `avisos_cap/ultimoelaborado/area/esp` con `settings.aemetKey`
+  por la posición del barco (dentro o a ≤ 30 km) o, sin clave, Meteoalarm con `settings.warnZones` («país: zonas»).
+  Ventana `M_WXWARN` «WEATHER WARNING» con la franja del color del nivel (una vez por aviso, desde el nivel
+  `settings.warnPopup`; las alertas de a bordo la sustituyen), lista de 3 en la pestaña Meteo (tocar abre la ventana) y
+  campos en Ajustes > Red. Acción `avisos` en el dibujo del PC. Sin sonido. **Sin probar la descarga** (si el archivo de
+  AEMET viene comprimido lo dice y no lo lee; el Atom de Meteoalarm está de memoria). Falta: zonas de la ruta activa y
+  mapa de zonas (maqueta `AvisosMeteo`).
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y

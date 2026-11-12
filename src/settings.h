@@ -20,6 +20,9 @@ struct Values {
     int tcpPort = 10110;
     int udpPort = 0;                // 0 = sin escucha
     char owmKey[40] = "";          // clave de OpenWeatherMap (datos de reserva de internet)
+    char aemetKey[400] = "";       // clave de AEMET OpenData: avisos meteorologicos de la zona del barco
+    char warnZones[80] = "";       // sin clave de AEMET: "pais: zona, zona" del canal de Meteoalarm ("spain: Estrecho, Cadiz")
+    int warnPopup = 1;              // nivel desde el que salta la ventana: 1 amarillo, 2 naranja, 3 rojo, 0 nunca
     bool bleOn = false;             // enlace BLE con la pasarela
     int blePin = 123456;            // PIN de control del tracker APRS LoRa+ (para recibir su NMEA por BLE)
     char bleAddr[18] = "";          // equipo recordado ("" = el primero que aparezca)

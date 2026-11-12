@@ -34,6 +34,98 @@ static double posLat = 0, posLon = 0;
 static bool posValid = false;
 static Weather wx;
 static bool wxNew = false;
+static const int kWarnMax = 16;
+static wxw::Warning warnList[kWarnMax];
+static int warnN = 0;
+static volatile uint32_t warnSeqN = 0;
+static char warnMsg[96] = "";
+
+// Avisos meteorologicos: recibe el cuerpo segun llega, corta los avisos y se queda con los de la zona
+struct WarnSink : public Stream {
+    wxw::Scanner sc;
+    wxw::Warning keep[kWarnMax];
+    int n = 0;
+    bool havePos = false, byName = false;
+    double lat = 0, lon = 0;
+    const char* zones = "";
+    int64_t nowS = 0;
+    size_t bytes = 0;
+    void take(const std::string& blk) {
+        wxw::Warning w;
+        if (!wxw::parse(blk, w, havePos, lat, lon) || wxw::expired(w, nowS)) return;
+        const bool mine = w.hasArea ? (w.inside || w.distKm <= 30) : (byName && wxw::areaMatches(w.area, zones));
+        if (!mine) return;
+        for (int i = 0; i < n; i++) if (keep[i].event == w.event && keep[i].area == w.area && keep[i].onset == w.onset) return;
+        if (n < kWarnMax) keep[n++] = w;
+    }
+    size_t write(const uint8_t* b, size_t len) override {
+        bytes += len;
+        std::string blk;
+        bool r = sc.feed(b, len, blk);
+        while (r) { take(blk); r = sc.feed(nullptr, 0, blk); }
+        return len;
+    }
+    size_t write(uint8_t c) override { return write(&c, 1); }
+    int available() override { return 0; }
+    int read() override { return -1; }
+    int peek() override { return -1; }
+    void flush() override {}
+};
+static void warnSay(const char* t) { xSemaphoreTake(cfgLock, portMAX_DELAY); snprintf(warnMsg, sizeof(warnMsg), "%s", t); xSemaphoreGive(cfgLock); }
+// AEMET (con clave, por la posicion) o el canal de Meteoalarm del pais (por nombres de zona). true si se bajo bien.
+static bool fetchWarnings(const Config& c, bool havePos, double lat, double lon) {
+    static WarnSink sink;                                           // grande: fuera de la pila
+    sink = WarnSink();
+    String url;
+    char zones[80];
+    snprintf(zones, sizeof(zones), "%s", c.warnZones);
+    char* colon = strchr(zones, ':');
+    WiFiClientSecure tls;
+    tls.setInsecure();
+    HTTPClient http;
+    http.setConnectTimeout(8000);
+    http.setTimeout(15000);
+    if (c.aemetKey[0]) {
+        if (!havePos) { warnSay("AEMET: esperando la posici\xC3\xB3n del barco."); return false; }
+        // AEMET contesta con la direccion de los datos: un archivo con todos los avisos CAP en vigor de Espana
+        if (!http.begin(tls, String("https://opendata.aemet.es/opendata/api/avisos_cap/ultimoelaborado/area/esp?api_key=") + c.aemetKey)) return false;
+        int code = http.GET();
+        if (code != 200) { http.end(); warnSay(code == 401 || code == 403 ? "AEMET no admite la clave." : "AEMET no contesta."); return false; }
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, http.getStream());
+        http.end();
+        const char* datos = doc["datos"] | "";
+        if (err || !datos[0]) { warnSay("AEMET: respuesta inesperada."); return false; }
+        url = datos;
+    } else {
+        if (!colon) { warnSay("Avisos: falta \"pa\xC3\xADs: zonas\" (Ajustes > Red)."); return false; }
+        *colon = 0;
+        String country(zones);
+        country.trim(); country.toLowerCase();
+        url = "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-" + country;
+        sink.byName = true;
+        sink.zones = colon + 1;
+    }
+    sink.havePos = havePos; sink.lat = lat; sink.lon = lon;
+    time_t t = time(nullptr);
+    sink.nowS = t > 1700000000 ? (int64_t)t : 0;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    if (!http.begin(tls, url)) return false;
+    int code = http.GET();
+    if (code == 200 && http.writeToStream(&sink) < 0) code = -1;
+    http.end();
+    if (code != 200) { warnSay("Avisos: la descarga ha fallado."); return false; }
+    if (sink.sc.gzip()) { warnSay("Avisos: el archivo viene comprimido (a\xC3\xBAn no se lee)."); return false; }
+    for (int i = 1; i < sink.n; i++)                                // pocos: ordenacion por insercion
+        for (int j = i; j > 0 && wxw::before(sink.keep[j], sink.keep[j - 1]); j--) { wxw::Warning x = sink.keep[j]; sink.keep[j] = sink.keep[j - 1]; sink.keep[j - 1] = x; }
+    xSemaphoreTake(cfgLock, portMAX_DELAY);
+    warnN = sink.n;
+    for (int i = 0; i < sink.n; i++) warnList[i] = sink.keep[i];
+    snprintf(warnMsg, sizeof(warnMsg), "%s: %d en tu zona de %u en vigor.", c.aemetKey[0] ? "AEMET" : "Meteoalarm", sink.n, (unsigned)sink.sc.blocks());
+    warnSeqN++;
+    xSemaphoreGive(cfgLock);
+    return true;
+}
 
 // El tiempo en la posicion del barco. Bloquea unos segundos como mucho: va en la tarea de red, no en la de la pantalla.
 static bool fetchWeather(const char* key, double lat, double lon) {
@@ -69,7 +161,7 @@ static bool fetchWeather(const char* key, double lat, double lon) {
 
 static void task(void*) {
     Config c;
-    uint32_t seen = 0xFFFFFFFFu, lastBegin = 0, lastTry = 0, lastInfo = 0, nextWx = 0;
+    uint32_t seen = 0xFFFFFFFFu, lastBegin = 0, lastTry = 0, lastInfo = 0, nextWx = 0, nextWarn = 0;
     bool wifiStarted = false, udpOn = false;
     WiFiClient client;
     WiFiUDP udp;
@@ -89,6 +181,7 @@ static void task(void*) {
             st.ip[0] = 0;
             lastBegin = lastTry = 0;
             nextWx = now;
+            nextWarn = now + 8000;
         }
         if (!c.ssid[0]) { vTaskDelay(pdMS_TO_TICKS(300)); continue; }
         if (WiFi.status() != WL_CONNECTED) {
@@ -119,6 +212,15 @@ static void task(void*) {
             if (!ok) nextWx = now + 5000;                           // aun sin posicion
             else if (fetchWeather(c.owmKey, la, lo)) { st.wxOk++; nextWx = now + 15 * 60000u; }
             else { st.wxFail++; nextWx = now + 2 * 60000u; }
+        }
+        // Avisos meteorologicos: cada 15 min (a los 3 si ha fallado)
+        if ((c.aemetKey[0] || c.warnZones[0]) && (int32_t)(now - nextWarn) >= 0) {
+            double la, lo;
+            xSemaphoreTake(cfgLock, portMAX_DELAY);
+            bool ok = posValid;
+            la = posLat; lo = posLon;
+            xSemaphoreGive(cfgLock);
+            nextWarn = now + (fetchWarnings(c, ok, la, lo) ? 15 : 3) * 60000u;
         }
         // UDP: lo que otros equipos manden a este puerto (AIS de AIS-catcher o AIS Dispatcher, NMEA de un multiplexor)
         if (c.udpPort > 0 && !udpOn) udpOn = udp.begin((uint16_t)c.udpPort) == 1;
@@ -202,6 +304,18 @@ bool takeWeather(Weather& w) {
     return true;
 }
 
+int warnings(wxw::Warning* out, int max) {
+    if (!cfgLock) return 0;
+    xSemaphoreTake(cfgLock, portMAX_DELAY);
+    int n = warnN < max ? warnN : max;
+    for (int i = 0; i < n; i++) out[i] = warnList[i];
+    xSemaphoreGive(cfgLock);
+    return n;
+}
+uint32_t warnSeq() { return warnSeqN; }
+const char* warnText() { return warnMsg; }
+void demoWarnings(int) {}
+
 int readTcp(uint8_t* b, int max) { return sbTcp ? (int)xStreamBufferReceive(sbTcp, b, (size_t)max, 0) : 0; }
 void sendTcp(const char* d, int len) { if (sbOut && st.tcp && len > 0) xStreamBufferSend(sbOut, d, (size_t)len, 0); }
 int readUdp(uint8_t* b, int max) { return sbUdp ? (int)xStreamBufferReceive(sbUdp, b, (size_t)max, 0) : 0; }
@@ -214,6 +328,25 @@ int readTcp(uint8_t*, int) { return 0; }
 void sendTcp(const char*, int) {}
 void setPosition(double, double) {}
 bool takeWeather(Weather&) { return false; }
+static wxw::Warning demo[4];
+static int demoN = 0;
+static uint32_t demoSeq = 0;
+int warnings(wxw::Warning* out, int max) { int n = demoN < max ? demoN : max; for (int i = 0; i < n; i++) out[i] = demo[i]; return n; }
+uint32_t warnSeq() { return demoSeq; }
+const char* warnText() { return demoN ? "AEMET: 3 en tu zona de 37 en vigor." : ""; }
+void demoWarnings(int n) {
+    auto mk = [](int lvl, const char* ev, const char* area, const char* phen, const char* on, const char* ex, const char* desc, const char* prob, bool inside, float d) {
+        wxw::Warning x; x.level = lvl; x.event = ev; x.area = area; x.phen = phen; x.onset = on; x.expires = ex; x.desc = desc; x.prob = prob; x.source = "AEMET";
+        x.hasArea = true; x.inside = inside; x.distKm = d; return x; };
+    demo[0] = mk(3, "Aviso de fen\xC3\xB3menos costeros de nivel rojo", "Estrecho", "Costeros", "2026-11-12T06:00:00+01:00", "2026-11-13T23:59:59+01:00",
+                 "Viento de levante fuerza 9. Olas de 5 a 6 metros.", ">70%", true, 0);
+    demo[1] = mk(2, "Aviso de lluvias de nivel naranja", "Litoral gaditano", "Lluvias", "2026-11-13T00:00:00+01:00", "2026-11-13T03:59:59+01:00",
+                 "Precipitaci\xC3\xB3n acumulada en una hora: 30 mm.", "40%-70%", true, 0);
+    demo[2] = mk(1, "Aviso de vientos de nivel amarillo", "Campi\xC3\xB1" "a gaditana", "Vientos", "2026-11-12T12:00:00+01:00", "2026-11-12T20:59:59+01:00",
+                 "Rachas m\xC3\xA1ximas de 70 km/h.", "40%-70%", false, 14);
+    demoN = n < 3 ? n : 3;
+    demoSeq++;
+}
 int readUdp(uint8_t*, int) { return 0; }
 
 #endif

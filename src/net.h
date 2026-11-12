@@ -8,6 +8,8 @@
 #pragma once
 #include <Arduino.h>
 
+#include "wxwarn.h"
+
 namespace net {
 
 enum TcpKind { TCP_OFF = 0, TCP_NMEA = 1, TCP_GPSD = 2, TCP_SIGNALK = 3, TCP_KINDS = 4 };
@@ -20,6 +22,8 @@ struct Config {
     int tcpPort = 10110;
     int udpPort = 0;                    // 0 = sin escucha
     char owmKey[40] = "";               // clave de OpenWeatherMap: datos de reserva si falla un sensor de a bordo
+    char aemetKey[400] = "";            // clave de AEMET OpenData: avisos meteorologicos por la posicion del barco
+    char warnZones[80] = "";            // sin esa clave: "pais: zona, zona" del canal de Meteoalarm
 };
 
 // Observacion de internet para la posicion del barco (OpenWeatherMap). Los campos que no vengan quedan en NAN.
@@ -43,6 +47,12 @@ const Status& status();
 int readTcp(uint8_t* buf, int max);     // bytes recibidos desde la ultima llamada (0 si no hay)
 void setPosition(double lat, double lon); // posicion del barco, para pedir el tiempo de ese punto
 bool takeWeather(Weather& w);           // true una vez por cada observacion nueva
+// Avisos meteorologicos oficiales en vigor para la zona del barco (cada 15 min): copia hasta max, y un contador que cambia
+// con cada descarga buena. warnText dice como fue la ultima.
+int warnings(wxw::Warning* out, int max);
+uint32_t warnSeq();
+const char* warnText();
+void demoWarnings(int n);               // (vista previa en el PC) avisos de muestra
 void sendTcp(const char* data, int len); // al servidor TCP, si esta conectado (datos de ruta para el piloto)
 int readUdp(uint8_t* buf, int max);     // cada datagrama acaba en salto de linea
 }

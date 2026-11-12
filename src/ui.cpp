@@ -81,7 +81,7 @@ static lv_obj_t* lblAisBadge = nullptr;
 static uint32_t rowMmsi[kRows] = {};
 
 // Ventana centrada sobre cualquier pantalla: ficha de un blanco o alerta de abordaje (la misma que las emergencias de la app)
-enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK };
+enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK, M_WXWARN };
 static lv_obj_t* modalBack = nullptr;
 static lv_obj_t* modalHead = nullptr;
 static lv_obj_t* modalTitle = nullptr;
@@ -199,8 +199,10 @@ static lv_obj_t* setCanLbl = nullptr;
 static lv_obj_t* setBleLbl = nullptr;
 // Pantalla de red (WiFi, TCP, UDP) con teclado
 static lv_obj_t* netScr = nullptr;
-static lv_obj_t* netTa[7] = {};                        // red, clave, servidor, puerto TCP, puerto UDP, clave de OpenWeatherMap
+static lv_obj_t* netTa[9] = {};                        // red, clave, servidor, puerto TCP, puerto UDP, clave de OpenWeatherMap
 static lv_obj_t* netKb = nullptr;
+static lv_obj_t* netPopLbl = nullptr;                     // boton del nivel desde el que salta la ventana de avisos
+static int netPop = 1;
 static lv_obj_t* netKindLbl = nullptr;
 static lv_obj_t* netStatus = nullptr;
 static int netKind = 0;
@@ -492,7 +494,20 @@ static void updateAnchorModal();
 static void updateRs485Modal();
 static void updateSkModal();
 static uint32_t skSeen = 0;                               // ultimo aviso de Signal K ya atendido
-static bool rs485Warned = false;                          // el aviso de choque en el RS485 ya se ha mostrado
+static bool rs485Warned = false;
+// Avisos meteorologicos: la lista en vigor para la zona, y los que ya han abierto su ventana (una vez cada uno)
+static const int kWarnShow = 8;
+static wxw::Warning wxList[kWarnShow];
+static int wxN = 0, wxCur = -1;
+static uint32_t wxSeq = 0xFFFFFFFFu;
+static uint32_t wxSeen[24] = {};
+static int wxSeenN = 0;
+static void showTab(int i);
+static uint32_t wxHash(const wxw::Warning& w) {
+    uint32_t h = 2166136261u;
+    for (const std::string* s : {&w.event, &w.area, &w.onset}) for (char c : *s) h = (h ^ (uint8_t)c) * 16777619u;
+    return h ? h : 1;
+}                          // el aviso de choque en el RS485 ya se ha mostrado
 
 static void closeModal() {
     modalMode = M_NONE;
@@ -503,6 +518,7 @@ static void closeModal() {
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
     if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta
     if (modalMode == M_SIGNALK) { closeModal(); return; }  // el aviso sigue en el servidor; aqui solo se cierra
+    if (modalMode == M_WXWARN) { closeModal(); showTab(6); return; }   // todos los avisos: pestana Meteo
     if (modalMode == M_RS485) {                            // apagar la salida al piloto
         settings::get().pilotOut = 0;
         settings::save();
@@ -637,6 +653,52 @@ static void updateSkModal() {
     lv_label_set_text(modalBtnBLbl, "CLOSE");
 }
 
+// Aviso meteorologico oficial nuevo para la zona del barco (AEMET / Meteoalarm): franja del color del nivel
+static void updateWxModal() {
+    if (wxCur < 0 || wxCur >= wxN) { closeModal(); return; }
+    const wxw::Warning& w = wxList[wxCur];
+    char b[420], sub[120], when[80];
+    lv_obj_set_style_bg_color(modalHead, lv_color_hex(wxw::levelColor(w.level)), 0);
+    lv_label_set_text(modalTitle, "WEATHER WARNING");
+    snprintf(sub, sizeof(sub), "%s \xC2\xB7 %s level%s%s", w.source.c_str(), wxw::levelName(w.level), w.phen.empty() ? "" : " \xC2\xB7 ", w.phen.c_str());
+    lv_label_set_text(modalSub, sub);
+    lv_label_set_long_mode(modalName, LV_LABEL_LONG_DOT);
+    lv_obj_set_size(modalName, 508, 26);
+    lv_label_set_text(modalName, w.event.c_str());
+    snprintf(when, sizeof(when), "%s to %s", wxw::shortTime(w.onset).c_str(), wxw::shortTime(w.expires).c_str());
+    char where[48] = "";
+    if (w.hasArea && !w.inside && w.distKm >= 0) snprintf(where, sizeof(where), "  (%.0f km)", w.distKm);
+    snprintf(b, sizeof(b), "Area:  %.60s%s\nIn force:  %s%s%s\n%.200s", w.area.c_str(), where, when,
+             w.prob.empty() ? "" : "  \xC2\xB7  ", w.prob.c_str(), w.desc.c_str());
+    lv_label_set_text(modalBody, b);
+    lv_label_set_text(modalBtnALbl, "ALL WARNINGS");
+    lv_label_set_text(modalBtnBLbl, "CLOSE");
+}
+
+// Recoge la lista cuando cambia y abre la ventana del primer aviso que aun no se ha ensenado
+static void checkWxWarn() {
+    if (net::warnSeq() != wxSeq) {
+        wxSeq = net::warnSeq();
+        wxN = net::warnings(wxList, kWarnShow);
+        if (modalMode == M_WXWARN) closeModal();
+        wxCur = -1;
+    }
+    if (modalMode != M_NONE) return;                       // las alertas de a bordo mandan
+    const int minLevel = settings::get().warnPopup;
+    for (int i = 0; i < wxN; i++) {
+        uint32_t h = wxHash(wxList[i]);
+        bool seen = false;
+        for (int k = 0; k < wxSeenN; k++) if (wxSeen[k] == h) seen = true;
+        if (seen) continue;
+        if (wxSeenN < 24) wxSeen[wxSeenN++] = h;
+        else { memmove(wxSeen, wxSeen + 1, 23 * sizeof(uint32_t)); wxSeen[23] = h; }
+        if (minLevel == 0 || wxList[i].level < minLevel) continue;   // queda en la lista, sin ventana
+        wxCur = i;
+        openModal(M_WXWARN, 0);
+        return;
+    }
+}
+
 // La salida al piloto y la entrada de datos comparten el RS485: avisar de que pueden pisarse
 static bool rs485Busy() {
     const links::Status& ls = links::status();
@@ -692,6 +754,9 @@ static void updateModal() {
     if (modalMode == M_ANCHOR) { updateAnchorModal(); return; }
     if (modalMode == M_RS485) { updateRs485Modal(); return; }
     if (modalMode == M_SIGNALK) { updateSkModal(); return; }
+    if (modalMode == M_WXWARN) { updateWxModal(); return; }
+    lv_label_set_long_mode(modalName, LV_LABEL_LONG_CLIP);
+    lv_obj_set_size(modalName, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i < 0) { closeModal(); return; }
@@ -731,7 +796,7 @@ static void updateModal() {
 }
 
 // Abre la alerta del primer blanco con riesgo que no este silenciado ni cerrado hace poco
-static void checkCollision() {
+static void checkAlerts() {
     if (modalMode == M_COLLISION || modalMode == M_MOB || modalMode == M_ANCHOR) return;
     {                                                     // aviso nuevo de Signal K en alarma o emergencia
         const links::Status& ls = links::status();
@@ -1709,6 +1774,9 @@ static void openNet() {
     snprintf(b, sizeof(b), "%d", v.udpPort);
     lv_textarea_set_text(netTa[4], v.udpPort ? b : "");
     lv_textarea_set_text(netTa[5], v.owmKey);
+    lv_textarea_set_text(netTa[7], v.aemetKey);
+    lv_textarea_set_text(netTa[8], v.warnZones);
+    netPop = v.warnPopup;
     snprintf(b, sizeof(b), "%06d", v.blePin);
     lv_textarea_set_text(netTa[6], b);
     netKind = v.tcpKind;
@@ -1723,12 +1791,17 @@ static void onNetBtn(lv_event_t* e) {
         if (netKind == net::TCP_GPSD) lv_textarea_set_text(netTa[3], "2947");
         else if (netKind == net::TCP_NMEA) lv_textarea_set_text(netTa[3], "10110");
         else if (netKind == net::TCP_SIGNALK) lv_textarea_set_text(netTa[3], "8375");
+    } else if (a == 3) {                                  // nivel desde el que salta la ventana de avisos
+        netPop = netPop == 1 ? 2 : netPop == 2 ? 3 : netPop == 3 ? 0 : 1;
     } else if (a == 1) {                                  // guardar y conectar
         settings::Values& v = settings::get();
         snprintf(v.wifiSsid, sizeof(v.wifiSsid), "%s", lv_textarea_get_text(netTa[0]));
         snprintf(v.wifiPass, sizeof(v.wifiPass), "%s", lv_textarea_get_text(netTa[1]));
         snprintf(v.tcpHost, sizeof(v.tcpHost), "%s", lv_textarea_get_text(netTa[2]));
         snprintf(v.owmKey, sizeof(v.owmKey), "%s", lv_textarea_get_text(netTa[5]));
+        snprintf(v.aemetKey, sizeof(v.aemetKey), "%s", lv_textarea_get_text(netTa[7]));
+        snprintf(v.warnZones, sizeof(v.warnZones), "%s", lv_textarea_get_text(netTa[8]));
+        v.warnPopup = netPop;
         if (lv_textarea_get_text(netTa[6])[0]) v.blePin = atoi(lv_textarea_get_text(netTa[6]));
         v.tcpKind = netKind;
         int port = atoi(lv_textarea_get_text(netTa[3]));
@@ -1798,8 +1871,13 @@ static void makeNet() {
     netField(4, 824, 126, 184, "Puerto UDP", 5, true);
     netField(5, 16, 184, 700, "Clave de OpenWeatherMap: tiempo de internet, de reserva si falla un sensor", 39, false);
     netField(6, 732, 184, 276, "PIN del tracker (Bluetooth)", 6, true);
+    netField(7, 16, 242, 480, "Clave de AEMET OpenData: avisos meteorol\xC3\xB3gicos", 399, false);
+    netField(8, 512, 242, 260, "o Meteoalarm: pa\xC3\xADs: zonas", 79, false);
+    b = textButton(netScr, "", 220, 48, onNetBtn, 3);
+    lv_obj_set_pos(b, 788, 242);
+    netPopLbl = lv_obj_get_child(b, 0);
     netKb = lv_keyboard_create(netScr);
-    lv_obj_set_size(netKb, board::W, 360);
+    lv_obj_set_size(netKb, board::W, 302);
     lv_obj_align(netKb, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(netKb, lv_color_hex(C_BG), 0);
     lv_obj_set_style_bg_opa(netKb, LV_OPA_COVER, 0);
@@ -1837,6 +1915,7 @@ static void updateNet() {
     netSummary(b, sizeof(b), true);
     lv_label_set_text(netStatus, b);
     lv_label_set_text(netKindLbl, kTcpKinds[netKind]);
+    lv_label_set_text(netPopLbl, netPop == 1 ? "Desde amarillo" : netPop == 2 ? "Desde naranja" : netPop == 3 ? "Solo rojo" : "Sin ventana");
 }
 
 // ---------- Pestana Viento ----------
@@ -2290,6 +2369,14 @@ static void updatePilot() {
 // Cada dato dice de donde sale: del sensor de a bordo o, si este falta, de internet (estimado).
 static WTile mTile[6];
 static lv_obj_t* mNote = nullptr;
+static lv_obj_t* mWarnBox = nullptr;                      // avisos meteorologicos: ocupa el sitio de la nota cuando hay alguno
+static lv_obj_t* mWarnDot[3] = {};
+static lv_obj_t* mWarnLbl[3] = {};
+static lv_obj_t* mWarnWhen[3] = {};
+static void onWarnRow(lv_event_t* e) {
+    int i = (int)(intptr_t)lv_event_get_user_data(e);
+    if (i < wxN && modalMode == M_NONE) { wxCur = i; openModal(M_WXWARN, 0); }
+}
 
 static void makeMeteo(lv_obj_t* page) {
     static const char* const names[6] = {"PRESI\xC3\x93N", "TEMPERATURA", "HUMEDAD", "VIENTO REAL", "RACHA", "VISIBILIDAD"};
@@ -2314,6 +2401,26 @@ static void makeMeteo(lv_obj_t* page) {
     lv_obj_align(mNote, LV_ALIGN_TOP_LEFT, 14, 12);
     lv_obj_set_width(mNote, 976);
     lv_obj_set_style_text_line_space(mNote, 6, 0);
+    mWarnBox = box(page, C_PANEL, 10);
+    lv_obj_set_size(mWarnBox, 1004, 104);
+    lv_obj_set_pos(mWarnBox, 0, 372);
+    for (int i = 0; i < 3; i++) {
+        lv_obj_t* row = box(mWarnBox, C_PANEL);
+        lv_obj_set_size(row, 1000, 32);
+        lv_obj_set_pos(row, 2, 4 + i * 32);
+        lv_obj_set_clickable(row, true);
+        lv_obj_add_event_cb(row, onWarnRow, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+        mWarnDot[i] = box(row, C_WARN, 4);
+        lv_obj_set_size(mWarnDot[i], 10, 22);
+        lv_obj_set_pos(mWarnDot[i], 10, 5);
+        mWarnLbl[i] = label(row, "", &dejavu_16, C_TEXT);
+        lv_obj_set_pos(mWarnLbl[i], 30, 6);
+        lv_label_set_long_mode(mWarnLbl[i], LV_LABEL_LONG_DOT);
+        lv_obj_set_size(mWarnLbl[i], 720, 22);
+        mWarnWhen[i] = label(row, "", &dejavu_14, C_SOFT);
+        lv_obj_align(mWarnWhen[i], LV_ALIGN_RIGHT_MID, -12, 0);
+    }
+    lv_obj_set_hidden(mWarnBox, true);
 }
 
 // Fuente, antiguedad y si es estimado; el valor de internet se pinta en ambar
@@ -2401,6 +2508,19 @@ static void updateMeteo() {
              "Al volver el sensor, manda \xC3\xA9l.\nPosici\xC3\xB3n, rumbo, velocidad y sonda no tienen sustituto en internet.", last);
     (void)est;
     lv_label_set_text(mNote, n);
+    lv_obj_set_hidden(mWarnBox, wxN == 0);                 // con avisos en vigor, la lista (tocar uno lo abre)
+    for (int i = 0; i < 3; i++) {
+        lv_obj_set_hidden(lv_obj_get_parent(mWarnDot[i]), i >= wxN);
+        if (i >= wxN) continue;
+        const wxw::Warning& w = wxList[i];
+        char t[200], wh[80];
+        lv_obj_set_style_bg_color(mWarnDot[i], lv_color_hex(wxw::levelColor(w.level)), 0);
+        if (i == 2 && wxN > 3) snprintf(t, sizeof(t), "%s \xC2\xB7 %s   (+%d)", w.phen.empty() ? w.event.c_str() : w.phen.c_str(), w.area.c_str(), wxN - 3);
+        else snprintf(t, sizeof(t), "%s \xC2\xB7 %s", w.phen.empty() ? w.event.c_str() : w.phen.c_str(), w.area.c_str());
+        lv_label_set_text(mWarnLbl[i], t);
+        snprintf(wh, sizeof(wh), "%s to %s", wxw::shortTime(w.onset).c_str(), wxw::shortTime(w.expires).c_str());
+        lv_label_set_text(mWarnWhen[i], wh);
+    }
 }
 
 // ---------- Ajustes ----------
@@ -2748,7 +2868,13 @@ void update() {
     if (active == 7) updateSettings();
     updateNet();
     if (active == 3) updateRadar();
-    checkCollision();
+    {                                                      // un aviso meteorologico no tapa una alerta de a bordo
+        const bool wx = modalMode == M_WXWARN;
+        if (wx) modalMode = M_NONE;
+        checkAlerts();
+        if (wx && modalMode == M_NONE) modalMode = M_WXWARN;
+    }
+    checkWxWarn();
     updateModal();
     show(T_SOG, Key::Sog, 1);
     show(T_COG, Key::Cog, 0, true);
@@ -2838,6 +2964,7 @@ void testRoutes(int action) {                              // 2 ir a, 3 ver, 4 a
 void testSelectWaypoint(int i) { wpSel = (i >= 0 && i < wpN) ? i : -1; }
 void testMark() { onMark(nullptr); }
 void testAnchor() { onAnchorBtn(nullptr); }
+void testWarn() { net::demoWarnings(3); }
 void testRs485() { settings::get().pilotOut = 1; rs485Warned = true; openModal(M_RS485, 0); }
 void testInternet() {                                      // como si acabara de llegar una observacion de internet
     uint32_t now = millis();

@@ -120,6 +120,8 @@ void applyNetwork() {
     c.tcpPort = v.tcpPort;
     c.udpPort = v.udpPort;
     snprintf(c.owmKey, sizeof(c.owmKey), "%s", v.owmKey);
+    snprintf(c.aemetKey, sizeof(c.aemetKey), "%s", v.aemetKey);
+    snprintf(c.warnZones, sizeof(c.warnZones), "%s", v.warnZones);
     net::apply(c);
 }
 

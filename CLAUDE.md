@@ -379,7 +379,8 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 - **Instalador web, grupo «Náutica» (Manuel, 2026-11-12)**: el plotter se instala con el instalador web de APRS LoRa+
   (`https://ea7jrs.github.io/APRS-LoRa-Plus/#nautica`), junto a Tracker, Rotor, Gateway y Display. Contrato en
   `docs/WEB_INSTALLER.md` del tracker: `.github/workflows/release.yml` (al subir la etiqueta `vX.Y.Z`, **la misma que la
-  del tracker**) compila, comprueba que la etiqueta coincide con `PLOTTER_VERSION` y crea la release (preliminar) con
+  del tracker**, o una rama `release/vX.Y.Z`: desde la sesión de Claude no se pueden subir etiquetas, así que se sube esa
+  rama y la release crea la etiqueta) compila, comprueba que la etiqueta coincide con `PLOTTER_VERSION` y crea la release (preliminar) con
   `web-site-plotter.zip` (`tools/make_web_site.py`: `latest.json` con `device: plotter`, manifiesto de ESP Web Tools sin
   tocar la NVS, imágenes y `ota/`), la imagen completa (0x0) y el firmware (0x10000). En el tracker: lanzador «Náutica»
   en `web/index.html` y `plotter` en `pages.yml`. Para que salga en el sitio: el secreto `FLASHER_TOKEN` del tracker debe

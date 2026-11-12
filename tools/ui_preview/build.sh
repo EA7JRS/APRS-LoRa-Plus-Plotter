@@ -12,12 +12,12 @@ LVGL="$1"; OUT="${2:-ui.ppm}"
 [ -d "$LVGL/src" ] || { echo "uso: $0 <carpeta de lvgl 9.6> [salida.ppm]"; exit 2; }
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$HERE/../.."
 B="${UI_PREVIEW_BUILD:-/tmp/plotter_ui_preview}"; mkdir -p "$B/obj"
-DEFS="-DBOARD_LCD7B -DLV_CONF_SKIP=1 -DLV_FONT_MONTSERRAT_12=1 -DLV_FONT_MONTSERRAT_14=1 -DLV_FONT_MONTSERRAT_16=1 -DLV_FONT_MONTSERRAT_20=1 -DLV_FONT_MONTSERRAT_24=1 -DLV_USE_LOG=0 -include $HERE/host_conf.h -include $ROOT/src/lv_defs.h -I$HERE -I$LVGL -I$ROOT/src -I$ROOT/lib/plotter_core/src"
+DEFS="-DBOARD_LCD7B -DLV_CONF_SKIP=1 -DLV_FONT_MONTSERRAT_12=1 -DLV_FONT_MONTSERRAT_14=1 -DLV_FONT_MONTSERRAT_16=1 -DLV_FONT_MONTSERRAT_20=1 -DLV_FONT_MONTSERRAT_24=1 -DLV_USE_LOG=0 -include $HERE/host_conf.h -include $ROOT/src/lv_defs.h -I$HERE -I$LVGL -I$ROOT/src -I$ROOT/lib/plotter_core/src -I$ROOT/lib/aprs_links/src"
 if [ ! -f "$B/lvgl.done" ]; then      # LVGL solo se compila la primera vez
     find "$LVGL/src" -name "*.c" | xargs -P 8 -I{} sh -c 'gcc -O1 -w -c '"$DEFS"' {} -o '"$B"'/obj/$(echo {} | md5sum | cut -c1-16).o'
     touch "$B/lvgl.done"
 fi
 for f in "$ROOT"/src/fonts/*.c; do gcc -O1 -w -c $DEFS "$f" -o "$B/obj/font_$(basename "$f" .c).o"; done
-g++ -std=gnu++17 -O1 -Wall -Wextra $DEFS "$HERE/host.cpp" "$ROOT/src/ui.cpp" "$ROOT/src/links.cpp" "$ROOT/src/settings.cpp" "$ROOT/src/net.cpp" "$ROOT/src/ble.cpp" "$ROOT/src/sk_link.cpp" "$ROOT"/src/ui_assets.cpp "$ROOT"/lib/plotter_core/src/*.cpp "$B"/obj/*.o -o "$B/host"
+g++ -std=gnu++17 -O1 -Wall -Wextra $DEFS "$HERE/host.cpp" "$ROOT/src/ui.cpp" "$ROOT/src/links.cpp" "$ROOT/src/settings.cpp" "$ROOT"/lib/aprs_links/src/*.cpp "$ROOT"/src/ui_assets.cpp "$ROOT"/lib/plotter_core/src/*.cpp "$B"/obj/*.o -o "$B/host"
 "$B/host" "$OUT" "${3:-0}" "${4:-20}" $5
 echo "imagen en $OUT"

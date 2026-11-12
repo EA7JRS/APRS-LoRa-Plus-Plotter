@@ -435,6 +435,16 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   usa `mainScr` (durante la bienvenida la activa es otra). Ocupa 215 KB / 119 KB de flash.
   Falta: probar en la placa y con el NASA, páginas configurables, rumbo y velocidad del plotter por WiFi, que las
   alarmas lleguen al plotter, PGN 126996, guardar la dirección reclamada.
+- **Conectividad común para el grupo Display (2026-11-12; Manuel: «el sistema de conectividad ble/wifi/tcp/UDP del plotter
+  puede integrarse en el resto de pantallas del grupo Display… y en la app Android»; eligió la opción 1, repositorio común,
+  y empezar por el Display)**: `src/net.*`, `src/ble.*` y `src/sk_link.*` pasan a `lib/aprs_links` (ya no dependían de
+  los ajustes ni de la pantalla; `library.json` con NimBLE 2.5.2 y ArduinoJson 7.4.3), y `lib/plotter_core` lleva su
+  `library.json`. **Espera a que Manuel cree el repositorio común** (propuesto `EA7JRS/APRS-LoRa-Plus-Core`, privado):
+  entonces se mudan las dos librerías allí, el plotter y el Display las toman por `lib_deps` (la CI del Display y del
+  plotter necesitan un token con lectura de ese repositorio) y se integra en el Display empezando por la 7B (posición de
+  gpsd / móvil / Signal K sin tracker, AIS por red, viento del instrumento, tiempo de internet, NMEA 2000). App Android:
+  en Kotlin, se porta el comportamiento (cliente del servicio BLE NMEA, gpsd, Signal K, UDP, prioridad de fuentes) con los
+  mismos casos de prueba del núcleo, no el código.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.

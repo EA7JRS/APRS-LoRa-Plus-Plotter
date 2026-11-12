@@ -16,6 +16,6 @@ if [ ! -f "$B/lvgl.done" ]; then      # LVGL solo se compila la primera vez
     touch "$B/lvgl.done"
 fi
 for f in "$ROOT"/src/fonts/*.c; do gcc -O1 -w -c $DEFS "$f" -o "$B/obj/font_$(basename "$f" .c).o"; done
-g++ -std=gnu++17 -O1 -Wall -Wextra -Werror $DEFS "$HERE/host_wind.cpp" "$ROOT"/src/wind/wui.cpp "$ROOT"/src/wind/wlinks.cpp "$ROOT"/src/wind/wsettings.cpp "$ROOT"/src/wind/wble.cpp "$ROOT"/src/wind/wnet.cpp "$ROOT"/lib/plotter_core/src/*.cpp "$B"/obj/*.o -o "$B/host_wind"
+g++ -std=gnu++17 -O1 -Wall -Wextra -Werror $DEFS "$HERE/host_wind.cpp" "$ROOT"/src/wind/wui.cpp "$ROOT"/src/wind/wlinks.cpp "$ROOT"/src/wind/wsettings.cpp "$ROOT"/src/wind/wble.cpp "$ROOT"/src/wind/wnet.cpp "$ROOT"/src/ui_assets.cpp "$ROOT"/lib/plotter_core/src/*.cpp "$B"/obj/*.o -o "$B/host_wind"
 "$B/host_wind" "$OUT" "${3:-0}" "${4:-20}" ${5:-2} $6
 echo "imagen en $OUT"

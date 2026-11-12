@@ -28,6 +28,9 @@ Installation, connections and troubleshooting: `INSTALLATION_EN.md`. One-page su
 
 ## 1. The screen
 
+At start-up, for about 2 s, the APRS LoRa+ welcome screen: the logo and «Plotter» with the version; then it moves on
+by itself to the working screen.
+
 At the top, always visible:
 
 - The **tab name** and a **Simulador** badge when the data is test data.

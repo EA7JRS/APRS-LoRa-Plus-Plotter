@@ -7,6 +7,8 @@ Esta primera versión compila, pero **todavía no se ha probado en la placa**: �
 
 ## 1. Puesta en marcha
 
+Al encender sale un par de segundos la bienvenida de APRS LoRa+ (logo y versión) y después la pantalla de trabajo.
+
 1. Instala el firmware con el instalador web: https://ea7jrs.github.io/APRS-LoRa-Plus/#nautica, grupo **Náutica**
    (más formas en `INSTALACION.md`).
 2. Mete una tarjeta microSD en FAT32. Sin tarjeta funciona, pero la carta sale sin mapa y los waypoints no se guardan.

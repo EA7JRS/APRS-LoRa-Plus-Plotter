@@ -26,6 +26,9 @@ Instalación, conexiones y solución de problemas: `INSTALACION.md`. Resumen de 
 
 ## 1. La pantalla
 
+Al arrancar, unos 2 s, la bienvenida de APRS LoRa+: el logo y «Plotter» con la versión; luego pasa sola a la pantalla de
+trabajo.
+
 Arriba, siempre a la vista:
 
 - El **nombre de la pestaña** y una etiqueta **Simulador** cuando los datos son de prueba.

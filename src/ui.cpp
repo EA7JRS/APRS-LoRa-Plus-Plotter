@@ -12,6 +12,7 @@
 #include "signalk.h"
 #include "units.h"
 #include "about_text.h"
+#include "ui_assets.h"
 #include "lights.h"
 #include "aistargets.h"
 #include "chartui.h"
@@ -2751,6 +2752,7 @@ void begin(DataStore* s) {
         if (v.anchorOn) anchorW.drop({v.anchorLat, v.anchorLon}, v.anchorRadius, millis());
     }
     showTab(0);
+    showSplash(scr, "Plotter " PLOTTER_VERSION, &dejavu_bold_20);   // la bienvenida de APRS LoRa+, y luego esto
 }
 
 static const char* sourceName(Source s) {

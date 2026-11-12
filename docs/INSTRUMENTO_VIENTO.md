@@ -57,6 +57,10 @@ No se dan colores de hilos ni bornas del NASA: míralos en su documentación.
 
 ## 4. Las páginas
 
+Al encender, unos 2 s, la bienvenida de APRS LoRa+ (el logo y «Wind 5.4.1»), como en el plotter y el Display.
+
+![Bienvenida](img/viento4_bienvenida.png)
+
 Abajo, cinco pestañas. Arriba, cuatro luces: **Veleta**, **BLE**, **CAN** y **WiFi** (verde = funcionando).
 
 - **Rosa**: la rosa con la proa arriba, sectores de ceñida rojo (babor) y verde (estribor), aguja **A** (aparente,

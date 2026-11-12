@@ -9,6 +9,8 @@ The on-screen texts are in Spanish; this guide gives each one in Spanish with it
 
 ## 1. Getting started
 
+On power-up the APRS LoRa+ welcome screen (logo and version) shows for a couple of seconds, then the working screen.
+
 1. Install the firmware with the web installer: https://ea7jrs.github.io/APRS-LoRa-Plus/#nautica, **Náutica** group
    (other ways in `INSTALLATION_EN.md`).
 2. Insert a FAT32 microSD card. It works without one, but the chart has no map and waypoints are not saved.

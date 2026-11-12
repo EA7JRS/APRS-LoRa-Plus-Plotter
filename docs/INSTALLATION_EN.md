@@ -72,9 +72,14 @@ pio run -e waveshare_lcd7b -t upload
 
 ## 3. First start
 
-1. On power-up the **Instrumentos** tab shows data: that is the **simulator**, on by default.
-2. Go through the tabs. In **Carta** you will see the boat moving and five AIS targets with made-up names.
-3. Without a card the chart says «sin cartas en la tarjeta para esta zona» (no charts on the card for this area): that is normal.
+1. On power-up the APRS LoRa+ welcome screen shows for about 2 seconds (the logo and «Plotter 5.4.1»), the same as in
+   the app and in APRS LoRa+ Display.
+
+   ![Welcome](img/bienvenida.png)
+
+2. Then the **Instrumentos** tab shows data: that is the **simulator**, on by default.
+3. Go through the tabs. In **Carta** you will see the boat moving and five AIS targets with made-up names.
+4. Without a card the chart says «sin cartas en la tarjeta para esta zona» (no charts on the card for this area): that is normal.
 4. When you connect a real source, **turn the simulator off** (Ajustes > Simulador). While it is on, its data takes
    priority over everything else.
 

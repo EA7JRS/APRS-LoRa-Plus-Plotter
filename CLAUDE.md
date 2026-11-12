@@ -428,6 +428,11 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `ble::write` (cola de 1 KB, se manda en el bucle de la tarea en trozos del MTU a `…0002`), `links.cpp` cada segundo
   HDT / VTG / VHW con lo que haya; el instrumento (`wble` con `onWrite` y `read`) lo mete como fuente `Ble`, por debajo
   del NMEA 2000. Por WiFi no (el instrumento no escucha UDP).
+  **Bienvenida (2026-11-12, Manuel: «el logo de bienvenida tras el arranque utilizado en otras pantallas»)**: la de APRS
+  LoRa+ Display (`tools/assets/welcome_logo.jpg` copiado de allí, `tools/make_ui_assets.py` → `src/ui_assets.cpp`, una
+  imagen I8 por placa dentro de su `#if`: 397×540 en la 7B, 294×400 en la LCD-4; `showSplash` en `ui_assets.h`: fundido,
+  «Plotter» / «Wind» y la versión en cian #28B5E1, a los 2,2 s pasa a la pantalla principal). En el instrumento, `build()`
+  usa `mainScr` (durante la bienvenida la activa es otra). Ocupa 215 KB / 119 KB de flash.
   Falta: probar en la placa y con el NASA, páginas configurables, rumbo y velocidad del plotter por WiFi, que las
   alarmas lleguen al plotter, PGN 126996, guardar la dirección reclamada.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento

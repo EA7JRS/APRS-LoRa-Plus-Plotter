@@ -18,6 +18,7 @@
 #include "wlinks.h"
 #include "wnet.h"
 #include "about_text.h"
+#include "ui_assets.h"
 #include "windalarm.h"
 #include "wsettings.h"
 
@@ -115,6 +116,7 @@ static lv_obj_t* alarmText = nullptr;
 static bool alarmShown = false;
 static lv_obj_t* aboutScr = nullptr;
 static void build();
+static lv_obj_t* mainScr = nullptr;              // la pantalla principal (durante la bienvenida no es la activa)
 
 static lv_obj_t* box(lv_obj_t* parent, uint32_t color, int radius = 0) {
     lv_obj_t* o = lv_obj_create(parent);
@@ -628,7 +630,7 @@ static void makeAlarm() {
 // Construye toda la interfaz con la paleta de ahora. Se llama al arrancar y al cambiar el modo noche.
 static void build() {
     palette(wsettings::get().night);
-    lv_obj_t* scr = lv_screen_active();
+    lv_obj_t* scr = mainScr;
     lv_obj_clean(scr);
     lv_obj_clean(lv_layer_top());
     for (int d = 0; d < D_COUNT; d++) valN[d] = subN[d] = 0;
@@ -681,7 +683,9 @@ static void build() {
 
 void begin(DataStore* s) {
     store = s;
+    mainScr = lv_screen_active();
     build();
+    showSplash(mainScr, "Wind " PLOTTER_VERSION, &dejavu_bold_20);     // la bienvenida de APRS LoRa+, y luego esto
 }
 
 using WindNow = wlinks::Wind;

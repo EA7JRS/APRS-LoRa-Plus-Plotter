@@ -60,6 +60,10 @@ Wire colours and NASA terminals are not given here: see its documentation.
 
 ## 4. The pages
 
+At power-up, for about 2 s, the APRS LoRa+ welcome screen (the logo and «Wind 5.4.1»), as on the plotter and the Display.
+
+![Welcome](img/viento4_bienvenida.png)
+
 Five tabs at the bottom. Four lights at the top: **Veleta** (sensor), **BLE**, **CAN** and **WiFi** (green = working).
 
 - **Rosa** (rose): bow-up rose, red (port) and green (starboard) close-hauled sectors, needle **A** (apparent,

@@ -10,6 +10,8 @@
   placa**. Manual: `docs/INSTRUMENTO_VIENTO.md` / `docs/WIND_INSTRUMENT_EN.md`.
 - **Instrumento de viento, modo noche y alarmas**: rojos sobre negro (Ajustes > Noche) y alarmas de viento real,
   viento aparente y rolada con la ventana STRONG WIND / WIND SHIFT y el zumbador de la placa (núcleo `windalarm`).
+- **Bienvenida al arrancar** en el plotter y en el instrumento: el logo de APRS LoRa+ de la app y de APRS LoRa+ Display
+  (`tools/assets/welcome_logo.jpg`, `tools/make_ui_assets.py`) con «Plotter» o «Wind» y la versión, unos 2 s.
 - **Acerca de** en el plotter (Ajustes > Acerca de) y en el instrumento: versión, copyright, licencia, proyecto,
   créditos y QR del donativo (paypal.me/ea7jrs), con el mismo marco que APRS LoRa+ Display.
 - **Rumbo y velocidad del plotter al instrumento por Bluetooth** (HDT, VTG y VHW una vez por segundo, característica

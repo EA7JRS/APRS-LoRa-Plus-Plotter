@@ -69,9 +69,14 @@ pio run -e waveshare_lcd7b -t upload
 
 ## 3. Primer arranque
 
-1. Al encender sale la pestaña **Instrumentos** con datos: es el **simulador**, encendido de fábrica.
-2. Recorre las pestañas. En **Carta** verás el barco moviéndose y cinco blancos AIS con nombres inventados.
-3. Sin tarjeta, la carta dice «sin cartas en la tarjeta para esta zona»: es normal.
+1. Al encender sale unos 2 segundos la bienvenida de APRS LoRa+ (el logo y «Plotter 5.4.1»), la misma que en la app y
+   en APRS LoRa+ Display.
+
+   ![Bienvenida](img/bienvenida.png)
+
+2. Luego sale la pestaña **Instrumentos** con datos: es el **simulador**, encendido de fábrica.
+3. Recorre las pestañas. En **Carta** verás el barco moviéndose y cinco blancos AIS con nombres inventados.
+4. Sin tarjeta, la carta dice «sin cartas en la tarjeta para esta zona»: es normal.
 4. Cuando conectes una fuente real, **apaga el simulador** (Ajustes > Simulador). Mientras está encendido sus datos
    tienen prioridad sobre todos los demás.
 

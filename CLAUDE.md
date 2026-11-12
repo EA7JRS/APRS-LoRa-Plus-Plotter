@@ -386,15 +386,17 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   en `web/index.html` y `plotter` en `pages.yml`. Para que salga en el sitio: el secreto `FLASHER_TOKEN` del tracker debe
   poder leer este repositorio, y hay que volver a desplegar las Pages del tracker con esa etiqueta.
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
-- **Accesorio: instrumento de viento de 4,3″ (pedido 2026-11-12)**: equipo aparte sobre la Waveshare
-  ESP32-S3-Touch-LCD-4.3C (800×480, táctil, 16 MB + 8 MB; Manuel dio el modelo) que lee el NASA Target 2 Wind v2 (MWV a
-  4800), lo muestra y lo pasa al plotter por BLE (`docs/BLE_NMEA.md`), WiFi (UDP) o CAN (PGN 130306). Manuel pidió replicar
-  la interfaz del Garmin GMI 20: **no se copia**; diseño propio con el lenguaje del plotter y los mismos datos (AWA, AWS,
-  TWA, TWS, TWD, deriva). Maquetas en la página «Accesorio» del lienzo (`Inst43Viento`, `Inst43Numeros`, `Inst43Historial`,
-  `Inst43Enlace`; generador `gen43.py`). Del manual del GMI 20, solo funciones: perfiles y páginas configurables de 1 a 4
-  datos, paso automático de páginas, vistas de aguja / gráfica / número, alarmas de viento, modo noche. Las fuentes
-  GMI40 de Garmin no se han leído. Sin confirmar: si la 4.3C tiene CAN y RS485 (su página no los nombra; la 4.3B sí) y el
-  nivel eléctrico de la salida NMEA del NASA. Sin repositorio ni firmware: esperar a que Manuel lo pida.
+- **Accesorio: instrumento de viento de 4″ (pedido 2026-11-12)**: equipo aparte sobre la **Waveshare
+  ESP32-S3-Touch-LCD-4** (SKU 28154, 480×480, táctil, 16 MB + 8 MB; confirmada por Manuel, no la 4.3C) que lee el NASA
+  Target 2 Wind v2 (MWV a 4800 por el RS485), lo muestra y lo pasa al plotter por BLE (`docs/BLE_NMEA.md`), CAN (PGN
+  130306) o WiFi (UDP). Manuel pidió replicar la interfaz del Garmin GMI 20: **no se copia**; diseño propio con el lenguaje
+  del plotter y los mismos datos (AWA, AWS, TWA, TWS, TWD, deriva). Maquetas en la página «Accesorio» del lienzo
+  (`Inst4Viento`, `Inst4Numeros`, `Inst4Historial`, `Inst4Enlace`; generador `gen4.py`). Del manual del GMI 20, solo
+  funciones: páginas configurables de 1 a 4 datos, paso automático, vistas de aguja / gráfica / número, alarmas de viento,
+  modo noche. Wiki de Waveshare (con contradicciones internas, contrastar con el esquema): CAN TX 6 / RX 0, RS485 TX 44 /
+  RX 43, USB 19 / 20 (no comparte con el CAN, al revés que la 7B), expansor TCA9554 (zumbador en EXIO5, SD_CS en EXIO3),
+  RTC, cargador SW6106, entrada 7–36 V. Las fuentes GMI40 de Garmin no se han leído. Sin confirmar: nivel eléctrico de la
+  salida NMEA del NASA (¿vale directo al RS485?). Sin repositorio ni firmware: esperar a que Manuel lo pida.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables
   (1 / 2 / 3 / 4 datos grandes) y gráficas de historial (viento, profundidad, velocidad), con diseño propio.

@@ -421,7 +421,14 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   salta a los 10 s; silenciar 10 min / cerrar), ventana STRONG WIND / WIND SHIFT en `lv_layer_top` y zumbador EXIO6
   (`wui::tick`, 0,15 s cada segundo). Ajustes: 12 botones (+ Noche, Alarma real 15–40 kn, aparente 20–45 kn, rolada
   10–45°). Vista previa: quinto argumento con `wifi`, `night`, `alarm`. 1517 comprobaciones.
-  Falta: probar en la placa y con el NASA, páginas configurables, rumbo y velocidad del plotter por BLE / WiFi, que las
+  **Acerca de y rumbo del plotter (2026-11-12; Manuel: «Sí», «debe incluir el QR como los otros dispositivos»)**:
+  `src/about_text.h` (textos comunes y `about::donateQr`, el QR de paypal.me/ea7jrs con el marco degradado verde → cian
+  de APRS LoRa+ Display; `LV_USE_QRCODE` en `lv_defs.h`), pantalla «Acerca de» en el plotter (botón en Ajustes > Estado,
+  acción `acerca` del dibujo) y en el instrumento (botón 13 de Ajustes, opción `about`). Plotter → instrumento por BLE:
+  `ble::write` (cola de 1 KB, se manda en el bucle de la tarea en trozos del MTU a `…0002`), `links.cpp` cada segundo
+  HDT / VTG / VHW con lo que haya; el instrumento (`wble` con `onWrite` y `read`) lo mete como fuente `Ble`, por debajo
+  del NMEA 2000. Por WiFi no (el instrumento no escucha UDP).
+  Falta: probar en la placa y con el NASA, páginas configurables, rumbo y velocidad del plotter por WiFi, que las
   alarmas lleguen al plotter, PGN 126996, guardar la dirección reclamada.
 - Garmin GMI 20 (enlace de Manuel, 2026-11-11, `garmin.com/es-ES/p/126694`): la página solo dejó leer el nombre (instrumento
   náutico) y las referencias; sin especificaciones. Propuesto a Manuel, sin decidir: páginas de Instrumentos configurables

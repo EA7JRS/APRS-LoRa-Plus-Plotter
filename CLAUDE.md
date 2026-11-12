@@ -41,7 +41,13 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   un cliente TCP: si se usa para gpsd o Signal K, la XIAO debe usar UDP). **BLE con la XIAO: sin hacer en el plotter** (no
   hay BLE todavía; servicio y formato por definir junto con el firmware de la XIAO, repositorio `APRS-LoRa-Plus-NMEA2000`).
 - Unidades: náutico (profundidad en metros), métrico, imperial y usuario.
-- Piloto automático: solo se da por viable enviar datos de ruta; los mandos dependen de la marca (pendiente saber cuál).
+- Piloto automático: solo se da por viable enviar datos de ruta; los mandos dependen de la marca. **Es un Raymarine ST2000+
+  de caña (Manuel, 2026-11-12)**. Del manual 81130-9 (2023): entra NMEA 0183 por el pin 6 (blanco, NMEA+) y el 5 (verde,
+  NMEA−) de su conector (1 +12 V marrón, 2 0 V azul, 4 SeaTalk amarillo); lee XTE de APB / APA / RMB / XTE / XTR, demora y
+  distancia de RMB / APB / BWC / BWR..., velocidad en el agua de VHW y **viento aparente solo de VWR** (no MWV) para WindTrim;
+  **solo lee 4 letras del nombre del waypoint** (más largos: no avanza). 4800 baudios (foro de Raymarine; el manual no lo
+  dice). Mínimo para Track según Raymarine: BTW, DTW, WPID y XTE (RMB basta). Mandos a distancia: SeaTalk1 (Z101, ST600R),
+  sin hacer: haría falta un interfaz SeaTalk (bus de 12 V, 9 bits, 4800) en la pasarela XIAO o en el plotter.
 - Declinación: Modelo Magnético Mundial calculado a bordo, con descarga del archivo de coeficientes cuando caduque.
 - Fase 4: mareas (constantes por puerto; mirar el WMS de mareas del IHM) y rectas de altura (Meeus, contrastar con el Almanaque).
 - Librerías: versiones fijadas y una tarea semanal que proponga actualizaciones tras compilar.
@@ -311,6 +317,9 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   (Pypilot: puerto 20220). Solo datos: no embraga ni manda el piloto. El RS485 es el mismo puerto del AIS (el transceptor
   conmuta solo): emitir por él con un receptor AIS conectado al mismo par puede chocar; sin probar. Falta: demoras
   magnéticas para pilotos que las pidan, XTE / BWC, y los mandos según la marca del piloto de Manuel.
+  **ST2000+ (2026-11-12)**: `settings.pilotModel` (0 genérico, 1 ST2000+ de serie, NVS `pilotM`) y salida 3 = Bluetooth
+  (`ble::write` a la pasarela). Con el ST2000+: RMB + APB con `pilotWaypointId` («W001»...), VWR (`nmeaVwr`) y VHW cada
+  segundo aunque no haya ruta (WindTrim); aviso si sale por el RS485 sin estar a 4800. Acción `piloto:n` en el dibujo del PC.
 - **Relevo por internet y pestaña Meteo (2026-11-11, rama `internet`; Manuel: «si falla cualquier sensor físico podrá
   alternar con los datos obtenidos de internet»)**: la tabla de datos ya lo hacía por prioridad (a los 10 s sin un sensor
   entra la fuente siguiente y vuelve sola al reaparecer); faltaba traer los datos. `net.cpp`: OpenWeatherMap
@@ -466,4 +475,4 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
    medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Relevo por internet y pestaña Meteo hechos. BLE con la pasarela hecho (lado plotter). Signal K nativo hecho. Lo siguiente: zumbador (pin por decidir), AEMET, lista de equipos BLE, y probar en la placa.
 2. NMEA 2000: hecho en escucha con decodificador propio; más PGN según lo que haya en la red de Manuel.
 3. Carta con teselas en microSD y costa de reserva, waypoints y rutas (GPX); radar AIS; alarmas; zumbador externo; reproducción NMEA.
-4. Pendiente de Manuel: marca del piloto automático. Viento: entra por la pasarela XIAO (CAN, UDP por WiFi o BLE); el plotter ya tiene el BLE (docs/BLE_NMEA.md); falta readaptar el firmware de la XIAO.
+4. Piloto: Raymarine ST2000+ (hecho el perfil de datos). Pendiente: por dónde sale a 4800 (RS485 sin AIS, pasarela XIAO o adaptador WiFi) y, si se quiere, mandos por SeaTalk1. Viento: entra por la pasarela XIAO (CAN, UDP por WiFi o BLE); el plotter ya tiene el BLE (docs/BLE_NMEA.md); falta readaptar el firmware de la XIAO.

@@ -448,6 +448,14 @@ static void testPilot() {
         CHECK(rn > 0 && nmeaChecksumOk(r));
         CHECK(std::string(r).find("$ECRMB,A,0.20,R,,AB,3400.0000,S,15130.0000,E,999.9,1.0,-1.5,A,A*") == 0);
         CHECK(nmeaRmb(r, 30, 0, "A", "B", 0, 0, 1, 0, 0, false) == 0);
+        // VWR para el ST2000+ (WindTrim): 35 grados a babor, 12 kn
+        int vn = nmeaVwr(r, sizeof(r), -35, 12);
+        CHECK(vn > 0 && std::string(r).rfind("$IIVWR,35.0,L,12.0,N,6.2,M,22.2,K*", 0) == 0);
+        { Nmea0183 rv; DataStore sv; CHECK(rv.feed(std::string(r, vn - 2).c_str(), Source::Tcp, 0, sv) != NmeaResult::Bad); }   // suma bien
+        CHECK(nmeaVwr(r, sizeof(r), 190, 5) > 0 && std::string(r).rfind("$IIVWR,170.0,L,", 0) == 0);
+        char wid[8];
+        pilotWaypointId(2, wid, sizeof(wid)); CHECK(std::string(wid) == "W002");
+        pilotWaypointId(1234, wid, 5); CHECK(std::string(wid) == "W234" && std::strlen(wid) == 4);
     }
 }
 

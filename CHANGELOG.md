@@ -2,6 +2,11 @@
 
 ## Sin publicar
 
+- **Piloto Raymarine ST2000+** (el de Manuel; Piloto > *ST2000+*, de serie, o *Genérico*): RMB y APB con waypoints de 4
+  letras («W001»: el ST2000+ solo lee cuatro), VWR con el viento aparente para su modo WindTrim (acepta VWR, no MWV) y VHW,
+  una vez por segundo. Salida nueva **Bluetooth** (a la pasarela XIAO, que la saca a 4800). Aviso si sale por el RS485 sin
+  estar a 4800. Núcleo: `nmeaVwr`, `pilotWaypointId`; 1554 comprobaciones.
+
 - **Hora en todos los equipos**: el reloj interno se pone con la hora del GPS (RMC / ZDA de cualquier fuente NMEA, PGN
   126992 y 129029 de NMEA 2000; dos horas seguidas que cuadren) y, sin GPS, con NTP: `ntp.roa.es` (hora oficial de España,
   Real Instituto y Observatorio de la Armada), de reserva `hora.roa.es` y `pool.ntp.org`. Núcleo `timesync` (`ClockSync`:

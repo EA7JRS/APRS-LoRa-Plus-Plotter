@@ -35,6 +35,8 @@ Si el equipo tiene la característica de órdenes (`…0002`), el plotter le esc
 - `$IIHDT,ddd.d,T` rumbo verdadero;
 - `$IIVTG,ccc.c,T,,M,s.s,N,k.k,K,A` rumbo y velocidad sobre el fondo;
 - `$IIVHW,ddd.d,T,,M,s.s,N,k.k,K` velocidad en el agua (con el rumbo si lo hay);
+- con la salida al piloto en *Bluetooth* (pasarela XIAO): RMB y APB de la ruta y, para el Raymarine ST2000+, VWR y VHW, una
+  vez por segundo; la pasarela debe sacarlas a 4800 por su NMEA 0183 hacia el piloto;
 - `$IIZDA,hhmmss.00,dd,mm,aaaa,00,00` hora UTC, solo si la del plotter viene del GPS o de NTP (el instrumento pone su reloj).
 
 Cada tanda va entera, con `\r\n` tras cada sentencia, en trozos del MTU. El instrumento de viento APRS LoRa+ Wind la

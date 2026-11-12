@@ -27,7 +27,7 @@ Al encender sale un par de segundos la bienvenida de APRS LoRa+ (logo y versión
 | Rutas | Lista de waypoints y la ruta |
 | Radar AIS | Blancos alrededor del barco, con riesgo de abordaje |
 | Viento | Esfera de viento aparente y real, e historial de 10 minutos |
-| Piloto | Rumbo a gobernar, desvío de la ruta y datos para el piloto automático |
+| Piloto | Rumbo a gobernar, desvío de la ruta y datos para el piloto automático (Raymarine ST2000+ o genérico) |
 | Meteo | Presión, temperatura, humedad, viento, racha y visibilidad |
 | Ajustes | Simulador, puerto serie, brillo, unidades, mapa base, NMEA 2000, red, Bluetooth y «Acerca de» (versión, licencia, créditos y QR del donativo) |
 

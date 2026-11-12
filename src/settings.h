@@ -23,7 +23,8 @@ struct Values {
     bool bleOn = false;             // enlace BLE con la pasarela
     int blePin = 123456;            // PIN de control del tracker APRS LoRa+ (para recibir su NMEA por BLE)
     char bleAddr[18] = "";          // equipo recordado ("" = el primero que aparezca)
-    int pilotOut = 0;               // datos de ruta al piloto: 0 no, 1 RS485, 2 servidor TCP
+    int pilotOut = 0;               // datos de ruta al piloto: 0 no, 1 RS485, 2 servidor TCP, 3 Bluetooth (pasarela XIAO)
+    int pilotModel = 1;             // 0 generico (APB + RMB), 1 Raymarine ST2000+ de Manuel (RMB + APB con waypoints de 4 letras, VWR, VHW)
     int units = 0;                  // 0 nautico, 1 metrico, 2 imperial
     int baseMap = 0;                // 0 OpenSeaMap, 1 IHM, 2 IGN, 3 ortofoto (carpetas de la tarjeta)
     bool anchorOn = false;          // fondeo vigilado: sigue tras un reinicio

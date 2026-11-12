@@ -169,9 +169,15 @@ phone. To use both, connect the phone to the tracker and the plotter to the phon
 
 ### 5.5 Autopilot output
 
-**Piloto** tab > «Datos de ruta para el piloto» (route data for the pilot): Apagado (off), **Por el RS485** or **Por la
-red** (over the network). With an active destination it sends APB and RMB sentences once a second. Over the network it
-uses the TCP server from Ajustes > Red (Pypilot: port 20220).
+**Piloto** tab > «Datos de ruta para el piloto» (route data for the pilot): the pilot (**ST2000+** or **Genérico**,
+generic) and the output (Apagado = off, **RS485**, **Red (TCP)** = network, or **Bluetooth**). With an active destination it
+sends APB and RMB once a second; with the ST2000+ also VWR (apparent wind, WindTrim mode) and VHW, and waypoints as «W001»...
+(it reads four characters). Over the network it uses the TCP server from Ajustes > Red (Pypilot: port 20220); over
+Bluetooth, the XIAO gateway.
+
+**Raymarine ST2000+**: NMEA 0183 input at 4800 on its connector: pin 6 (white) NMEA+, pin 5 (green) NMEA−. Through the
+RS485: A (+) to white and B (−) to green, with the RS485 at 4800 (the Comar at 38400 stops coming in). Without that clash:
+through the XIAO gateway (Bluetooth) with its NMEA output at 4800, or through a WiFi-NMEA adapter (network).
 
 The plotter **only provides data**: the pilot is engaged and commanded from its own control head. Bearings are true.
 

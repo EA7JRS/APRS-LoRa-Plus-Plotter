@@ -29,7 +29,7 @@ On power-up the APRS LoRa+ welcome screen (logo and version) shows for a couple 
 | Rutas (Routes) | Waypoint list and the route |
 | Radar AIS | Targets around the boat, with collision risk |
 | Viento (Wind) | Apparent and true wind dial, and a 10-minute history |
-| Piloto (Pilot) | Course to steer, cross-track error and data for the autopilot |
+| Piloto (Pilot) | Course to steer, cross-track error and data for the autopilot (Raymarine ST2000+ or generic) |
 | Meteo (Weather) | Pressure, temperature, humidity, wind, gust and visibility |
 | Ajustes (Settings) | Simulator, serial port, brightness, units, base map, NMEA 2000, network, Bluetooth and «Acerca de» (About: version, licence, credits and donation QR) |
 

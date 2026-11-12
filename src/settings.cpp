@@ -31,6 +31,7 @@ void load() {
     v.blePin = p.getInt("blePin", 123456);
     if (v.blePin < 0 || v.blePin > 999999) v.blePin = 123456;
     v.pilotOut = p.getInt("pilot", 0);
+    v.pilotModel = p.getInt("pilotM", 1);
     v.units = p.getInt("units", 0);
     v.baseMap = p.getInt("map", 0);
     v.anchorOn = p.getBool("anc", false);
@@ -44,7 +45,8 @@ void load() {
     if (v.tcpKind < 0 || v.tcpKind > 3) v.tcpKind = 0;
     if (v.tcpPort < 1 || v.tcpPort > 65535) v.tcpPort = 10110;
     if (v.udpPort < 0 || v.udpPort > 65535) v.udpPort = 0;
-    if (v.pilotOut < 0 || v.pilotOut > 2) v.pilotOut = 0;
+    if (v.pilotOut < 0 || v.pilotOut > 3) v.pilotOut = 0;
+    if (v.pilotModel < 0 || v.pilotModel > 1) v.pilotModel = 1;
     if (v.units < 0 || v.units > 2) v.units = 0;
     if (v.baseMap < 0 || v.baseMap > 3) v.baseMap = 0;
     if (v.anchorRode < 5 || v.anchorRode > 200) v.anchorRode = 30;
@@ -68,6 +70,7 @@ void save() {
     p.putString("bleAddr", v.bleAddr);
     p.putInt("blePin", v.blePin);
     p.putInt("pilot", v.pilotOut);
+    p.putInt("pilotM", v.pilotModel);
     p.putInt("units", v.units);
     p.putInt("map", v.baseMap);
     p.putBool("anc", v.anchorOn);

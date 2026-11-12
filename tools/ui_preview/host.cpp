@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include "links.h"
+#include "settings.h"
 #include "store.h"
 #include "ui.h"
 
@@ -65,6 +66,7 @@ int main(int argc, char** argv) {
             else if (a == "red") ui::testNet();
             else if (a == "acerca") ui::testAbout();
             else if (a == "rs485") ui::testRs485();
+            else if (sscanf(a.c_str(), "piloto:%d", &x) == 1) settings::get().pilotOut = x;   // 1 RS485, 2 red, 3 Bluetooth
             else if (a == "internet") ui::testInternet();
             else if (sscanf(a.c_str(), "ajuste:%d", &x) == 1) ui::testSetting(x);
             else if (a == "marcar") ui::testMark();

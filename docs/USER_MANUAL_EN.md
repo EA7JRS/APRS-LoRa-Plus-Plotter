@@ -183,9 +183,18 @@ to the plotter over NMEA 2000, Bluetooth or Wi-Fi: see `WIND_INSTRUMENT_EN.md`.
 - **Desvío de la ruta** (cross-track error): the centre line is the route and the dot is the boat. It tells you which
   side you are on and which way to steer.
 - **Timón** (rudder): if the rudder angle is available.
-- **Datos de ruta para el piloto** (route data for the pilot): Apagado (off), Por el RS485 or Por la red (network).
+- **Datos de ruta para el piloto** (route data for the pilot): two buttons. The left one picks the pilot: **ST2000+** (the
+  Raymarine ST2000 Plus tiller pilot, the default) or **Genérico** (generic). The right one picks the route: Apagado (off),
+  **RS485**, **Red (TCP)** (network) or **Bluetooth** (the XIAO gateway passes it on to the pilot).
 
-The plotter only gives data to the pilot. **It does not engage or command it**: that is done from its own control head.
+With the **ST2000+**, once a second: **RMB** and **APB** with a destination (for its Track mode), **VWR** with the apparent
+wind (for its WindTrim mode, even without a destination) and **VHW** with the speed through the water. Waypoints are sent
+as «W001», «W002»...: the ST2000+ only reads the first four characters of the name, and with «WPT 01», «WPT 02» it would not
+see the waypoint change. The ST2000+ listens at **4800 baud** on its connector (pin 6 white NMEA+, pin 5 green NMEA−): if
+the output goes through the RS485, set it to 4800 in Ajustes, and then the Comar AIS (38400) no longer comes in. The generic
+pilot gets APB and RMB with the waypoint names.
+
+The plotter only gives data to the pilot. **It does not engage or command it**: that is done from its own keypad.
 
 ## 8. Meteo (Weather)
 

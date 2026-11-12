@@ -165,9 +165,14 @@ usar los dos, conecta el móvil al tracker y el plotter al móvil por WiFi (apar
 
 ### 5.5 Salida al piloto automático
 
-Pestaña **Piloto** > «Datos de ruta para el piloto»: Apagado, **Por el RS485** o **Por la red**. Con un destino activo
-envía las sentencias APB y RMB una vez por segundo. Por la red usa el servidor TCP de Ajustes > Red (Pypilot: puerto
-20220).
+Pestaña **Piloto** > «Datos de ruta para el piloto»: el piloto (**ST2000+** o **Genérico**) y la salida (Apagado,
+**RS485**, **Red (TCP)** o **Bluetooth**). Con un destino activo envía APB y RMB una vez por segundo; con el ST2000+, además
+VWR (viento aparente, modo WindTrim) y VHW, y los waypoints como «W001»... (lee cuatro letras). Por la red usa el servidor
+TCP de Ajustes > Red (Pypilot: puerto 20220); por Bluetooth, la pasarela XIAO.
+
+**Raymarine ST2000+**: entrada NMEA 0183 a 4800 en su conector: pin 6 (blanco) NMEA+, pin 5 (verde) NMEA−. Por el RS485:
+A (+) al blanco y B (−) al verde, con el RS485 a 4800 (el Comar a 38400 deja de entrar). Sin ese conflicto: por la
+pasarela XIAO (Bluetooth) con su salida NMEA a 4800, o por un adaptador WiFi-NMEA (Red).
 
 El plotter **solo da datos**: el piloto se embraga y se manda desde su propio mando. Las demoras van en verdadero.
 

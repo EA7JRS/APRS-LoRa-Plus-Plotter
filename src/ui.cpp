@@ -2163,32 +2163,66 @@ static const int P_BAR_W = 560;
 static uint32_t pilotLastMs = 0;
 static bool pilotOk = false;
 
-static void onPilotOut(lv_event_t*) {
+static lv_obj_t* pModelLbl = nullptr;
+static bool pilotWind = false;                             // se esta mandando el viento (VWR) al ST2000+
+
+static void onPilotOut(lv_event_t* e) {
     settings::Values& v = settings::get();
-    v.pilotOut = (v.pilotOut + 1) % 3;
+    if ((intptr_t)lv_event_get_user_data(e) == 1) v.pilotModel = (v.pilotModel + 1) % 2;
+    else v.pilotOut = (v.pilotOut + 1) % 4;
     settings::save();
 }
 
-// Una vez por segundo, con ruta activa: APB y RMB por la via elegida
+// Una vez por segundo por la via elegida: con ruta activa, APB y RMB; con el ST2000+, ademas el viento aparente (VWR, para su
+// modo WindTrim, aunque no haya ruta) y la velocidad en el agua (VHW). El ST2000+ solo lee 4 letras del nombre del waypoint:
+// se manda "W001", "W002"... (con "WPT 01", "WPT 02" no veria el cambio de waypoint).
 static void pilotSend() {
     const settings::Values& v = settings::get();
     uint32_t now = millis();
     if (now - pilotLastMs < 1000) return;
     pilotLastMs = now;
     pilotOk = false;
-    if (!v.pilotOut || !navOn) return;
-    const RouteStatus& st = nav.status();
-    const char* dest = navCount > 1 ? navNames[st.target] : navName;
-    const char* orig = (navCount > 1 && st.target > 0) ? navNames[st.target - 1] : "ORIGEN";
-    bool arrived = navCount > 1 ? st.finished : st.inArrival;
-    double sog = 0, cog = 0, closing = 0;
-    if (store->get(Key::Sog, now, sog) && store->get(Key::Cog, now, cog)) closing = sog * cos(deg2rad(norm180(st.bearing - cog)));
+    pilotWind = false;
+    if (!v.pilotOut) return;
+    const bool st2000 = v.pilotModel == 1;
     char b[128];
-    int n = nmeaApb(b, sizeof(b), st.xteNm, arrived, st.abeam, st.legBearing, dest, st.bearing, st.bearing, false);
-    bool ok = links::sendPilot(b, n, v.pilotOut);
-    n = nmeaRmb(b, sizeof(b), st.xteNm, orig, dest, navPts[st.target].lat, navPts[st.target].lon, st.distanceNm, st.bearing, closing, arrived);
-    ok = links::sendPilot(b, n, v.pilotOut) && ok;
-    pilotOk = ok;
+    bool ok = true, any = false;
+    if (navOn) {
+        const RouteStatus& st = nav.status();
+        char destId[8], origId[8];
+        const char* dest = navCount > 1 ? navNames[st.target] : navName;
+        const char* orig = (navCount > 1 && st.target > 0) ? navNames[st.target - 1] : "ORIGEN";
+        if (st2000) {
+            pilotWaypointId(navCount > 1 ? st.target + 1 : 1, destId, sizeof(destId));
+            pilotWaypointId(navCount > 1 ? st.target : 0, origId, sizeof(origId));
+            dest = destId;
+            orig = origId;
+        }
+        bool arrived = navCount > 1 ? st.finished : st.inArrival;
+        double sog = 0, cog = 0, closing = 0;
+        if (store->get(Key::Sog, now, sog) && store->get(Key::Cog, now, cog)) closing = sog * cos(deg2rad(norm180(st.bearing - cog)));
+        int n = nmeaRmb(b, sizeof(b), st.xteNm, orig, dest, navPts[st.target].lat, navPts[st.target].lon, st.distanceNm, st.bearing, closing, arrived);
+        ok = links::sendPilot(b, n, v.pilotOut);
+        n = nmeaApb(b, sizeof(b), st.xteNm, arrived, st.abeam, st.legBearing, dest, st.bearing, st.bearing, false);
+        ok = links::sendPilot(b, n, v.pilotOut) && ok;
+        any = true;
+    }
+    if (st2000) {
+        double awa, aws, stw;
+        if (store->get(Key::Awa, now, awa) && store->get(Key::Aws, now, aws)) {
+            int n = nmeaVwr(b, sizeof(b), awa, aws);
+            pilotWind = links::sendPilot(b, n, v.pilotOut);
+            ok = pilotWind && ok;
+            any = true;
+        }
+        if (store->get(Key::Stw, now, stw)) {
+            char body[64];
+            std::snprintf(body, sizeof(body), "IIVHW,,T,,M,%.1f,N,%.1f,K", stw, stw * 1.852);
+            const int n = std::snprintf(b, sizeof(b), "$%s*%02X\r\n", body, nmeaChecksum(body));
+            links::sendPilot(b, n, v.pilotOut);
+        }
+    }
+    pilotOk = any && ok;
 }
 
 static lv_obj_t* pilotBig(lv_obj_t* parent, int x, const char* name, lv_obj_t** value, lv_obj_t** sub, uint32_t color) {
@@ -2259,8 +2293,11 @@ static void makePilot(lv_obj_t* page) {
     lv_obj_set_style_text_line_space(pInfo, 8, 0);
     t = label(d, "Datos de ruta para el piloto", &dejavu_bold_16, C_DIM);
     lv_obj_align(t, LV_ALIGN_TOP_LEFT, 14, 232);
-    lv_obj_t* b = textButton(d, "", 360, 52, onPilotOut, 0);
+    lv_obj_t* b = textButton(d, "", 176, 52, onPilotOut, 1);           // modelo del piloto
     lv_obj_align(b, LV_ALIGN_TOP_LEFT, 14, 260);
+    pModelLbl = lv_obj_get_child(b, 0);
+    b = textButton(d, "", 176, 52, onPilotOut, 0);                     // por donde sale
+    lv_obj_align(b, LV_ALIGN_TOP_LEFT, 198, 260);
     pOutLbl = lv_obj_get_child(b, 0);
     pOutTxt = label(d, "", &dejavu_14, C_SOFT);
     lv_obj_align(pOutTxt, LV_ALIGN_TOP_LEFT, 14, 324);
@@ -2271,7 +2308,7 @@ static void makePilot(lv_obj_t* page) {
 static void updatePilot() {
     uint32_t now = millis();
     const settings::Values& v = settings::get();
-    char b[220], c[24];
+    char b[400], c[24];
     double hdg = 0, cog = 0, sog = 0, rud = 0;
     bool hasHdg = store->get(Key::Heading, now, hdg), hasCog = store->get(Key::Cog, now, cog);
     store->get(Key::Sog, now, sog);
@@ -2341,11 +2378,23 @@ static void updatePilot() {
         lv_obj_set_hidden(pRudBar, true);
         lv_label_set_text(pRudTxt, "Sin sensor de tim\xC3\xB3n (RSA o NMEA 2000)");
     }
-    static const char* const kOut[3] = {"Apagado", "Por el RS485 (NMEA 0183)", "Por la red (servidor TCP)"};
+    static const char* const kOut[4] = {"Apagado", "RS485", "Red (TCP)", "Bluetooth"};
     lv_label_set_text(pOutLbl, kOut[v.pilotOut]);
-    const char* state = !v.pilotOut ? "No se env\xC3\xAD" "a nada." : (!navOn ? "Sin destino: no se env\xC3\xAD" "a nada." : (pilotOk ? "Enviando APB y RMB cada segundo." : "Sin conexi\xC3\xB3n con el servidor: no se env\xC3\xAD" "a."));
-    snprintf(b, sizeof(b), "%s\nEl plotter solo da los datos de la ruta. El piloto se embraga y se manda desde su propio mando.%s", state,
-             v.pilotOut == 1 ? "\nEl RS485 es el mismo puerto por el que entra el AIS." : "");
+    lv_label_set_text(pModelLbl, v.pilotModel == 1 ? "ST2000+" : "Gen\xC3\xA9rico");
+    const bool st2000 = v.pilotModel == 1;
+    const char* state;
+    if (!v.pilotOut) state = "No se env\xC3\xAD" "a nada.";
+    else if (pilotOk) state = st2000 ? (navOn ? (pilotWind ? "Enviando RMB, APB y viento (VWR) cada segundo." : "Enviando RMB y APB cada segundo.")
+                                              : "Enviando el viento (VWR) para el modo WindTrim.")
+                                     : "Enviando APB y RMB cada segundo.";
+    else if (!navOn && !(st2000 && pilotWind)) state = st2000 ? "Sin destino ni viento aparente: no se env\xC3\xAD" "a nada." : "Sin destino: no se env\xC3\xAD" "a nada.";
+    else state = v.pilotOut == 3 ? "Sin pasarela por Bluetooth: no se env\xC3\xAD" "a." : "Sin conexi\xC3\xB3n con el servidor: no se env\xC3\xAD" "a.";
+    const char* extra = "";
+    if (st2000 && v.pilotOut == 1 && v.serialBaud != 4800) extra = "\nEl ST2000+ escucha a 4800: pon el RS485 a 4800 (entonces no entra el AIS).";
+    else if (v.pilotOut == 1) extra = "\nEl RS485 es el mismo puerto por el que entra el AIS.";
+    else if (st2000 && v.pilotOut == 3) extra = "\nLa pasarela lo saca a 4800 hacia el piloto (blanco NMEA+, verde NMEA\xE2\x88\x92).";
+    snprintf(b, sizeof(b), "%s\nEl plotter solo da los datos. El piloto se embraga y se manda desde su propio mando (Track y WindTrim en el ST2000+).%s",
+             state, extra);
     lv_label_set_text(pOutTxt, b);
 }
 

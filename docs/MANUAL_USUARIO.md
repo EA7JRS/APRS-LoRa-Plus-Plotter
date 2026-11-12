@@ -177,9 +177,18 @@ Wind), que se lo pasa al plotter por NMEA 2000, Bluetooth o WiFi: ver `INSTRUMEN
 - **Desvío de la ruta**: la línea del centro es la ruta y el punto es el barco. Dice a qué banda estás y hacia dónde
   gobernar.
 - **Timón**: si llega el ángulo de timón.
-- **Datos de ruta para el piloto**: Apagado, Por el RS485 o Por la red.
+- **Datos de ruta para el piloto**: dos botones. El de la izquierda elige el piloto: **ST2000+** (el Raymarine ST2000 Plus
+  de cana, de serie) o **Genérico**. El de la derecha, por dónde sale: Apagado, **RS485**, **Red (TCP)** o **Bluetooth**
+  (la pasarela XIAO lo saca hacia el piloto).
 
-El plotter solo da datos al piloto. **No lo embraga ni lo manda**: eso se hace desde su propio mando.
+Con el **ST2000+**, una vez por segundo: **RMB** y **APB** con destino (para su modo Track), **VWR** con el viento aparente
+(para su modo WindTrim, aunque no haya destino) y **VHW** con la velocidad en el agua. Los waypoints van como «W001»,
+«W002»...: el ST2000+ solo lee las cuatro primeras letras del nombre y con «WPT 01», «WPT 02» no vería el cambio de
+waypoint. El ST2000+ escucha a **4800 baudios** por su conector (pin 6 blanco NMEA+, pin 5 verde NMEA−): si sale por el
+RS485, ponlo a 4800 en Ajustes, y entonces no entra el AIS del Comar (va a 38400). Con el genérico, APB y RMB con los
+nombres de los waypoints.
+
+El plotter solo da datos al piloto. **No lo embraga ni lo manda**: eso se hace desde su propio teclado.
 
 ## 8. Meteo
 

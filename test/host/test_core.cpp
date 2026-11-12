@@ -10,6 +10,9 @@
 #include <string>
 
 #include "ais.h"
+#include "alerts.h"
+#include "minijson.h"
+#include "same.h"
 #include "anchor.h"
 #include "aistargets.h"
 #include "astro.h"
@@ -1607,12 +1610,186 @@ static void testFormulas() {
     CHECK(near(seaLevelPressureHpa(1000, 110, 15), 1013.1, 0.3));
 }
 
+static void testAlerts() {
+    // JSON
+    JsonValue j;
+    CHECK(jsonParse("{\"a\":[1,2.5,\"x\\u00e9\"],\"b\":{\"c\":true,\"d\":null},\"e\":\"182\"}", j));
+    CHECK(j["a"].size() == 3 && j["a"][1].num() == 2.5 && j["a"][2].str() == "x\xc3\xa9" && j["b"]["c"].boolean && j["b"]["d"].isNull());
+    CHECK(j["e"].num() == 182 && j["zz"]["y"].isNull() && !jsonParse("{\"a\":}", j) && !jsonParse("[1,2", j));
+    // Tiempo
+    CHECK(parseIsoTime("2026-11-04T23:00:00+00:00") == unixFromUtc(2026, 11, 4, 23, 0, 0));
+    CHECK(parseIsoTime("2026-11-04T16:50:00-06:00") == unixFromUtc(2026, 11, 4, 22, 50, 0));
+    CHECK(parseIsoTime("2026-11-12T16:09:00Z") == unixFromUtc(2026, 11, 12, 16, 9, 0));
+    CHECK(parseIsoTime("2026-11-05 00:00:00.000") == unixFromUtc(2026, 11, 5, 0, 0, 0) && parseIsoTime("nada") == 0);
+    // MeteoAlarm (entrada real del canal de Alemania, 2026-11-12: el titulo dice naranja con cap:severity Moderate)
+    const std::string ma =
+        "<entry><cap:geocode><valueName>EMMA_ID</valueName><value>DE103</value></cap:geocode>"
+        "<cap:areaDesc>Kreis Aurich - K\xc3\xbcste</cap:areaDesc><cap:event>heavy thunderstorms with gale- or storm-force gusts</cap:event>"
+        "<cap:sent>2026-11-12T16:09:00+00:00</cap:sent><cap:expires>2026-11-12T20:00:00+00:00</cap:expires>"
+        "<cap:onset>2026-11-12T16:30:00+00:00</cap:onset><cap:severity>Moderate</cap:severity><cap:message_type>Alert</cap:message_type>"
+        "<cap:status>Actual</cap:status><cap:identifier>2.49.0.0.276.0.DWD.PVW.1794499740000.4aff.MUL</cap:identifier>"
+        "<id>https://feeds.meteoalarm.org/x?index_info=1&amp;index_area=15</id>"
+        "<title>Orange Thunderstorm Warning issued for Germany - Kreis Aurich - K\xc3\xbcste</title></entry>";
+    Alert a;
+    CHECK(meteoAlarmParseEntry(ma, a) && a.level == 2 && a.area == "Kreis Aurich - K\xc3\xbcste" && a.src == AlertSrc::MeteoAlarm);
+    CHECK(a.onset == unixFromUtc(2026, 11, 12, 16, 30, 0) && a.expires == unixFromUtc(2026, 11, 12, 20, 0, 0));
+    CHECK(a.id == "2.49.0.0.276.0.DWD.PVW.1794499740000.4aff.MUL/DE103" && asciiFold(a.area) == "Kreis Aurich - Kuste");
+    CHECK(std::string(meteoAlarmFeedName("es")) == "spain" && meteoAlarmFeedName("US") == nullptr);
+    // Splitter a trozos
+    {
+        std::string doc = "<feed><title>x</title>" + ma + "<entryX/>" + ma + "</feed>";
+        XmlBlockSplitter sp("entry");
+        int n = 0;
+        for (size_t i = 0; i < doc.size(); i += 7) sp.feed(doc.data() + i, std::min<size_t>(7, doc.size() - i), [&](const std::string& b) { Alert t; if (meteoAlarmParseEntry(b, t)) n++; });
+        CHECK(n == 2 && xmlBlocks(doc, "entry").size() == 2);
+    }
+    // AEMET RSS (item real, 2026-11-04)
+    const std::string it = "<item><title>Aviso. Nivel amarillo. Lluvias. Poniente y Almer\xc3\xad" "a Capital</title>"
+        "<description>Aviso de precipitaci\xc3\xb3n acumulada en una hora de nivel amarillo de 18:00 04-11-2026 CET (UTC+1) a 07:59 05-11-2026 CET (UTC+1).</description>"
+        "<guid isPermaLink=\"false\">Z_CAP_C_LEMM_20261104171224_AFAZ610403PRP10507.xml</guid></item>";
+    CHECK(aemetParseRssItem(it, a) && a.level == 1 && a.event == "Rain" && a.area == "Poniente y Almer\xc3\xad" "a Capital");
+    CHECK(a.onset == unixFromUtc(2026, 11, 4, 17, 0, 0) && a.expires == unixFromUtc(2026, 11, 5, 6, 59, 0));
+    CHECK(a.text == "precipitaci\xc3\xb3n acumulada en una hora" && a.id == "Z_CAP_C_LEMM_20261104171224_AFAZ610403PRP10507.xml");
+    CHECK(!aemetParseRssItem("<item><title>Estado completo de avisos para Espa\xc3\xb1" "a</title></item>", a));
+    CHECK(alertZoneMatch("Poniente y Almer\xc3\xad" "a Capital", "huelva, almeria") && !alertZoneMatch("Costa granadina", "Huelva") && alertZoneMatch("x", " "));
+    CHECK(alertLevelFromColour("Nivel rojo") == 3 && alertLevelFromColour("reduced visibility") == -1 && alertLevelFromColour("Red Wind Warning") == 3);
+    // CAP de AEMET con poligono (recortado del .tar.gz del 2026-11-04)
+    const std::string cap = "<alert xmlns=\"urn:oasis:names:tc:emergency:cap:1.2\"><identifier>2.49.0.0.724.0.ES.1</identifier>"
+        "<sent>2026-11-03T10:27:59-00:00</sent><status>Actual</status><msgType>Update</msgType>"
+        "<info><language>es-ES</language><event>Aviso de lluvias de nivel amarillo</event><severity>Moderate</severity>"
+        "<onset>2026-11-04T11:00:00-00:00</onset><expires>2026-11-04T19:59:59-00:00</expires>"
+        "<headline>Aviso de lluvias de nivel amarillo. Norte de Gran Canaria</headline><description>Precipitaci\xc3\xb3n acumulada en una hora: 15 mm.</description>"
+        "<parameter><valueName>AEMET-Meteoalerta nivel</valueName><value>amarillo</value></parameter>"
+        "<area><areaDesc>Norte de Gran Canaria</areaDesc><polygon>28.05,-15.74 28.09,-15.71 28.16,-15.7 28.17,-15.63 28.15,-15.61 28.14,-15.54 28.13,-15.43 28.06,-15.42 28.01,-15.51 28.05,-15.74</polygon></area></info>"
+        "<info><language>en-GB</language><event>Yellow warning for rain</event><severity>Moderate</severity>"
+        "<onset>2026-11-04T11:00:00-00:00</onset><expires>2026-11-04T19:59:59-00:00</expires><description>Accumulated precipitation in one hour: 15 mm.</description>"
+        "<parameter><valueName>AEMET-Meteoalerta nivel</valueName><value>amarillo</value></parameter>"
+        "<area><areaDesc>Norte de Gran Canaria</areaDesc><polygon>28.05,-15.74 28.09,-15.71 28.16,-15.7 28.17,-15.63 28.15,-15.61 28.14,-15.54 28.13,-15.43 28.06,-15.42 28.01,-15.51 28.05,-15.74</polygon></area></info></alert>";
+    std::vector<Alert> v;
+    std::vector<std::vector<LatLon>> polys;
+    CHECK(capParse(cap, v, &polys) && v.size() == 1 && v[0].event == "Yellow warning for rain" && v[0].level == 1 && polys.size() == 1 && polys[0].size() == 10);
+    CHECK(pointInPolygon({28.10, -15.60}, polys[0]) && !pointInPolygon({28.0, -15.3}, polys[0]) && v[0].expires == unixFromUtc(2026, 11, 4, 19, 59, 59));
+    // NWS (respuesta real recortada, 2026-11-04)
+    const std::string nws = "{\"type\":\"FeatureCollection\",\"features\":[{\"id\":\"x\",\"type\":\"Feature\",\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[-93.14,30.38],[-93.03,30.31],[-93.08,30.25],[-93.21,30.19],[-93.29,30.3],[-93.14,30.38]]]},"
+        "\"properties\":{\"id\":\"urn:oid:2.49.0.1.840.0.4ecd.001.1\",\"areaDesc\":\"Calcasieu, LA\",\"sent\":\"2026-11-04T16:50:00-06:00\",\"onset\":\"2026-11-04T16:50:00-06:00\","
+        "\"expires\":\"2026-11-05T05:00:00-06:00\",\"ends\":\"2026-11-07T06:00:00-06:00\",\"status\":\"Actual\",\"messageType\":\"Alert\",\"severity\":\"Severe\",\"event\":\"Flood Warning\","
+        "\"headline\":\"Flood Warning issued November 4 at 4:50PM CST until November 7 at 6:00AM CST by NWS Lake Charles LA\",\"instruction\":\"Turn around, don't drown when encountering flooded roads.\"}}]}";
+    v.clear();
+    CHECK(nwsParse(nws, v) && v.size() == 1 && v[0].level == 2 && v[0].event == "Flood Warning" && v[0].area == "Calcasieu, LA");
+    CHECK(v[0].expires == unixFromUtc(2026, 11, 7, 12, 0, 0) && std::fabs(v[0].lat - 30.30) < 0.1 && v[0].instruction.compare(0, 11, "Turn around") == 0);
+    // tsunami.gov (entrada real del PTWC, 2026-10-25)
+    const std::string tsu = "<entry><title>BONIN ISLANDS  JAPAN REGION</title><updated>2026-10-25T02:27:01Z</updated><geo:lat>28.</geo:lat><geo:long>139.9</geo:long>"
+        "<summary type=\"xhtml\"><div xmlns=\"http://www.w3.org/1999/xhtml\"><strong>Category:</strong> Information<br/><strong>Bulletin Issue Time: </strong> 2026.10.25 02:27:01 UTC <br/>"
+        "<strong>Preliminary Magnitude: </strong>7.0(Mwp)<br/><strong>Lat/Lon: </strong>28. / 139.9<br/><strong>Affected Region: </strong>BONIN ISLANDS  JAPAN REGION<br/></div></summary>"
+        "<id>urn:uuid:ba64bc82-07f7-45fb-ab6c-25420fca6851</id></entry>";
+    CHECK(tsunamiParseEntry(tsu, a) && a.level == 0 && a.event == "Tsunami Information" && a.text == "M7.0(Mwp) BONIN ISLANDS JAPAN REGION");
+    CHECK(std::fabs(a.lat - 28) < 1e-9 && a.sent == unixFromUtc(2026, 10, 25, 2, 27, 1) && a.expires == a.sent + 86400);
+    std::string tw = tsu;
+    tw.replace(tw.find("Information"), 11, "Warning");
+    CHECK(tsunamiParseEntry(tw, a) && a.level == 3);
+    // Terremotos (USGS y EMSC del mismo, 2026-11-04)
+    v.clear();
+    CHECK(quakeParseUsgs("{\"features\":[{\"type\":\"Feature\",\"properties\":{\"mag\":5,\"place\":\"south of the Fiji Islands\",\"time\":1793827465643,\"tsunami\":0,\"type\":\"earthquake\"},"
+                         "\"geometry\":{\"type\":\"Point\",\"coordinates\":[179.8078,-25.3174,508.132]},\"id\":\"us7000tw43\"}]}", v));
+    CHECK(quakeParseEmsc("{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[179.8078,-25.3174,-508.1]},\"id\":\"20261104_0000300\","
+                         "\"properties\":{\"time\":\"2026-11-04T21:24:25.643Z\",\"flynn_region\":\"SOUTH OF FIJI ISLANDS\",\"lat\":-25.3174,\"lon\":179.8078,\"depth\":508.1,\"mag\":5.0,\"unid\":\"20261104_0000300\"}},"
+                         "{\"type\":\"Feature\",\"properties\":{\"time\":\"2026-11-04T16:14:39.4Z\",\"flynn_region\":\"STRAIT OF GIBRALTAR\",\"lat\":36.0,\"lon\":-5.5,\"depth\":10,\"mag\":4.6,\"unid\":\"b\"}}]}", v));
+    CHECK(v.size() == 3 && quakeSame(v[0], v[1]) && !quakeSame(v[0], v[2]) && quakeMag(v[2]) > 4.59);
+    quakeSetLevels(v, {36.5, -6.0}, true);                    // desde Cadiz
+    CHECK(v.size() == 2 && v[0].src == AlertSrc::Emsc && v[0].level == 0 && v[1].level == 1);
+    CHECK(v[1].text.find("Depth 10 km, ") == 0 && v[1].text.find(" km SE") != std::string::npos);
+    CHECK(quakeLevel(5.4, 186) == 2 && quakeLevel(7.1, 9842) == 0 && quakeLevel(7.6, 2500) == 2 && quakeLevel(4.2, 60) == 1 && quakeLevel(6.2, 250) == 3);
+    CHECK(emscUrl(36.5, -6, unixFromUtc(2026, 11, 12, 20, 5, 9)).find("&start=2026-11-12T20:05:09") != std::string::npos);
+    // SWPC
+    SpaceWx w;
+    CHECK(swpcParseScales("{\"-1\":{\"G\":{\"Scale\":\"0\"}},\"0\":{\"DateStamp\":\"2026-11-12\",\"R\":{\"Scale\":\"1\",\"Text\":\"minor\"},\"S\":{\"Scale\":\"0\"},\"G\":{\"Scale\":\"3\",\"Text\":\"strong\"}},"
+                          "\"1\":{\"G\":{\"Scale\":\"2\"},\"R\":{\"MinorProb\":\"35\"}},\"2\":{\"G\":{\"Scale\":\"1\"}},\"3\":{\"G\":{\"Scale\":null}}}", w));
+    CHECK(w.g == 3 && w.r == 1 && w.s == 0 && w.gMax == 2);
+    CHECK(swpcParseKp("[[\"time_tag\",\"Kp\",\"a_running\",\"station_count\"],[\"2026-11-11 21:00:00.000\",\"2.33\",\"9\",\"8\"],[\"2026-11-12 00:00:00.000\",\"5.00\",\"48\",\"8\"]]", w));
+    CHECK(w.kpCount == 2 && std::fabs(w.kpNow() - 5) < 1e-6 && w.kpTime == unixFromUtc(2026, 11, 12, 0, 0, 0) && kpToG(w.kpNow()) == 1);
+    CHECK(swpcParseKp("[{\"time_tag\":\"2026-11-12T03:00:00\",\"Kp\":6.67,\"a_running\":80},{\"time_tag\":\"2026-11-12T00:00:00\",\"Kp\":5.0}]", w) && std::fabs(w.kpNow() - 6.67) < 1e-3);
+    CHECK(swpcParseSummary("{\"Flux\":\"182\",\"TimeStamp\":\"2026-11-12 20:00:00\"}", w) && w.sfi == 182);
+    CHECK(swpcParseSummary("{\"Bt\":\"14\",\"Bz\":\"-12\",\"TimeStamp\":\"x\"}", w) && w.bz == -12 && w.bt == 14);
+    CHECK(swpcParseXray("[{\"time_tag\":\"a\",\"flux\":1.2e-6,\"energy\":\"0.1-0.8nm\"},{\"time_tag\":\"b\",\"flux\":2.4e-5,\"energy\":\"0.1-0.8nm\"},{\"time_tag\":\"b\",\"flux\":1e-7,\"energy\":\"0.05-0.4nm\"}]", w) && w.xray == "M2.4");
+    CHECK(xrayClass(3.1e-4) == "X3.1" && xrayClass(5e-8) == "A5.0" && xrayClass(1.7e-3) == "X17.0");
+    const int64_t now = unixFromUtc(2026, 8, 27, 9, 0, 0);
+    v.clear();
+    CHECK(swpcParseAlerts("[{\"product_id\":\"K07A\",\"issue_datetime\":\"2026-08-27 06:15:00.000\",\"message\":\"Space Weather Message Code: ALTK07\\r\\nSerial Number: 123\\r\\nIssue Time: 2026 Aug 27 0615 UTC\\r\\n\\r\\nALERT: Geomagnetic K-index of 7\\r\\nThreshold Reached: 2026 Aug 27 0612 UTC\\r\\nSynoptic Period: 0600-0900 UTC\\r\\n\\r\\nActive Warning: Yes\\r\\nNOAA Scale: G3 - Strong\\r\\n\"},"
+                          "{\"product_id\":\"A20F\",\"issue_datetime\":\"2026-08-27 05:00:00.000\",\"message\":\"Space Weather Message Code: WATA20\\r\\nSerial Number: 99\\r\\n\\r\\nWATCH: Geomagnetic Storm Category G1 Predicted\\r\\n\"},"
+                          "{\"product_id\":\"K05W\",\"issue_datetime\":\"2026-08-27 04:00:00.000\",\"message\":\"Space Weather Message Code: WARK05\\r\\nSerial Number: 50\\r\\n\\r\\nWARNING: Geomagnetic K-index of 5 expected\\r\\nValid From: 2026 Aug 27 0400 UTC\\r\\nValid To: 2026 Aug 27 1200 UTC\\r\\nNOAA Scale: G1 - Minor\\r\\n\"},"
+                          "{\"product_id\":\"K05W\",\"issue_datetime\":\"2026-08-27 08:00:00.000\",\"message\":\"Space Weather Message Code: WARK05\\r\\nSerial Number: 51\\r\\n\\r\\nCANCEL WARNING: Geomagnetic K-index of 5 expected\\r\\nCancel Serial Number: 50\\r\\n\"},"
+                          "{\"product_id\":\"K04A\",\"issue_datetime\":\"2026-08-20 04:00:00.000\",\"message\":\"Space Weather Message Code: ALTK04\\r\\nSerial Number: 7\\r\\n\\r\\nALERT: Geomagnetic K-index of 4\\r\\n\"}]", now, v));
+    CHECK(v.size() == 2 && v[0].level == 2 && v[0].area == "G3 Geomagnetic storm" && v[0].event == "Geomagnetic K-index of 7" && v[0].text == "Alert");
+    CHECK(v[1].level == 1 && v[1].area == "G1 Geomagnetic storm" && v[1].text == "Watch");
+    std::vector<Alert> sc;
+    swpcScaleAlerts(w, now, sc);
+    // Lista
+    AlertList L;
+    CHECK(L.upsert(v[1]) && L.upsert(v[0]) && !L.upsert(v[0]) && L.size() == 2 && L[0].level == 2 && L.maxLevel() == 2);
+    Alert up = v[1];
+    up.level = 3;
+    CHECK(L.upsert(up) && L[0].id == up.id);
+    std::vector<Alert> fresh = {v[0]};
+    CHECK(L.replaceSource(AlertSrc::Swpc, fresh).empty() && L.size() == 1);
+    L.expire(v[0].expires + 1);
+    CHECK(L.size() == 0);
+}
+
+static void testSame() {
+    SameMsg m;
+    CHECK(sameParse("ZCZC-WXR-TOR-048201-048157+0030-3171845-KHGX/NWS-", m) && m.org == "WXR" && m.event == "TOR" && m.fips.size() == 2);
+    CHECK(m.durationMin == 30 && m.julianDay == 317 && m.hour == 18 && m.minute == 45 && m.sender == "KHGX/NWS");
+    CHECK(!sameParse("ZCZC-WXR-TOR-04820+0030-3171845-KHGX/NWS-", m) && sameHeaderEnd("ZCZC-WXR-SVR-048201+0100-3171845-KHGX/NWS-xx") == 42);
+    CHECK(std::string(sameEventName("SVR")) == "Severe Thunderstorm Warning" && sameEventLevel("TOR") == 3 && sameEventLevel("XYW") == 2 && sameEventLevel("RWT") == 0);
+    CHECK(nwrChannel(162.400) == 2 && nwrChannel(162.55) == 1 && nwrChannel(162.41) == 0);
+    sameParse("ZCZC-WXR-TOR-048201-048157+0030-3171845-KHGX/NWS-", m);
+    Alert a = sameToAlert(m, unixFromUtc(2026, 11, 13, 19, 0, 0));
+    CHECK(a.onset == unixFromUtc(2026, 11, 13, 18, 45, 0) && a.expires == a.onset + 1800 && a.level == 3 && a.area == "048201 048157");
+    // Senal sintetica: a 12 kHz, 13,2 kHz (T-TWR) y 48 kHz, con ruido y un 0,5 % de desvio de reloj
+    const std::string hdr = "ZCZC-WXR-SVR-048201-048157-048339+0045-3171902-KHGX/NWS-";
+    for (float fs : {12000.0f, 13200.0f, 48000.0f}) {
+        std::vector<float> sig;
+        sameSynth(hdr, fs * 1.005f, sig);                       // el emisor un poco mas rapido
+        std::vector<float> eom;
+        sameSynth("NNNN", fs, eom);
+        sig.insert(sig.end(), eom.begin(), eom.end());
+        unsigned seed = 12345;
+        for (auto& x : sig) {                                   // ruido blanco uniforme (SNR ~ 10 dB)
+            seed = seed * 1103515245u + 12345u;
+            x += ((float)((seed >> 8) & 0xFFFF) / 65535.0f - 0.5f) * 0.55f;
+        }
+        SameDecoder d;
+        d.begin(fs);
+        std::vector<std::string> got;
+        for (size_t i = 0; i < sig.size(); i += 256) {
+            d.feed(sig.data() + i, std::min<size_t>(256, sig.size() - i));
+            std::string h;
+            while (d.poll(h)) got.push_back(h);
+        }
+        CHECK(got.size() == 2 && got[0] == hdr && got[1] == "NNNN");
+        if (got.size() != 2) for (auto& g : got) std::printf("  fs %.0f: %s\n", fs, g.c_str());
+    }
+    // una sola copia: sale a los 6 s
+    {
+        std::vector<float> sig;
+        sameSynth(hdr, 12000, sig, 1);
+        sig.resize(sig.size() + 12000 * 7, 0.0f);
+        SameDecoder d;
+        d.begin(12000);
+        d.feed(sig.data(), sig.size());
+        std::string h;
+        CHECK(d.poll(h) && h == hdr && !d.poll(h));
+    }
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
     testTimeSync();
     testFormulas();
     testWindAlarm();
+    testAlerts();
+    testSame();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

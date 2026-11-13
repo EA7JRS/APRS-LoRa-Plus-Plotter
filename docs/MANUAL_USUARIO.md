@@ -82,10 +82,13 @@ Sin teselas en la tarjeta para la zona, el fondo queda en azul liso y lo demás 
 | Día / noche | La línea del orto y del ocaso y el lado de noche oscurecido; **− / +** cambian cuánto oscurece |
 | Radioavisos NAVAREA | Los avisos NAVAREA III del IHM: un rombo con su número y una línea por sus posiciones (zona o derrota) |
 | Marcas OpenSeaMap | La capa transparente de marcas de OpenSeaMap de `/charts/seamark`, encima del mapa base; **− / +** cambian su transparencia |
+| METAR y TAF | Los aeropuertos de unos 300 km a la redonda: punto con el color de la categoría de vuelo (verde VFR, azul MVFR, rojo IFR, magenta LIFR), barbas de viento, temperatura (amarillo) y rocío (azul), y la racha junto al indicativo. La ficha trae el parte descifrado, el METAR y el TAF tal cual y **GO TO** |
+| SIGMET | Los SIGMET internacionales de la región (tormentas, turbulencia, engelamiento, ceniza...): contorno rojo con su nombre y niveles; la ficha trae validez, movimiento y el texto, y **CENTER** centra la carta en él |
 
 Al tocar una marca se abre su ficha: la del aviso oficial (como la ventana de avisos) o la del radioaviso, con **GO TO**
 (navegar a su primera posición) y **CLOSE**. Avisos y terremotos salen de los avisos oficiales (Ajustes > Red); los
-radioavisos se bajan con la WiFi, como mucho una vez por hora y solo con la capa encendida. Las cartas del IHM y los
+radioavisos se bajan con la WiFi, como mucho una vez por hora y solo con la capa encendida. METAR, TAF y SIGMET vienen del
+Aviation Weather Center de NOAA (aviationweather.gov, dominio público) cada 15 minutos, también solo con su capa encendida. Las cartas del IHM y los
 radioavisos son para uso no comercial.
 
 ### Punto tocado

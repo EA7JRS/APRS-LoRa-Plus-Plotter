@@ -43,6 +43,8 @@ static bool resultNew = false;
 static std::vector<plotter::NavWarning> navResult;
 static bool navNew = false;
 static uint32_t navNextMs = 0;
+static Aviation avResult;
+static bool avNew = false;
 
 static const char* UA = "APRSLoRaPlus/5 (+https://ea7jrs.github.io/APRS-LoRa-Plus/)";
 
@@ -125,6 +127,29 @@ static bool fetchNavareas(std::vector<plotter::NavWarning>& out) {
         const std::string doc = "<dataroot>" + (validUtf8(b) ? b : latin1ToUtf8(b)) + "</dataroot>";
         plotter::navWarningsParseIhm(doc, out);
     });
+}
+
+// METAR y TAF en un recuadro de unos 3 grados alrededor del barco y los SIGMET de su region
+static bool fetchAviation(const Config& c, double lat, double lon, Aviation& out, bool& failed) {
+    failed = false;
+    bool any = false;
+    std::string j;
+    const double dLat = 3.0, dLon = 4.0;
+    if (c.metar) {
+        if (fetchText(plotter::awcMetarUrl(lat - dLat, lon - dLon, lat + dLat, lon + dLon).c_str(), j, 300000, "application/json") &&
+            plotter::metarParseJson(j, out.metars)) any = true;
+        else failed = true;
+        j.clear();
+        if (fetchText(plotter::awcTafUrl(lat - dLat, lon - dLon, lat + dLat, lon + dLon).c_str(), j, 300000, "application/json"))
+            plotter::tafParseJson(j, out.tafs);
+        j.clear();
+    }
+    if (c.sigmet) {
+        if (fetchText(plotter::awcSigmetUrl(plotter::awcSigmetRegion(lat, lon)).c_str(), j, 600000, "application/geo+json") &&
+            plotter::sigmetParseGeoJson(j, out.sigmets)) any = true;
+        else failed = true;
+    }
+    return any;
 }
 
 static int64_t nowUnix() {
@@ -270,6 +295,9 @@ static void task(void*) {
         collect(all, sw, c, la, lo, hp, msg, sizeof(msg));
         std::vector<plotter::NavWarning> nav;
         bool navOk = false;
+        Aviation av;
+        bool avOk = false, avFail = false;
+        if ((c.metar || c.sigmet) && hp) avOk = fetchAviation(c, la, lo, av, avFail);
         if (c.navarea && (force || navNextMs == 0 || (int32_t)(millis() - navNextMs) >= 0)) {
             navOk = fetchNavareas(nav);
             navNextMs = millis() + (navOk ? 3600000u : 600000u);   // si falla, otra vez a los 10 min
@@ -279,7 +307,9 @@ static void task(void*) {
         resultSpace = sw;
         resultNew = true;
         if (navOk) { navResult.swap(nav); navNew = true; }
+        if (avOk) { avResult = std::move(av); avNew = true; }
         snprintf(st.msg, sizeof(st.msg), "%s", msg);
+        if (avFail && strlen(st.msg) < sizeof(st.msg) - 16) strcat(st.msg, "; AWC failed");
         st.lastMs = millis();
         if (strstr(msg, "failed")) st.fail++; else st.ok++;
         xSemaphoreGive(lock);
@@ -319,6 +349,15 @@ bool take(std::vector<plotter::Alert>& out, plotter::SpaceWx& space) {
     return n;
 }
 
+bool takeAviation(Aviation& out) {
+    if (!lock) return false;
+    xSemaphoreTake(lock, portMAX_DELAY);
+    const bool n = avNew;
+    if (n) { out = std::move(avResult); avResult = Aviation(); avNew = false; }
+    xSemaphoreGive(lock);
+    return n;
+}
+
 bool takeNav(std::vector<plotter::NavWarning>& out) {
     if (!lock) return false;
     xSemaphoreTake(lock, portMAX_DELAY);
@@ -342,6 +381,7 @@ void setPosition(double, double) {}
 void refresh() {}
 bool take(std::vector<plotter::Alert>&, plotter::SpaceWx&) { return false; }
 bool takeNav(std::vector<plotter::NavWarning>&) { return false; }
+bool takeAviation(Aviation&) { return false; }
 const Status& status() { return st; }
 }  // namespace alertsnet
 

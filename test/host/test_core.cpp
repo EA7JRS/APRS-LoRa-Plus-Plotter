@@ -39,6 +39,7 @@
 #include "wxstation.h"
 #include "wmm.h"
 #include "wxcalc.h"
+#include "aviation.h"
 
 using namespace plotter;
 
@@ -1799,6 +1800,65 @@ static void testSame() {
     }
 }
 
+
+// METAR, TAF y SIGMET con la forma de la API de aviationweather.gov (campos de su esquema metar1_0.json; valores inventados)
+static void testAviation() {
+    CHECK(flightCategory(-1, 10) == FlightCat::Vfr);
+    CHECK(flightCategory(2500, 10) == FlightCat::Mvfr);
+    CHECK(flightCategory(5000, 2) == FlightCat::Ifr);
+    CHECK(flightCategory(300, 10) == FlightCat::Lifr);
+    CHECK(flightCategory(800, 0.5) == FlightCat::Lifr);
+    CHECK(flightCategory(-1, -1) == FlightCat::Unknown);
+    const char* js = R"([
+ {"icaoId":"LERT","receiptTime":"2026-11-13 08:32:11","obsTime":1794558600,"reportTime":"2026-11-13 08:30:00","temp":17,"dewp":11,
+  "wdir":100,"wspd":22,"wgst":32,"visib":"6+","altim":1016,"wxString":null,"vertVis":null,"metarType":"METAR",
+  "rawOb":"METAR LERT 130830Z 10022G32KT 9999 FEW030 17/11 Q1016","lat":36.645,"lon":-6.349,"elev":26,"name":"Rota Naval Station, AN, ES",
+  "clouds":[{"cover":"FEW","base":3000}]},
+ {"icaoId":"GMTN","obsTime":1794558600,"temp":14,"dewp":14,"wdir":"VRB","wspd":3,"wgst":null,"visib":0.5,"altim":1017,"wxString":"FG",
+  "vertVis":200,"rawOb":"METAR GMTN 130830Z VRB03KT 0800 FG VV002 14/14 Q1017","lat":35.594,"lon":-5.32,"name":"Tetouan","clouds":[]},
+ {"icaoId":"LPFR","obsTime":1794558600,"temp":15,"dewp":14,"wdir":320,"wspd":6,"visib":"1.55","altim":1018,"fltCat":"IFR",
+  "rawOb":"METAR LPFR 130830Z 32006KT 2500 BR BKN007 15/14 Q1018","lat":37.014,"lon":-7.966,"clouds":[{"cover":"BKN","base":700}]},
+ {"icaoId":"XXXX","name":"sin posicion"}
+])";
+    std::vector<Metar> ms;
+    CHECK(metarParseJson(js, ms) && ms.size() == 3);
+    if (ms.size() == 3) {
+        const Metar& r = ms[0];
+        CHECK(r.icao == "LERT" && r.wdir == 100 && r.wspdKt == 22 && r.wgstKt == 32 && r.visibPlus && r.cat == FlightCat::Vfr);
+        CHECK(near(r.qnhHpa, 1016, 0.01) && r.obsTime == 1794558600 && r.ceilingFt < 0);
+        CHECK(metarWindText(r, true) == "Viento 100\xC2\xB0 22 kn, rachas 32 kn");
+        CHECK(metarSkyText(r, true) == "Visibilidad 10 km o m\xC3\xA1s \xC2\xB7 Nubes: escasas a 3000 ft");
+        CHECK(metarTempText(r, true) == "Temperatura 17 \xC2\xB0" "C \xC2\xB7 Roc\xC3\xAD" "o 11 \xC2\xB0" "C \xC2\xB7 QNH 1016 hPa");
+        const Metar& t = ms[1];
+        CHECK(t.wdir == -2 && t.ceilingFt == 200 && t.cat == FlightCat::Lifr && t.wgstKt < 0);
+        CHECK(metarWindText(t, false) == "Wind variable 3 kn");
+        CHECK(metarSkyText(t, true) == "Visibilidad 800 m \xC2\xB7 FG \xC2\xB7 Nubes: visibilidad vertical 200 ft");
+        CHECK(ms[2].cat == FlightCat::Ifr && ms[2].ceilingFt == 700);
+    }
+    CHECK(!metarParseJson("{\"error\":1}", ms));
+    std::vector<Taf> ts;
+    CHECK(tafParseJson(R"([{"icaoId":"LERT","issueTime":"2026-11-13T05:00:00Z","rawTAF":"TAF LERT 130500Z 1306/1406 09020G30KT 9999 FEW030"}])", ts) &&
+          ts.size() == 1 && ts[0].raw.compare(0, 8, "TAF LERT") == 0 && ts[0].issueTime == 1794546000);
+    const char* gj = R"({"type":"FeatureCollection","features":[
+ {"type":"Feature","properties":{"icaoId":"LPMG","firId":"LPPO","firName":"SANTA MARIA OCEANIC","seriesId":"2","hazard":"CONV",
+  "qualifier":"EMBD","validTimeFrom":1794556800,"validTimeTo":"2026-11-13T12:00:00Z","base":10000,"top":35000,"dir":"NE","spd":15,
+  "rawSigmet":"LPPO SIGMET 2 VALID 130800/131200 LPMG- EMBD TS"},
+  "geometry":{"type":"Polygon","coordinates":[[[-9.2,36.4],[-8.3,36.9],[-7.4,36.3],[-7.9,35.5],[-9.0,35.5],[-9.2,36.4]]]}},
+ {"type":"Feature","properties":{"firId":"X"},"geometry":{"type":"Point","coordinates":[0,0]}}]})";
+    std::vector<Sigmet> ss;
+    CHECK(sigmetParseGeoJson(gj, ss) && ss.size() == 1);
+    if (ss.size() == 1) {
+        const Sigmet& g = ss[0];
+        CHECK(g.id == "LPPO 2" && g.hazard == "CONV" && g.baseFt == 10000 && g.topFt == 35000 && g.spdKt == 15);
+        CHECK(g.pts.size() == 6 && near(g.pts[0].lat, 36.4, 1e-9) && near(g.pts[0].lon, -9.2, 1e-9));
+        CHECK(g.from == 1794556800 && g.to == 1794571200);
+        CHECK(sigmetDistanceNm(g, {36.0, -8.4}) == 0 && sigmetDistanceNm(g, {36.53, -6.29}) > 40);
+        CHECK(!strcmp(sigmetHazardName(g.hazard, true), "Tormentas"));
+    }
+    CHECK(awcSigmetUrl(awcSigmetRegion(36.5, -6.3)) == "https://aviationweather.gov/api/data/isigmet?format=geojson&loc=eur");
+    CHECK(awcMetarUrl(35, -8, 38, -4) == "https://aviationweather.gov/api/data/metar?bbox=35.00,-8.00,38.00,-4.00&format=json");
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
@@ -1807,6 +1867,7 @@ int main() {
     testWindAlarm();
     testAlerts();
     testSame();
+    testAviation();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

@@ -84,10 +84,13 @@ With no tiles on the card for the area, the background stays plain blue and ever
 | Día / noche (Day / night) | The sunrise / sunset line and the night side darkened; **− / +** set how dark |
 | Radioavisos NAVAREA (NAVAREA warnings) | The IHM NAVAREA III warnings: a diamond with its number and a line through its positions (area or track) |
 | Marcas OpenSeaMap (OpenSeaMap seamarks) | The transparent OpenSeaMap seamark layer from `/charts/seamark`, over the base map; **− / +** set its transparency |
+| METAR y TAF | Airports within about 300 km: a dot in the flight-category colour (green VFR, blue MVFR, red IFR, magenta LIFR), wind barbs, temperature (yellow) and dew point (blue), and the gust next to the ICAO code. The card has the decoded report (in Spanish), the raw METAR and TAF and **GO TO** |
+| SIGMET | International SIGMETs for the region (thunderstorms, turbulence, icing, ash...): red outline with its name and levels; the card has validity, movement and the text, and **CENTER** centres the chart on it |
 
 Tapping a mark opens its card: the official alert (like the alerts window) or the navigational warning, with **GO TO**
 (navigate to its first position) and **CLOSE**. Alerts and earthquakes come from the official alerts (Ajustes > Red);
-the warnings are downloaded over WiFi, at most once an hour and only with the layer on. IHM charts and warnings are for
+the warnings are downloaded over WiFi, at most once an hour and only with the layer on. METAR, TAF and SIGMET come from
+the NOAA Aviation Weather Center (aviationweather.gov, public domain) every 15 minutes, also only with their layer on. IHM charts and warnings are for
 non-commercial use.
 
 ### Tapped point

@@ -488,6 +488,15 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   acciones `capas:<zoom>`, `panelcapas`, `marca:x:y`; `fake_tiles.py <dir> seamark`. Falta (partes 2 y 3, propuestas):
   bajar teselas por WiFi con caché en la tarjeta y, con ello, las capas WMS del IHM, IGN, Meteosat y OpenWeather. Tras
   fusionar, copiar `lib/` a la Display y al rotor y portar `subsolarPoint` a la app si hace falta.
+  **METAR, TAF y SIGMET** (misma rama; Manuel: «En el plotter y en la app»): núcleo `aviation` (API de datos de
+  aviationweather.gov, NOAA, dominio público, 100 peticiones / min; campos del esquema `metar1_0.json`; `fltCat` si viene,
+  si no categoría FAA calculada con el techo y la visibilidad del parte en bruto; TAF `rawTAF`; SIGMET internacionales en
+  GeoJSON por región `loc`), `alertsnet::Config.metar` / `sigmet`, `takeAviation` (recuadro de ±3° lat y ±4° lon, con el
+  ciclo de los avisos, 15 min), capas 32 y 64, ventanas `M_METAR` (GO TO) y `M_SIGMET` (CENTER). Nombres de campo sin
+  probar contra el servidor real (bloqueado en la sesión). Falta la app (Kotlin, mismos casos de prueba).
+  **Capas de OpenHamClock** (accius/openhamclock, MIT; estudiadas 2026-11-13): Manuel quiere en el plotter **las de
+  meteorología** (ciclones tropicales del NHC, rayos de Blitzortung —uso privado, pedirles permiso—, nubes y radar, que
+  esperan a las teselas por WiFi); para la app, sin decidir.
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y

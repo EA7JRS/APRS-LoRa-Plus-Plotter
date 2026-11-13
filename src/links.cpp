@@ -138,7 +138,9 @@ void applyAlerts() {
     const settings::Values& v = settings::get();
     alertsnet::Config a;                                   // avisos oficiales: con la misma WiFi, en su propia tarea
     a.navarea = (v.chartLayers & 8) != 0;                // radioavisos para la capa de la carta
-    a.on = (v.alertsOn || a.navarea) && v.wifiSsid[0];
+    a.metar = (v.chartLayers & 32) != 0;                 // METAR y TAF, y SIGMET (capas de la carta)
+    a.sigmet = (v.chartLayers & 64) != 0;
+    a.on = (v.alertsOn || a.navarea || a.metar || a.sigmet) && v.wifiSsid[0];
     a.weather = a.quakes = a.tsunami = a.space = v.alertsOn;
     snprintf(a.zones, sizeof(a.zones), "%s", v.alertZones);
     snprintf(a.country, sizeof(a.country), "%s", v.alertCountry);

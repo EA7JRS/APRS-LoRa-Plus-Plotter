@@ -93,7 +93,7 @@ static lv_obj_t* lblAisBadge = nullptr;
 static uint32_t rowMmsi[kRows] = {};
 
 // Ventana centrada sobre cualquier pantalla: ficha de un blanco o alerta de abordaje (la misma que las emergencias de la app)
-enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK, M_OFFICIAL, M_NAVWARN };
+enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK, M_OFFICIAL, M_NAVWARN, M_METAR, M_SIGMET };
 static lv_obj_t* modalBack = nullptr;
 static lv_obj_t* modalHead = nullptr;
 static lv_obj_t* modalTitle = nullptr;
@@ -523,11 +523,34 @@ static const int kMeteoTab = 6;
 static void closeOfficial();
 static void goToNavWarn();
 static void updateNavWarnModal();
+static void startGoTo(LatLon dest, const char* name, bool mob);
 static int navModalIdx = -1;                             // radioaviso abierto en la ventana
 static std::vector<plotter::NavWarning> navWarns;       // radioavisos NAVAREA en vigor (alerts_net, cada hora)
+static alertsnet::Aviation avData;                      // METAR, TAF y SIGMET (alerts_net)
+static std::string metarModalIcao, sigModalId;         // ficha abierta (se vuelve a buscar al llegar datos nuevos)
+static void updateMetarModal();
+static void updateSigmetModal();
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
     if (modalMode == M_OFFICIAL) { closeOfficial(); showTab(kMeteoTab); return; }   // LIST: la pestana Meteo
     if (modalMode == M_NAVWARN) { goToNavWarn(); return; }                         // GO TO: a su primera posicion
+    if (modalMode == M_METAR) {                                                     // GO TO: al aeropuerto
+        for (const plotter::Metar& m : avData.metars)
+            if (m.icao == metarModalIcao) { startGoTo({m.lat, m.lon}, m.icao.c_str(), false); break; }
+        closeModal();
+        return;
+    }
+    if (modalMode == M_SIGMET) {                                                    // CENTER: la carta en el SIGMET
+        for (const plotter::Sigmet& g : avData.sigmets)
+            if (g.id == sigModalId && !g.pts.empty()) {
+                double la = 0, lo = 0;
+                for (const LatLon& q : g.pts) { la += q.lat; lo += q.lon; }
+                chCenter = {la / g.pts.size(), lo / g.pts.size()};
+                chFollow = false;
+                break;
+            }
+        closeModal();
+        return;
+    }
     if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta
     if (modalMode == M_SIGNALK) { closeModal(); return; }  // el aviso sigue en el servidor; aqui solo se cierra
     if (modalMode == M_RS485) {                            // apagar la salida al piloto
@@ -551,6 +574,7 @@ static void onModalA(lv_event_t*) {                       // silenciar la alarma
 static void onModalB(lv_event_t*) {                       // cerrar
     if (modalMode == M_OFFICIAL) { closeOfficial(); return; }
     if (modalMode == M_NAVWARN) { navModalIdx = -1; closeModal(); return; }
+    if (modalMode == M_METAR || modalMode == M_SIGMET) { closeModal(); return; }
     if (modalMode == M_ANCHOR) {                           // cerrar: si sigue garreando vuelve en 2 min
         anchorQuiet = true;
         anchorQuietMs = millis() + 2 * 60000u;
@@ -659,6 +683,8 @@ static void pollOfficial() {
     {
         std::vector<plotter::NavWarning> nw;
         if (alertsnet::takeNav(nw)) navWarns.swap(nw);
+        alertsnet::Aviation av;
+        if (alertsnet::takeAviation(av)) avData = std::move(av);
     }
     std::vector<plotter::Alert> v;
     plotter::SpaceWx sw;
@@ -801,6 +827,8 @@ static void updateModal() {
     if (modalMode == M_SIGNALK) { updateSkModal(); return; }
     if (modalMode == M_OFFICIAL) { updateOfficialModal(); return; }
     if (modalMode == M_NAVWARN) { updateNavWarnModal(); return; }
+    if (modalMode == M_METAR) { updateMetarModal(); return; }
+    if (modalMode == M_SIGMET) { updateSigmetModal(); return; }
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i < 0) { closeModal(); return; }
@@ -1190,7 +1218,8 @@ static void onPanelBtn(lv_event_t* e) {
     }
 }
 
-enum { LAY_ALERTS = 1, LAY_QUAKES = 2, LAY_NIGHT = 4, LAY_NAVAREA = 8, LAY_SEAMARK = 16 };
+enum { LAY_ALERTS = 1, LAY_QUAKES = 2, LAY_NIGHT = 4, LAY_NAVAREA = 8, LAY_SEAMARK = 16, LAY_METAR = 32, LAY_SIGMET = 64 };
+static const int kLayN = 7;
 // ---------- Capas de la carta: avisos oficiales, terremotos, linea dia / noche, radioavisos NAVAREA, marcas OpenSeaMap ----------
 static const int kOaMarks = 16, kNavMarks = 12, kNavLinePts = 16;
 struct OaMark { lv_obj_t* dot = nullptr; lv_obj_t* lbl = nullptr; int x = 0, y = 0; bool vis = false; std::string id; };
@@ -1204,13 +1233,25 @@ struct NavMark {
 static NavMark navMarks[kNavMarks];
 static lv_obj_t* chNight = nullptr;
 static lv_obj_t* layPanel = nullptr;
-static lv_obj_t* layRow[5] = {};
-static lv_obj_t* layRowLbl[5] = {};
-static lv_obj_t* layOpaLbl[5] = {};
+static lv_obj_t* layRow[kLayN] = {};
+static lv_obj_t* layRowLbl[kLayN] = {};
+static lv_obj_t* layOpaLbl[kLayN] = {};
 static lv_obj_t* layNote = nullptr;
 static double chCx = 0, chCy = 0;                   // centro de la vista en pixeles del mundo (lo usa la linea dia / noche)
-static const int kLayBits[5] = {LAY_ALERTS, LAY_QUAKES, LAY_NIGHT, LAY_NAVAREA, LAY_SEAMARK};
-static const char* const kLayNames[5] = {"Avisos oficiales", "Terremotos", "D\xC3\xAD" "a / noche", "Radioavisos NAVAREA", "Marcas OpenSeaMap"};
+static const int kLayBits[kLayN] = {LAY_ALERTS, LAY_QUAKES, LAY_NIGHT, LAY_NAVAREA, LAY_SEAMARK, LAY_METAR, LAY_SIGMET};
+static const char* const kLayNames[kLayN] = {"Avisos oficiales", "Terremotos", "D\xC3\xAD" "a / noche", "Radioavisos NAVAREA",
+                                             "Marcas OpenSeaMap", "METAR y TAF", "SIGMET"};
+// Meteorologia aeronautica en la carta (aviationweather.gov): punto con la categoria de vuelo y barbas de viento, y SIGMET
+static const int kMetarMarks = 24, kSigMarks = 8, kSigPts = 32;
+struct MetarMark {
+    lv_obj_t* dot = nullptr; lv_obj_t* barb = nullptr; lv_obj_t* name = nullptr; lv_obj_t* temp = nullptr; lv_obj_t* dew = nullptr;
+    lv_point_precise_t pts[16];
+    int x = 0, y = 0, idx = -1;
+    bool vis = false;
+};
+static MetarMark metarMarks[kMetarMarks];
+struct SigMark { lv_obj_t* line = nullptr; lv_obj_t* lbl = nullptr; lv_point_precise_t pts[kSigPts + 1]; int idx = -1; bool vis = false; };
+static SigMark sigMarks[kSigMarks];
 
 static void chartXY(LatLon p, double& x, double& y) {
     double px, py;
@@ -1267,7 +1308,7 @@ static void onNightDraw(lv_event_t* e) {
 
 static void refreshLayPanel() {
     const settings::Values& v = settings::get();
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < kLayN; i++) {
         const bool on = (v.chartLayers & kLayBits[i]) != 0;
         lv_obj_set_style_bg_color(layRow[i], lv_color_hex(on ? 0x1F4E7A : C_BAR), 0);
         lv_obj_set_style_border_color(layRow[i], lv_color_hex(on ? C_ACC : C_LINE), 0);
@@ -1281,7 +1322,7 @@ static void refreshLayPanel() {
     }
     char n[200];
     snprintf(n, sizeof(n), "%s%s", v.alertsOn ? "" : "Avisos y terremotos: encienda los avisos oficiales en Ajustes > Red.\n",
-             "Marcas: teselas PNG transparentes en /charts/seamark");
+             "Marcas: teselas PNG en /charts/seamark. METAR, TAF y SIGMET: NOAA aviationweather.gov, cada 15 min, con la WiFi.");
     lv_label_set_text(layNote, n);
 }
 
@@ -1290,7 +1331,7 @@ static void onLayToggle(lv_event_t* e) {
     settings::Values& v = settings::get();
     v.chartLayers ^= kLayBits[i];
     settings::save();
-    if (kLayBits[i] == LAY_NAVAREA) links::applyAlerts();   // los radioavisos solo se bajan con la capa encendida
+    if (kLayBits[i] & (LAY_NAVAREA | LAY_METAR | LAY_SIGMET)) links::applyAlerts();   // solo se bajan con la capa encendida
     refreshLayPanel();
 }
 
@@ -1313,6 +1354,7 @@ static void onLayBtn(lv_event_t*) {
 }
 
 // Las marcas, por debajo de la derrota y de los blancos AIS; el panel de capas se crea aparte, encima de todo
+static void makeAviationMarks();
 static void makeLayers() {
     chNight = lv_obj_create(chart);
     lv_obj_remove_style_all(chNight);
@@ -1352,41 +1394,93 @@ static void makeLayers() {
         lv_obj_set_style_radius(m.lbl, 4, 0);
         for (lv_obj_t* o : {m.dot, m.lbl}) { lv_obj_set_clickable(o, false); lv_obj_set_hidden(o, true); }
     }
+    makeAviationMarks();
+}
+
+
+static void makeAviationMarks() {
+    for (SigMark& m : sigMarks) {
+        m.line = lv_line_create(chart);
+        lv_obj_set_style_line_color(m.line, lv_color_hex(C_RED), 0);   // continua: LVGL solo hace discontinuas en horizontal y vertical
+        lv_obj_set_style_line_width(m.line, 3, 0);
+        m.lbl = label(chart, "", &dejavu_12, 0xFF8A80);
+        lv_obj_set_style_bg_color(m.lbl, lv_color_hex(C_BAR), 0);
+        lv_obj_set_style_bg_opa(m.lbl, 215, 0);
+        lv_obj_set_style_pad_hor(m.lbl, 5, 0);
+        lv_obj_set_style_pad_ver(m.lbl, 2, 0);
+        lv_obj_set_style_radius(m.lbl, 4, 0);
+        lv_obj_set_style_text_align(m.lbl, LV_TEXT_ALIGN_CENTER, 0);
+        for (lv_obj_t* o : {m.line, m.lbl}) { lv_obj_set_clickable(o, false); lv_obj_set_hidden(o, true); }
+    }
+    for (MetarMark& m : metarMarks) {
+        m.barb = lv_line_create(chart);
+        lv_obj_set_style_line_color(m.barb, lv_color_hex(C_TEXT), 0);
+        lv_obj_set_style_line_width(m.barb, 2, 0);
+        m.dot = box(chart, C_DIM, LV_RADIUS_CIRCLE);
+        lv_obj_set_size(m.dot, 16, 16);
+        lv_obj_set_style_border_color(m.dot, lv_color_hex(C_INK), 0);
+        lv_obj_set_style_border_width(m.dot, 3, 0);
+        m.name = label(chart, "", &dejavu_12, C_TEXT);
+        lv_obj_set_style_bg_color(m.name, lv_color_hex(C_BAR), 0);
+        lv_obj_set_style_bg_opa(m.name, 215, 0);
+        lv_obj_set_style_pad_hor(m.name, 4, 0);
+        lv_obj_set_style_radius(m.name, 3, 0);
+        m.temp = label(chart, "", &dejavu_12, 0xF2D35B);
+        m.dew = label(chart, "", &dejavu_12, C_ACC);
+        for (lv_obj_t* o : {m.barb, m.dot, m.name, m.temp, m.dew}) { lv_obj_set_clickable(o, false); lv_obj_set_hidden(o, true); }
+    }
+}
+
+// Barbas de viento como una sola linea quebrada: el asta hacia donde viene el viento y las barbas (10 kn), medias (5 kn)
+// y banderas (50 kn, dibujadas como un triangulo abierto)
+static int barbPoints(lv_point_precise_t* pts, double x, double y, int dir, int kt) {
+    const double a = deg2rad(dir), L = 30, sx = sin(a), sy = -cos(a), px = cos(a), py = sin(a);
+    int n = 0;
+    auto add = [&](double xx, double yy) { pts[n++] = {(lv_value_precise_t)xx, (lv_value_precise_t)yy}; };
+    auto at = [&](double t, double& ox, double& oy) { ox = x + (L - t) * sx; oy = y + (L - t) * sy; };
+    add(x + 9 * sx, y + 9 * sy);                            // desde el borde del punto
+    add(x + L * sx, y + L * sy);
+    int k = (kt + 2) / 5 * 5;
+    double pos = 0, bx, by;
+    while (k >= 50 && n < 13) { at(pos, bx, by); add(bx + 12 * px, by + 12 * py); at(pos + 7, bx, by); add(bx, by); k -= 50; pos += 9; }
+    while (k >= 10 && n < 14) { at(pos, bx, by); add(bx, by); add(bx + 12 * px, by + 12 * py); add(bx, by); k -= 10; pos += 6; if (n > 13) break; }
+    if (k >= 5 && n < 14) { if (pos == 0) pos = 6; at(pos, bx, by); add(bx, by); add(bx + 6 * px, by + 6 * py); }
+    return n;
 }
 
 static void makeLayPanel() {
     lv_obj_t* lb = textButton(chart, "Capas", 110, 46, onLayBtn, 0);
     lv_obj_align(lb, LV_ALIGN_TOP_RIGHT, -184, 68);
     layPanel = box(chart, C_PANEL, 10);
-    lv_obj_set_size(layPanel, 420, 340);
+    lv_obj_set_size(layPanel, 840, 250);
     lv_obj_align(layPanel, LV_ALIGN_TOP_RIGHT, -68, 122);
     lv_obj_set_style_border_color(layPanel, lv_color_hex(C_LINE), 0);
     lv_obj_set_style_border_width(layPanel, 2, 0);
     lv_obj_set_clickable(layPanel, true);                 // tocar el panel no marca un punto en la carta
     lv_obj_t* t = label(layPanel, "Capas de la carta", &dejavu_bold_16, C_TEXT);
     lv_obj_set_pos(t, 14, 10);
-    for (int i = 0; i < 5; i++) {
-        const int y = 38 + i * 50;
+    for (int i = 0; i < kLayN; i++) {                     // dos columnas de cuatro
+        const int y = 38 + (i % 4) * 50, x0 = (i / 4) * 414;
         layRow[i] = textButton(layPanel, "", 250, 46, onLayToggle, i);
-        lv_obj_set_pos(layRow[i], 10, y);
+        lv_obj_set_pos(layRow[i], 10 + x0, y);
         layRowLbl[i] = lv_obj_get_child(layRow[i], 0);
         lv_obj_set_style_text_font(layRowLbl[i], &dejavu_14, 0);
         lv_obj_align(layRowLbl[i], LV_ALIGN_LEFT_MID, 10, 0);
         if (i == 2 || i == 4) {                           // transparencia de las capas que tapan el mapa
             const intptr_t k = i == 2 ? 1 : 2;
             lv_obj_t* m = textButton(layPanel, "-", 44, 46, onLayOpa, -k);
-            lv_obj_set_pos(m, 268, y);
+            lv_obj_set_pos(m, 268 + x0, y);
             layOpaLbl[i] = label(layPanel, "", &dejavu_14, C_SOFT);
             lv_obj_set_width(layOpaLbl[i], 52);
             lv_obj_set_style_text_align(layOpaLbl[i], LV_TEXT_ALIGN_CENTER, 0);
-            lv_obj_set_pos(layOpaLbl[i], 314, y + 14);
+            lv_obj_set_pos(layOpaLbl[i], 314 + x0, y + 14);
             lv_obj_t* p = textButton(layPanel, "+", 44, 46, onLayOpa, k);
-            lv_obj_set_pos(p, 366, y);
+            lv_obj_set_pos(p, 366 + x0, y);
         }
     }
     layNote = label(layPanel, "", &dejavu_12, C_DIM);
     lv_obj_set_width(layNote, 396);
-    lv_obj_set_pos(layNote, 14, 292);
+    lv_obj_set_pos(layNote, 428, 192);
     lv_obj_set_hidden(layPanel, true);
 }
 
@@ -1465,6 +1559,77 @@ static void updateLayers() {
         lv_obj_set_hidden(navMarks[k].dot, true); lv_obj_set_hidden(navMarks[k].lbl, true); lv_obj_set_hidden(navMarks[k].line, true);
         navMarks[k].vis = false;
     }
+    // SIGMET: contorno discontinuo y su nombre en el centro de los puntos a la vista
+    k = 0;
+    const int64_t nowS = tsync::now();
+    for (size_t i = 0; (layers & LAY_SIGMET) && i < avData.sigmets.size() && k < kSigMarks; i++) {
+        const plotter::Sigmet& g = avData.sigmets[i];
+        if (nowS && g.to && g.to < nowS) continue;                         // caducado
+        SigMark& m = sigMarks[k];
+        int np = 0, inView = 0;
+        double sx = 0, sy = 0;
+        for (size_t j = 0; j < g.pts.size() && np < kSigPts; j++) {
+            double x, y;
+            chartXY(g.pts[j], x, y);
+            if (x > -CH_W && x < 2 * CH_W && y > -CH_H && y < 2 * CH_H) {       // muy lejos: LVGL no pinta bien coordenadas enormes
+                if (inside(x, y)) inView++;
+                sx += x; sy += y;
+            }
+            m.pts[np++] = {(lv_value_precise_t)x, (lv_value_precise_t)y};
+        }
+        if (np >= 3 && (m.pts[0].x != m.pts[np - 1].x || m.pts[0].y != m.pts[np - 1].y)) m.pts[np++] = m.pts[0];
+        double cx = sx, cy = sy;
+        if (np > 0) { cx = 0; cy = 0; for (int j = 0; j < np; j++) { cx += m.pts[j].x; cy += m.pts[j].y; } cx /= np; cy /= np; }
+        const bool around = cx > -200 && cx < CH_W + 200 && cy > -200 && cy < CH_H + 200;   // el barco dentro de uno grande
+        if (!inView && !around) continue;
+        k++;
+        if (np >= 2) lv_line_set_points(m.line, m.pts, (uint32_t)np);
+        lv_obj_set_hidden(m.line, np < 2);
+        char b[96];
+        if (g.baseFt >= 0 || g.topFt >= 0)
+            snprintf(b, sizeof(b), "SIGMET %.12s \xC2\xB7 %s\nFL%03d/%03d", g.id.c_str(), sigmetHazardName(g.hazard, true), g.baseFt < 0 ? 0 : g.baseFt / 100, g.topFt < 0 ? 0 : g.topFt / 100);
+        else snprintf(b, sizeof(b), "SIGMET %.12s \xC2\xB7 %s", g.id.c_str(), sigmetHazardName(g.hazard, true));
+        lv_label_set_text(m.lbl, b);
+        const int lx = (int)lround(cx < 60 ? 60 : cx > CH_W - 60 ? CH_W - 60 : cx), ly = (int)lround(cy < 30 ? 30 : cy > CH_H - 30 ? CH_H - 30 : cy);
+        lv_obj_update_layout(m.lbl);
+        lv_obj_set_pos(m.lbl, lx - lv_obj_get_width(m.lbl) / 2, ly - lv_obj_get_height(m.lbl) / 2);
+        lv_obj_set_hidden(m.lbl, false);
+        m.idx = (int)i; m.vis = true;
+    }
+    for (; k < kSigMarks; k++) { lv_obj_set_hidden(sigMarks[k].line, true); lv_obj_set_hidden(sigMarks[k].lbl, true); sigMarks[k].vis = false; }
+    // METAR: punto con el color de la categoria de vuelo, barbas, temperatura y rocio, y el indicativo con la racha
+    k = 0;
+    for (size_t i = 0; (layers & LAY_METAR) && i < avData.metars.size() && k < kMetarMarks; i++) {
+        const plotter::Metar& a = avData.metars[i];
+        double x, y;
+        chartXY({a.lat, a.lon}, x, y);
+        if (!inside(x, y)) continue;
+        MetarMark& m = metarMarks[k++];
+        lv_obj_set_style_bg_color(m.dot, lv_color_hex(flightCatColor(a.cat)), 0);
+        lv_obj_set_pos(m.dot, (int)lround(x) - 8, (int)lround(y) - 8);
+        const bool wind = a.wspdKt > 2 && a.wdir >= 0;
+        if (wind) lv_line_set_points(m.barb, m.pts, (uint32_t)barbPoints(m.pts, x, y, a.wdir, a.wspdKt));
+        lv_obj_set_hidden(m.barb, !wind);
+        char b[32];
+        if (a.wgstKt > 0) snprintf(b, sizeof(b), "%s G%d", a.icao.c_str(), a.wgstKt);
+        else snprintf(b, sizeof(b), "%s", a.icao.c_str());
+        lv_label_set_text(m.name, b);
+        lv_obj_set_pos(m.name, (int)lround(x) + 11, (int)lround(y) + 3);
+        if (a.tempC > -999) snprintf(b, sizeof(b), "%.0f", a.tempC); else b[0] = 0;
+        lv_label_set_text(m.temp, b);
+        lv_obj_update_layout(m.temp);
+        lv_obj_set_pos(m.temp, (int)lround(x) - 11 - lv_obj_get_width(m.temp), (int)lround(y) - 17);
+        if (a.dewpC > -999) snprintf(b, sizeof(b), "%.0f", a.dewpC); else b[0] = 0;
+        lv_label_set_text(m.dew, b);
+        lv_obj_update_layout(m.dew);
+        lv_obj_set_pos(m.dew, (int)lround(x) - 11 - lv_obj_get_width(m.dew), (int)lround(y) + 1);
+        for (lv_obj_t* o : {m.dot, m.name, m.temp, m.dew}) lv_obj_set_hidden(o, false);
+        m.x = (int)lround(x); m.y = (int)lround(y); m.idx = (int)i; m.vis = true;
+    }
+    for (; k < kMetarMarks; k++) {
+        for (lv_obj_t* o : {metarMarks[k].dot, metarMarks[k].barb, metarMarks[k].name, metarMarks[k].temp, metarMarks[k].dew}) lv_obj_set_hidden(o, true);
+        metarMarks[k].vis = false;
+    }
 }
 
 // Un toque cerca de una marca abre su ficha. true si habia una.
@@ -1480,9 +1645,87 @@ static bool tapLayerMark(int x, int y) {
         const int d = (navMarks[i].x - x) * (navMarks[i].x - x) + (navMarks[i].y - y) * (navMarks[i].y - y);
         if (d < best) { best = d; kind = 2; which = i; }
     }
+    for (int i = 0; i < kMetarMarks; i++) {
+        if (!metarMarks[i].vis) continue;
+        const int d = (metarMarks[i].x - x) * (metarMarks[i].x - x) + (metarMarks[i].y - y) * (metarMarks[i].y - y);
+        if (d < best) { best = d; kind = 3; which = i; }
+    }
+    if (kind == 0)                                        // dentro de un SIGMET (o sobre su nombre)
+        for (int i = 0; i < kSigMarks && kind == 0; i++) {
+            if (!sigMarks[i].vis || sigMarks[i].idx < 0 || sigMarks[i].idx >= (int)avData.sigmets.size()) continue;
+            lv_area_t la;
+            lv_obj_get_coords(sigMarks[i].lbl, &la);
+            lv_area_t ca;
+            lv_obj_get_coords(chart, &ca);
+            const bool onLabel = x + ca.x1 >= la.x1 && x + ca.x1 <= la.x2 && y + ca.y1 >= la.y1 && y + ca.y1 <= la.y2;
+            const LatLon p = worldPxToLonLat(chCx - CH_W / 2.0 + x, chCy - CH_H / 2.0 + y, chZoom);
+            const plotter::Sigmet& g = avData.sigmets[(size_t)sigMarks[i].idx];
+            if (onLabel || (g.pts.size() >= 3 && pointInPolygon(p, g.pts))) { kind = 4; which = i; }
+        }
     if (kind == 1) { oaModalId = oaMarks[which].id; openModal(M_OFFICIAL, 0); return true; }
+    if (kind == 3) { metarModalIcao = avData.metars[(size_t)metarMarks[which].idx].icao; openModal(M_METAR, 0); return true; }
+    if (kind == 4) { sigModalId = avData.sigmets[(size_t)sigMarks[which].idx].id; openModal(M_SIGMET, 0); return true; }
     if (kind == 2) { navModalIdx = navMarks[which].idx; openModal(M_NAVWARN, 0); return true; }
     return false;
+}
+
+
+static void agoText(char* o, size_t n, int64_t t) {
+    const int64_t now = tsync::now();
+    if (!t) { o[0] = 0; return; }
+    time_t tt = (time_t)t;
+    struct tm u;
+    gmtime_r(&tt, &u);
+    if (now && now >= t) snprintf(o, n, "%02d:%02d UTC \xC2\xB7 hace %d min", u.tm_hour, u.tm_min, (int)((now - t) / 60));
+    else snprintf(o, n, "%02d:%02d UTC", u.tm_hour, u.tm_min);
+}
+
+static void updateMetarModal() {
+    const plotter::Metar* m = nullptr;
+    for (const plotter::Metar& a : avData.metars) if (a.icao == metarModalIcao) m = &a;
+    if (!m) { closeModal(); return; }
+    lv_obj_set_style_bg_color(modalHead, lv_color_hex(flightCatColor(m->cat)), 0);
+    char t[96], sub[120], when[48];
+    std::string nm = m->name;
+    const size_t comma = nm.find(',');
+    if (comma != std::string::npos) nm = nm.substr(0, comma);
+    snprintf(t, sizeof(t), "%s%s%.30s", m->icao.c_str(), nm.empty() ? "" : " \xC2\xB7 ", nm.c_str());
+    lv_label_set_text(modalTitle, t);
+    agoText(when, sizeof(when), m->obsTime);
+    snprintf(sub, sizeof(sub), "METAR %s%s%s \xC2\xB7 aviationweather.gov", when, m->cat != FlightCat::Unknown ? " \xC2\xB7 " : "", flightCatName(m->cat));
+    lv_label_set_text(modalSub, sub);
+    lv_label_set_text(modalName, metarWindText(*m, true).c_str());
+    std::string body = metarSkyText(*m, true) + "\n" + metarTempText(*m, true) + "\n" + m->raw;
+    for (const plotter::Taf& f : avData.tafs)
+        if (f.icao == m->icao) { body += "\n" + (f.raw.size() > 170 ? f.raw.substr(0, 167) + "..." : f.raw); break; }
+    if (body.size() > 380) body = body.substr(0, 377) + "...";
+    lv_label_set_text(modalBody, body.c_str());
+    lv_label_set_text(modalBtnALbl, "GO TO");
+    lv_label_set_text(modalBtnBLbl, "CLOSE");
+}
+
+static void updateSigmetModal() {
+    const plotter::Sigmet* g = nullptr;
+    for (const plotter::Sigmet& a : avData.sigmets) if (a.id == sigModalId) g = &a;
+    if (!g) { closeModal(); return; }
+    lv_obj_set_style_bg_color(modalHead, lv_color_hex(C_RED), 0);
+    char t[64], sub[120], name[96], f[48], to[48], b[200];
+    snprintf(t, sizeof(t), "SIGMET %.20s", g->id.c_str());
+    lv_label_set_text(modalTitle, t);
+    snprintf(sub, sizeof(sub), "%.40s \xC2\xB7 aviationweather.gov", g->firName.empty() ? g->fir.c_str() : g->firName.c_str());
+    lv_label_set_text(modalSub, sub);
+    snprintf(name, sizeof(name), "%s%s%s", sigmetHazardName(g->hazard, true), g->qualifier.empty() ? "" : " \xC2\xB7 ", g->qualifier.c_str());
+    lv_label_set_text(modalName, name);
+    oaWhen(f, sizeof f, g->from);
+    oaWhen(to, sizeof to, g->to);
+    std::string body;
+    if (g->baseFt >= 0 || g->topFt >= 0) { snprintf(b, sizeof(b), "Niveles FL%03d a FL%03d", g->baseFt < 0 ? 0 : g->baseFt / 100, g->topFt < 0 ? 0 : g->topFt / 100); body += b; }
+    if (f[0] || to[0]) { snprintf(b, sizeof(b), "%sV\xC3\xA1lido %s \xE2\x80\x93 %s", body.empty() ? "" : "\n", f, to); body += b; }
+    if (!g->dir.empty()) { snprintf(b, sizeof(b), "\nSe mueve al %s%s", g->dir.c_str(), g->spdKt > 0 ? "" : ""); body += b; if (g->spdKt > 0) { snprintf(b, sizeof(b), " a %d kn", g->spdKt); body += b; } }
+    body += "\n" + (g->raw.size() > 220 ? g->raw.substr(0, 217) + "..." : g->raw);
+    lv_label_set_text(modalBody, body.c_str());
+    lv_label_set_text(modalBtnALbl, "CENTER");
+    lv_label_set_text(modalBtnBLbl, "CLOSE");
 }
 
 static void goToNavWarn() {
@@ -3502,7 +3745,7 @@ void testInternet() {                                      // como si acabara de
 }
 void testNet() { openNet(); }
 void testLayers(int zoom) {                                // avisos, terremoto y radioaviso inventados, todas las capas
-    settings::get().chartLayers = LAY_ALERTS | LAY_QUAKES | LAY_NIGHT | LAY_NAVAREA | LAY_SEAMARK;
+    settings::get().chartLayers = LAY_ALERTS | LAY_QUAKES | LAY_NIGHT | LAY_NAVAREA | LAY_SEAMARK | LAY_METAR | LAY_SIGMET;
     chZoom = zoom;
     plotter::Alert a;
     a.id = "demo-aemet"; a.src = plotter::AlertSrc::Aemet; a.level = 2; a.event = "Fen\xC3\xB3menos costeros";
@@ -3519,6 +3762,31 @@ void testLayers(int zoom) {                                // avisos, terremoto 
     w.positions.push_back(w.positions.front());
     navWarns.clear();
     navWarns.push_back(w);
+    avData = alertsnet::Aviation();
+    struct D { const char* icao; const char* name; double la, lo; int dir, kt, g; double t, d, vis; int ceil; const char* raw; };
+    const D ds[] = {
+        {"LERT", "Rota Naval Station", 36.645, -6.349, 100, 22, 32, 17, 11, 10, -1, "METAR LERT 130830Z 10022G32KT 9999 FEW030 17/11 Q1016"},
+        {"LEJR", "Jerez", 36.745, -6.06, 90, 18, -1, 16, 10, 10, -1, "METAR LEJR 130830Z 09018KT CAVOK 16/10 Q1016"},
+        {"LXGB", "Gibraltar", 36.151, -5.349, 90, 30, 41, 18, 13, 4.3, 1800, "METAR LXGB 130820Z 09030G41KT 7000 BKN018 18/13 Q1015"},
+        {"GMTT", "Tanger", 35.727, -5.917, 80, 24, -1, 17, 12, 10, -1, "METAR GMTT 130830Z 08024KT 9999 SCT025 17/12 Q1016"},
+        {"LPFR", "Faro", 37.014, -7.966, 320, 6, -1, 15, 14, 1.55, 700, "METAR LPFR 130830Z 32006KT 2500 BR BKN007 15/14 Q1018"},
+        {"GMTN", "Tetouan", 35.594, -5.32, 250, 4, -1, 14, 14, 0.5, 200, "METAR GMTN 130830Z 25004KT 0800 FG VV002 14/14 Q1017"},
+    };
+    for (const D& e : ds) {
+        plotter::Metar m;
+        m.icao = e.icao; m.name = e.name; m.lat = e.la; m.lon = e.lo; m.wdir = e.dir; m.wspdKt = e.kt; m.wgstKt = e.g;
+        m.tempC = e.t; m.dewpC = e.d; m.visibSm = e.vis; m.ceilingFt = e.ceil; m.raw = e.raw; m.qnhHpa = 1016;
+        m.obsTime = tsync::now() ? tsync::now() - 720 : 0;
+        if (e.ceil > 0) m.clouds.push_back({"BKN", e.ceil});
+        m.cat = flightCategory(e.ceil, e.vis);
+        avData.metars.push_back(m);
+    }
+    avData.tafs.push_back({"LERT", "TAF LERT 130500Z 1306/1406 09020G30KT 9999 FEW030 TEMPO 1310/1318 09025G38KT BECMG 1400/1402 07012KT", 0});
+    plotter::Sigmet g;
+    g.id = "LPPO 2"; g.fir = "LPPO"; g.firName = "SANTA MARIA OCEANIC"; g.hazard = "CONV"; g.qualifier = "EMBD"; g.baseFt = 10000; g.topFt = 35000;
+    g.dir = "NE"; g.spdKt = 15; g.raw = "LPPO SIGMET 2 VALID 130800/131200 LPMG- SANTA MARIA OCEANIC FIR EMBD TS OBS AND FCST FL100/350 MOV NE 15KT NC";
+    g.pts = {{36.4, -9.2}, {36.9, -8.3}, {36.3, -7.4}, {35.5, -7.9}, {35.5, -9.0}};
+    avData.sigmets.push_back(g);
 }
 void testLayerPanel() { onLayBtn(nullptr); }
 void testTapLayer(int x, int y) { tapLayerMark(x, y); }

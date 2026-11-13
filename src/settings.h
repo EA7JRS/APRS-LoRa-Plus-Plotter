@@ -30,7 +30,7 @@ struct Values {
     int pilotModel = 1;             // 0 generico (APB + RMB), 1 Raymarine ST2000+ de Manuel (RMB + APB con waypoints de 4 letras, VWR, VHW)
     int units = 0;                  // 0 nautico, 1 metrico, 2 imperial
     int baseMap = 0;                // 0 OpenSeaMap, 1 IHM, 2 IGN, 3 ortofoto (carpetas de la tarjeta)
-    int chartLayers = 1 | 2 | 16;   // capas de la carta: 1 avisos, 2 terremotos, 4 dia / noche, 8 NAVAREA, 16 marcas OpenSeaMap
+    int chartLayers = 1 | 2 | 16;   // capas de la carta: 1 avisos, 2 terremotos, 4 dia / noche, 8 NAVAREA, 16 marcas OpenSeaMap, 32 METAR / TAF, 64 SIGMET
     int seamarkOpa = 100;           // transparencia de las capas: % de opacidad, 20..100
     int nightOpa = 40;
     bool anchorOn = false;          // fondeo vigilado: sigue tras un reinicio

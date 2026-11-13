@@ -14,6 +14,7 @@
 
 #include "alerts.h"
 #include "navwarn.h"
+#include "aviation.h"
 
 namespace alertsnet {
 
@@ -23,6 +24,7 @@ struct Config {
     char country[3] = "";       // ISO; vacio = por la posicion (Espana y EE. UU.; para MeteoAlarm hay que ponerlo)
     bool weather = true, quakes = true, tsunami = true, space = true;
     bool navarea = false;       // radioavisos NAVAREA III del IHM (como mucho una descarga por hora)
+    bool metar = false, sigmet = false;   // METAR y TAF de los aeropuertos cercanos y SIGMET (aviationweather.gov, con los avisos: cada 15 min)
     int minutes = 15;
 };
 
@@ -39,6 +41,9 @@ void refresh();                                             // descargar ya
 bool take(std::vector<plotter::Alert>& out, plotter::SpaceWx& space);
 // true una vez por cada descarga nueva de los radioavisos NAVAREA
 bool takeNav(std::vector<plotter::NavWarning>& out);
+// true una vez por cada descarga nueva de meteorologia aeronautica
+struct Aviation { std::vector<plotter::Metar> metars; std::vector<plotter::Taf> tafs; std::vector<plotter::Sigmet> sigmets; };
+bool takeAviation(Aviation& out);
 const Status& status();
 // Pais por la posicion (cajas aproximadas: "ES", "US"; "" si no se sabe)
 const char* countryOf(double lat, double lon);

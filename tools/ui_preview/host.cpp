@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
         lv_timer_handler();
     }
     if (argc > 4) {                              // cuarto argumento: acciones separadas por comas antes de la foto
-        // cerrar | mob | fondeo | red | acerca | rs485 | internet | ajuste:n | marcar | tocar:x:y | boton:n | pagina:n | wp:n | rutas:n | esperar:s
+        // cerrar | mob | fondeo | red | acerca | capas:zoom | panelcapas | marca:x:y | rs485 | internet | ajuste:n | marcar | tocar:x:y | boton:n | pagina:n | wp:n | rutas:n | esperar:s
         std::string acts = argv[4];
         size_t pos = 0;
         while (pos <= acts.size()) {
@@ -65,6 +65,9 @@ int main(int argc, char** argv) {
             else if (a == "fondeo") ui::testAnchor();
             else if (a == "red") ui::testNet();
             else if (a == "acerca") ui::testAbout();
+            else if (sscanf(a.c_str(), "capas:%d", &x) == 1) ui::testLayers(x);
+            else if (a == "panelcapas") ui::testLayerPanel();
+            else if (sscanf(a.c_str(), "marca:%d:%d", &x, &y) == 2) ui::testTapLayer(x, y);
             else if (a == "rs485") ui::testRs485();
             else if (sscanf(a.c_str(), "piloto:%d", &x) == 1) settings::get().pilotOut = x;   // 1 RS485, 2 red, 3 Bluetooth
             else if (a == "internet") ui::testInternet();

@@ -18,6 +18,9 @@ void testMob();
 void testRs485();                   // abre el aviso de RS485 compartido
 void testInternet();                // mete una observacion de internet de prueba
 void testNet();                     // abre la pantalla de red
+void testLayers(int zoom);          // capas de la carta con datos de prueba
+void testLayerPanel();              // abre el panel de capas
+void testTapLayer(int x, int y);    // toca una marca de las capas (pixeles de la carta)
 void testAbout();                   // abre "Acerca de"
 void testSetting(int what);         // 4 cambia de unidades, 5 de mapa base
 void testAnchor();                  // boton Fondeo de la carta

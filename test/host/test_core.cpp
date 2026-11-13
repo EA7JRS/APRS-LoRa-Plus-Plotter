@@ -1580,6 +1580,23 @@ static void testFormulas() {
     CHECK(near(alt, 32.434, 0.02) && near(az, 202.895, 0.02));
     sunPosition(2026, 6, 21, 6, 36.53, -6.29, alt, az);
     CHECK(near(alt, 8.645, 0.02) && near(az, 67.168, 0.02));
+    {   // punto subsolar: alli el sol esta en el cenit; la linea dia / noche tiene el sol en el horizonte
+        const long long t = 1794490200;                       // 2026-11-12 13:30 UTC
+        double sla, slo;
+        subsolarPoint(t, sla, slo);
+        CHECK(near(sla, -17.9, 0.3) && slo > -30 && slo < -15);
+        int y, m, d; double u;
+        unixToUtc(t, y, m, d, u);
+        sunPosition(y, m, d, u, sla, slo, alt, az);
+        CHECK(alt > 89.9);
+        for (double l : {-150.0, -40.0, 60.0, 170.0}) {
+            const double tl = terminatorLat(sla, slo, l);
+            sunPosition(y, m, d, u, tl, l, alt, az);
+            CHECK(std::fabs(alt) < 0.05);
+        }
+        sunPosition(y, m, d, u, 36.53, -6.29, alt, az);
+        CHECK(alt > 0 && ((36.53 > terminatorLat(sla, slo, -6.29)) == (sla > 0)));   // de dia en Rota: lado del sol
+    }
     moonPosition(2026, 11, 12, 13.5, 36.53, -6.29, alt, az, dist);
     CHECK(near(alt, 22.708, 0.03) && near(az, 162.424, 0.03) && dist > 400000 && dist < 410000);
     moonPosition(2026, 3, 20, 13.5, 36.53, -6.29, alt, az, dist);

@@ -51,6 +51,8 @@ anchor. If the boat leaves the circle, the alarm is raised. **Levar** (Weigh) en
 
 **Move the chart**: drag. **+ / −** change the zoom. **Centrar barco** (Centre boat) follows the boat again.
 
+**Layers**: on the chart, **Capas** → alerts, earthquakes, day / night, NAVAREA warnings and OpenSeaMap seamarks. Tap a mark to see its card.
+
 ## 4. Alerts
 
 They appear in a window over any screen:

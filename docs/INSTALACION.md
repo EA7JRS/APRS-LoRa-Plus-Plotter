@@ -98,6 +98,7 @@ Por el puerto UART, a 115200 baudios:
 | `/charts/ihm/<zoom>/<x>/<y>.png` | Cartas del IHM (no válidas para la navegación) |
 | `/charts/ign/<zoom>/<x>/<y>.jpeg` | Mapa base del IGN |
 | `/charts/pnoa/<zoom>/<x>/<y>.jpeg` | Ortofoto PNOA |
+| `/charts/seamark/<zoom>/<x>/<y>.png` | Marcas de OpenSeaMap (PNG transparente, encima del mapa base; capa «Marcas OpenSeaMap») |
 | `/waypoints.gpx` | Waypoints y la ruta; lo escribe el plotter |
 
 Las teselas llevan la numeración habitual de OpenStreetMap (XYZ, 256 × 256). Hay que copiarlas a mano: el plotter aún

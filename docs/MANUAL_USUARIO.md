@@ -65,8 +65,28 @@ vector, los waypoints, la ruta y la escala.
 | **Centrar barco** | Vuelve a seguir al barco (solo aparece si has movido la carta) |
 | Tocar un punto | Abre el panel de abajo con su posición, distancia, demora y tiempo |
 | **Fondeo** | Abre el panel de fondeo |
+| **Capas** | Abre el panel de capas (ver abajo) |
 
 Sin teselas en la tarjeta para la zona, el fondo queda en azul liso y lo demás se ve igual.
+
+### Capas
+
+![Capas](img/capas.png)
+
+**Capas** enciende y apaga lo que se dibuja encima del mapa. Se guarda entre arranques.
+
+| Capa | Qué dibuja |
+|---|---|
+| Avisos oficiales | Un cuadro del color del nivel (amarillo, naranja, rojo) en los avisos que traen posición |
+| Terremotos | Un círculo mayor cuanto mayor es la magnitud, con «M4.3» |
+| Día / noche | La línea del orto y del ocaso y el lado de noche oscurecido; **− / +** cambian cuánto oscurece |
+| Radioavisos NAVAREA | Los avisos NAVAREA III del IHM: un rombo con su número y una línea por sus posiciones (zona o derrota) |
+| Marcas OpenSeaMap | La capa transparente de marcas de OpenSeaMap de `/charts/seamark`, encima del mapa base; **− / +** cambian su transparencia |
+
+Al tocar una marca se abre su ficha: la del aviso oficial (como la ventana de avisos) o la del radioaviso, con **GO TO**
+(navegar a su primera posición) y **CLOSE**. Avisos y terremotos salen de los avisos oficiales (Ajustes > Red); los
+radioavisos se bajan con la WiFi, como mucho una vez por hora y solo con la capa encendida. Las cartas del IHM y los
+radioavisos son para uso no comercial.
 
 ### Punto tocado
 

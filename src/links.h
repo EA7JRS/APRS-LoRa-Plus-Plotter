@@ -48,6 +48,7 @@ void setSimulator(bool on);
 bool sendPilot(const char* sentence, int len, int via);
 void applyBle();                        // enlace BLE con la pasarela segun los ajustes
 void applyNetwork();                    // WiFi, TCP y UDP segun los ajustes guardados
+void applyAlerts();                     // solo los avisos oficiales y los radioavisos (capas de la carta)
 void setCan(bool on);                   // NMEA 2000 (250 kbit/s, solo escucha); quita el USB nativo de los pines 19 / 20
 void injectCanFrame(uint32_t canId, const uint8_t* data, int len);   // pruebas
 void setSerialBaud(uint32_t baud);      // 4800 (NMEA clasico) o 38400 (AIS)

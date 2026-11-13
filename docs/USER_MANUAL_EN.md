@@ -67,8 +67,28 @@ waypoints, the route and the scale.
 | **Centrar barco** (Centre boat) | Follows the boat again (only shown after you move the chart) |
 | Tap a point | Opens the bottom panel with its position, distance, bearing and time |
 | **Fondeo** (Anchoring) | Opens the anchoring panel |
+| **Capas** (Layers) | Opens the layers panel (see below) |
 
 With no tiles on the card for the area, the background stays plain blue and everything else is shown as usual.
+
+### Layers
+
+![Layers](img/capas.png)
+
+**Capas** (Layers) turns on and off what is drawn over the map. It is kept across restarts.
+
+| Layer | Draws |
+|---|---|
+| Avisos oficiales (Official alerts) | A square in the level colour (yellow, orange, red) at the alerts that carry a position |
+| Terremotos (Earthquakes) | A circle that grows with the magnitude, with «M4.3» |
+| Día / noche (Day / night) | The sunrise / sunset line and the night side darkened; **− / +** set how dark |
+| Radioavisos NAVAREA (NAVAREA warnings) | The IHM NAVAREA III warnings: a diamond with its number and a line through its positions (area or track) |
+| Marcas OpenSeaMap (OpenSeaMap seamarks) | The transparent OpenSeaMap seamark layer from `/charts/seamark`, over the base map; **− / +** set its transparency |
+
+Tapping a mark opens its card: the official alert (like the alerts window) or the navigational warning, with **GO TO**
+(navigate to its first position) and **CLOSE**. Alerts and earthquakes come from the official alerts (Ajustes > Red);
+the warnings are downloaded over WiFi, at most once an hour and only with the layer on. IHM charts and warnings are for
+non-commercial use.
 
 ### Tapped point
 

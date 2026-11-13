@@ -40,6 +40,9 @@ static bool posOk = false;
 static std::vector<plotter::Alert> result;
 static plotter::SpaceWx resultSpace;
 static bool resultNew = false;
+static std::vector<plotter::NavWarning> navResult;
+static bool navNew = false;
+static uint32_t navNextMs = 0;
 
 static const char* UA = "APRSLoRaPlus/5 (+https://ea7jrs.github.io/APRS-LoRa-Plus/)";
 
@@ -92,6 +95,36 @@ static bool fetchText(const char* url, std::string& out, size_t limit, const cha
 static bool fetchBlocks(const char* url, const char* tag, std::function<void(const std::string&)> onBlock, size_t limit = 4000000) {
     plotter::XmlBlockSplitter sp(tag, 12000);
     return fetch(url, [&](const char* b, size_t n) { sp.feed(b, n, onBlock); }, limit);
+}
+
+// El fichero del IHM puede venir en ISO-8859-1: si no es UTF-8 valido, se pasa a UTF-8 (la pantalla lo necesita)
+static bool validUtf8(const std::string& s) {
+    for (size_t i = 0; i < s.size();) {
+        const unsigned char c = (unsigned char)s[i];
+        const int n = c < 0x80 ? 0 : (c >> 5) == 6 ? 1 : (c >> 4) == 14 ? 2 : (c >> 3) == 30 ? 3 : -1;
+        if (n < 0 || i + n >= s.size() + (n ? 0 : 1)) return false;
+        for (int k = 1; k <= n; k++) if (((unsigned char)s[i + k] >> 6) != 2) return false;
+        i += (size_t)n + 1;
+    }
+    return true;
+}
+static std::string latin1ToUtf8(const std::string& s) {
+    std::string o;
+    o.reserve(s.size() + 16);
+    for (unsigned char c : s) {
+        if (c < 0x80) o += (char)c;
+        else { o += (char)(0xC0 | (c >> 6)); o += (char)(0x80 | (c & 0x3F)); }
+    }
+    return o;
+}
+
+static bool fetchNavareas(std::vector<plotter::NavWarning>& out) {
+    out.clear();
+    return fetchBlocks(plotter::kIhmNavareaUrl, "NAVAREASVIGOR", [&](const std::string& b) {
+        if (out.size() >= 40) return;
+        const std::string doc = "<dataroot>" + (validUtf8(b) ? b : latin1ToUtf8(b)) + "</dataroot>";
+        plotter::navWarningsParseIhm(doc, out);
+    });
 }
 
 static int64_t nowUnix() {
@@ -235,10 +268,17 @@ static void task(void*) {
         plotter::SpaceWx sw;
         char msg[72];
         collect(all, sw, c, la, lo, hp, msg, sizeof(msg));
+        std::vector<plotter::NavWarning> nav;
+        bool navOk = false;
+        if (c.navarea && (force || navNextMs == 0 || (int32_t)(millis() - navNextMs) >= 0)) {
+            navOk = fetchNavareas(nav);
+            navNextMs = millis() + (navOk ? 3600000u : 600000u);   // si falla, otra vez a los 10 min
+        }
         xSemaphoreTake(lock, portMAX_DELAY);
         result.swap(all);
         resultSpace = sw;
         resultNew = true;
+        if (navOk) { navResult.swap(nav); navNew = true; }
         snprintf(st.msg, sizeof(st.msg), "%s", msg);
         st.lastMs = millis();
         if (strstr(msg, "failed")) st.fail++; else st.ok++;
@@ -279,6 +319,15 @@ bool take(std::vector<plotter::Alert>& out, plotter::SpaceWx& space) {
     return n;
 }
 
+bool takeNav(std::vector<plotter::NavWarning>& out) {
+    if (!lock) return false;
+    xSemaphoreTake(lock, portMAX_DELAY);
+    const bool n = navNew;
+    if (n) { out.swap(navResult); navResult.clear(); navNew = false; }
+    xSemaphoreGive(lock);
+    return n;
+}
+
 const Status& status() { return st; }
 
 }  // namespace alertsnet
@@ -292,6 +341,7 @@ void apply(const Config&) {}
 void setPosition(double, double) {}
 void refresh() {}
 bool take(std::vector<plotter::Alert>&, plotter::SpaceWx&) { return false; }
+bool takeNav(std::vector<plotter::NavWarning>&) { return false; }
 const Status& status() { return st; }
 }  // namespace alertsnet
 

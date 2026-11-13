@@ -37,6 +37,9 @@ void load() {
     v.pilotModel = p.getInt("pilotM", 1);
     v.units = p.getInt("units", 0);
     v.baseMap = p.getInt("map", 0);
+    v.chartLayers = p.getInt("layers", 1 | 2 | 16);
+    v.seamarkOpa = p.getInt("laySm", 100);
+    v.nightOpa = p.getInt("layNt", 40);
     v.anchorOn = p.getBool("anc", false);
     v.anchorLat = p.getDouble("ancLat", 0);
     v.anchorLon = p.getDouble("ancLon", 0);
@@ -45,6 +48,8 @@ void load() {
     p.end();
     if (v.serialBaud != 4800 && v.serialBaud != 38400) v.serialBaud = 38400;
     if (v.brightness < 10 || v.brightness > 100) v.brightness = 100;
+    if (v.seamarkOpa < 20 || v.seamarkOpa > 100) v.seamarkOpa = 100;
+    if (v.nightOpa < 20 || v.nightOpa > 100) v.nightOpa = 40;
     if (v.tcpKind < 0 || v.tcpKind > 3) v.tcpKind = 0;
     if (v.tcpPort < 1 || v.tcpPort > 65535) v.tcpPort = 10110;
     if (v.udpPort < 0 || v.udpPort > 65535) v.udpPort = 0;
@@ -79,6 +84,9 @@ void save() {
     p.putInt("pilotM", v.pilotModel);
     p.putInt("units", v.units);
     p.putInt("map", v.baseMap);
+    p.putInt("layers", v.chartLayers);
+    p.putInt("laySm", v.seamarkOpa);
+    p.putInt("layNt", v.nightOpa);
     p.putBool("anc", v.anchorOn);
     p.putDouble("ancLat", v.anchorLat);
     p.putDouble("ancLon", v.anchorLon);

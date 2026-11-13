@@ -6,6 +6,7 @@
 # Teselas de prueba para tools/ui_preview: una costa inventada, con la rejilla y el nombre de cada tesela a la vista,
 # para comprobar en el PC que la carta las coloca donde toca. No son cartas de verdad.
 #   python3 tools/ui_preview/fake_tiles.py /tmp/plotter_sd/charts/osm
+#   python3 tools/ui_preview/fake_tiles.py /tmp/plotter_sd/charts/seamark seamark   (capa transparente de marcas)
 import math, os, sys
 from PIL import Image, ImageDraw
 
@@ -27,12 +28,29 @@ def lon_of(px, z):
 def land(lat, lon):                   # costa inventada al norte, con una ensenada
     return lat > 36.546 + 0.004 * math.sin((lon + 6.3) * 260) + 0.003 * math.sin((lon + 6.3) * 90)
 
-for z in (12, 13, 14, 15):
+SEAMARK = len(sys.argv) > 2 and sys.argv[2] == "seamark"
+# boyas inventadas a la entrada de la ensenada: babor (rojo) y estribor (verde) de la region A de la IALA
+BUOYS = [(36.540, -6.300, (220, 40, 40)), (36.540, -6.292, (40, 160, 60)), (36.536, -6.300, (220, 40, 40)),
+         (36.536, -6.292, (40, 160, 60)), (36.531, -6.276, (240, 200, 40))]
+
+for z in ((14,) if SEAMARK else (12, 13, 14, 15)):
     cx, cy = world(LAT, LON, z)
     tx0, ty0 = int(cx // 256), int(cy // 256)
     r = 4 if z >= 14 else 3
     for tx in range(tx0 - r, tx0 + r + 1):
         for ty in range(ty0 - r + 1, ty0 + r):
+            if SEAMARK:
+                im = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
+                d = ImageDraw.Draw(im)
+                for la, lo, col in BUOYS:
+                    bx, by = world(la, lo, z)
+                    x, y = bx - tx * 256, by - ty * 256
+                    if -10 < x < 266 and -10 < y < 266:
+                        d.ellipse([x - 6, y - 6, x + 6, y + 6], fill=col + (255,), outline=(20, 20, 20, 255), width=2)
+                        d.line([x, y - 6, x, y - 16], fill=(20, 20, 20, 255), width=2)
+                os.makedirs("%s/%d/%d" % (out, z, tx), exist_ok=True)
+                im.save("%s/%d/%d/%d.png" % (out, z, tx, ty))
+                continue
             im = Image.new("RGB", (256, 256))
             px = im.load()
             for j in range(256):

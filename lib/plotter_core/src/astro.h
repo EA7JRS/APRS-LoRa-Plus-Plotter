@@ -20,6 +20,10 @@ double solarNoonUtcMin(int y, int m, int d, double lon);
 
 // Altura y azimut del sol (grados; azimut desde el norte verdadero; Meeus, ~0,01 grados, sin refraccion)
 void sunPosition(int y, int m, int d, double utcHours, double lat, double lon, double& altDeg, double& azDeg);
+// Punto donde el sol esta en el cenit (latitud = declinacion; longitud -180..180) y latitud de la linea dia / noche
+// (altura 0, sin refraccion) en una longitud; al sur de ella es de noche si la declinacion es positiva, al norte si es negativa
+void subsolarPoint(long long unixS, double& latDeg, double& lonDeg);
+double terminatorLat(double subLat, double subLon, double lon);
 
 // Edad de la luna en dias (0 = nueva) con el mes sinodico medio, y fraccion iluminada 0..1
 double moonAgeDays(int y, int m, int d, double utcHours);

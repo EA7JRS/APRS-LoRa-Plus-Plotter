@@ -131,8 +131,15 @@ void applyNetwork() {
     c.udpPort = v.udpPort;
     snprintf(c.owmKey, sizeof(c.owmKey), "%s", v.owmKey);
     net::apply(c);
+    applyAlerts();
+}
+
+void applyAlerts() {
+    const settings::Values& v = settings::get();
     alertsnet::Config a;                                   // avisos oficiales: con la misma WiFi, en su propia tarea
-    a.on = v.alertsOn && v.wifiSsid[0];
+    a.navarea = (v.chartLayers & 8) != 0;                // radioavisos para la capa de la carta
+    a.on = (v.alertsOn || a.navarea) && v.wifiSsid[0];
+    a.weather = a.quakes = a.tsunami = a.space = v.alertsOn;
     snprintf(a.zones, sizeof(a.zones), "%s", v.alertZones);
     snprintf(a.country, sizeof(a.country), "%s", v.alertCountry);
     alertsnet::apply(a);

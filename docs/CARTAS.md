@@ -16,6 +16,11 @@ Otros mapas base (Ajustes > Mapa base), con la misma numeración XYZ:
 | IGN base | `/charts/ign` | JPEG (`.jpeg`) |
 | Ortofoto PNOA | `/charts/pnoa` | JPEG (`.jpeg`) |
 
+Encima del mapa base puede ir la capa transparente de **marcas de OpenSeaMap** (boyas, luces, balizas), con la misma
+numeración, en `/charts/seamark/<zoom>/<x>/<y>.png` (PNG con transparencia). Se enciende en la carta, **Capas** >
+*Marcas OpenSeaMap*, con su propia transparencia (− / +). Así una descarga de OpenSeaMap se puede guardar como viene:
+el mapa de OpenStreetMap en `/charts/osm` y las marcas en `/charts/seamark`.
+
 Los servicios TMS del IGN numeran la `y` al revés: al copiarlas hay que guardarlas con la `y` de OpenStreetMap.
 Los JPEG no se han probado todavía con teselas reales.
 

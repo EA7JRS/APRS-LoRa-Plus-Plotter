@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "alerts.h"
+#include "navwarn.h"
 
 namespace alertsnet {
 
@@ -21,6 +22,7 @@ struct Config {
     char zones[64] = "";        // MeteoAlarm / RSS de AEMET (sin poligonos): palabras de la zona separadas por comas; vacio = todas
     char country[3] = "";       // ISO; vacio = por la posicion (Espana y EE. UU.; para MeteoAlarm hay que ponerlo)
     bool weather = true, quakes = true, tsunami = true, space = true;
+    bool navarea = false;       // radioavisos NAVAREA III del IHM (como mucho una descarga por hora)
     int minutes = 15;
 };
 
@@ -35,6 +37,8 @@ void setPosition(double lat, double lon);
 void refresh();                                             // descargar ya
 // true una vez por cada descarga nueva: los avisos en vigor (todas las fuentes) y el tiempo espacial
 bool take(std::vector<plotter::Alert>& out, plotter::SpaceWx& space);
+// true una vez por cada descarga nueva de los radioavisos NAVAREA
+bool takeNav(std::vector<plotter::NavWarning>& out);
 const Status& status();
 // Pais por la posicion (cajas aproximadas: "ES", "US"; "" si no se sabe)
 const char* countryOf(double lat, double lon);

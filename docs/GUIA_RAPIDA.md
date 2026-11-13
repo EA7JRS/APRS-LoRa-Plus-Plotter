@@ -48,6 +48,8 @@ Si el barco sale del círculo, salta la alarma. **Levar** quita la vigilancia.
 
 **Mover la carta**: arrastra. **+ / −** cambian el zoom. **Centrar barco** vuelve a seguir al barco.
 
+**Capas**: en la carta, **Capas** → avisos, terremotos, día / noche, radioavisos NAVAREA y marcas de OpenSeaMap. Toca una marca para ver su ficha.
+
 ## 4. Alertas
 
 Salen en una ventana sobre cualquier pantalla:

@@ -101,6 +101,7 @@ On the UART port, at 115200 baud:
 | `/charts/ihm/<zoom>/<x>/<y>.png` | Spanish IHM charts (not valid for navigation) |
 | `/charts/ign/<zoom>/<x>/<y>.jpeg` | Spanish IGN base map |
 | `/charts/pnoa/<zoom>/<x>/<y>.jpeg` | PNOA aerial imagery |
+| `/charts/seamark/<zoom>/<x>/<y>.png` | OpenSeaMap seamarks (transparent PNG over the base map; «Marcas OpenSeaMap» layer) |
 | `/waypoints.gpx` | Waypoints and the route; written by the plotter |
 
 Tiles use the usual OpenStreetMap numbering (XYZ, 256 × 256). You have to copy them by hand: the plotter does not

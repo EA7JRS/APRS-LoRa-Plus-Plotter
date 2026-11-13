@@ -93,7 +93,7 @@ static lv_obj_t* lblAisBadge = nullptr;
 static uint32_t rowMmsi[kRows] = {};
 
 // Ventana centrada sobre cualquier pantalla: ficha de un blanco o alerta de abordaje (la misma que las emergencias de la app)
-enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK, M_OFFICIAL };
+enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK, M_OFFICIAL, M_NAVWARN };
 static lv_obj_t* modalBack = nullptr;
 static lv_obj_t* modalHead = nullptr;
 static lv_obj_t* modalTitle = nullptr;
@@ -129,11 +129,16 @@ static int chZoom = 14;
 // Teselas de la tarjeta: S:/charts/<mapa>/<z>/<x>/<y>.png (S: es la tarjeta, por el sistema de ficheros de LVGL)
 static const int kTileImgs = 24;
 struct TileImg { lv_obj_t* img = nullptr; int z = -1, x = 0, y = 0; bool used = false; };
-static TileImg tileImgs[kTileImgs];
 struct Missing { int z = -1, x = 0, y = 0; };
-static Missing missing[96];                       // teselas que no estan en la tarjeta, para no preguntar cada vez
-static int missingNext = 0;
-static uint32_t missingClearedMs = 0;
+// Una capa de teselas de la tarjeta: el mapa base o la capa transparente de marcas de OpenSeaMap encima
+struct TileLayer {
+    TileImg imgs[kTileImgs];
+    Missing missing[96];                          // teselas que no estan en la tarjeta, para no preguntar cada vez
+    int missingNext = 0;
+    uint32_t missingClearedMs = 0;
+};
+static TileLayer baseTiles, seaTiles;
+static const char* const kSeamarkFolder = "S:/charts/seamark";
 struct BaseMap { const char* name; const char* folder; const char* ext; const char* credit; };
 static const BaseMap kBaseMaps[] = {
     {"OpenSeaMap", "S:/charts/osm", "png", "OpenSeaMap \xC2\xB7 \xC2\xA9 OpenStreetMap"},
@@ -516,8 +521,13 @@ static void closeModal() {
 static void showTab(int i);
 static const int kMeteoTab = 6;
 static void closeOfficial();
+static void goToNavWarn();
+static void updateNavWarnModal();
+static int navModalIdx = -1;                             // radioaviso abierto en la ventana
+static std::vector<plotter::NavWarning> navWarns;       // radioavisos NAVAREA en vigor (alerts_net, cada hora)
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
     if (modalMode == M_OFFICIAL) { closeOfficial(); showTab(kMeteoTab); return; }   // LIST: la pestana Meteo
+    if (modalMode == M_NAVWARN) { goToNavWarn(); return; }                         // GO TO: a su primera posicion
     if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta
     if (modalMode == M_SIGNALK) { closeModal(); return; }  // el aviso sigue en el servidor; aqui solo se cierra
     if (modalMode == M_RS485) {                            // apagar la salida al piloto
@@ -540,6 +550,7 @@ static void onModalA(lv_event_t*) {                       // silenciar la alarma
 
 static void onModalB(lv_event_t*) {                       // cerrar
     if (modalMode == M_OFFICIAL) { closeOfficial(); return; }
+    if (modalMode == M_NAVWARN) { navModalIdx = -1; closeModal(); return; }
     if (modalMode == M_ANCHOR) {                           // cerrar: si sigue garreando vuelve en 2 min
         anchorQuiet = true;
         anchorQuietMs = millis() + 2 * 60000u;
@@ -645,6 +656,10 @@ static std::vector<std::string> oaShown;                // "id#nivel" ya vistos 
 static std::string oaModalId;
 
 static void pollOfficial() {
+    {
+        std::vector<plotter::NavWarning> nw;
+        if (alertsnet::takeNav(nw)) navWarns.swap(nw);
+    }
     std::vector<plotter::Alert> v;
     plotter::SpaceWx sw;
     if (!alertsnet::take(v, sw)) return;
@@ -785,6 +800,7 @@ static void updateModal() {
     if (modalMode == M_RS485) { updateRs485Modal(); return; }
     if (modalMode == M_SIGNALK) { updateSkModal(); return; }
     if (modalMode == M_OFFICIAL) { updateOfficialModal(); return; }
+    if (modalMode == M_NAVWARN) { updateNavWarnModal(); return; }
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i < 0) { closeModal(); return; }
@@ -894,31 +910,36 @@ static void onChartDrag(lv_event_t*) {                    // arrastrar mueve la 
     chFollow = false;
 }
 
-static bool tileExists(int z, int x, int y, char* path, int size) {
-    for (const Missing& m : missing)
+static bool tileExists(TileLayer& L, const char* folder, const char* ext, int z, int x, int y, char* path, int size) {
+    for (const Missing& m : L.missing)
         if (m.z == z && m.x == x && m.y == y) return false;
-    if (!tilePath(path, size, kBaseMaps[baseMap].folder, z, x, y, kBaseMaps[baseMap].ext)) return false;
+    if (!tilePath(path, size, folder, z, x, y, ext)) return false;
     lv_fs_file_t f;
     if (lv_fs_open(&f, path, LV_FS_MODE_RD) == LV_FS_RES_OK) {
         lv_fs_close(&f);
         return true;
     }
-    missing[missingNext] = {z, x, y};
-    missingNext = (missingNext + 1) % (int)(sizeof(missing) / sizeof(missing[0]));
+    L.missing[L.missingNext] = {z, x, y};
+    L.missingNext = (L.missingNext + 1) % (int)(sizeof(L.missing) / sizeof(L.missing[0]));
     return false;
 }
 
-// Coloca las teselas que cubren la vista. Devuelve cuantas hay en pantalla.
-static int layoutTiles(double cx, double cy) {
+// Coloca las teselas de una capa que cubren la vista (o las esconde todas si la capa esta apagada). Devuelve cuantas hay.
+static int layoutTiles(TileLayer& L, const char* folder, const char* ext, bool on, double cx, double cy) {
+    TileImg* tileImgs = L.imgs;
+    if (!on) {
+        for (int i = 0; i < kTileImgs; i++) { lv_obj_set_hidden(tileImgs[i].img, true); tileImgs[i].used = false; }
+        return 0;
+    }
     uint32_t now = millis();
-    if (now - missingClearedMs > 30000) {                 // por si se cambia la tarjeta o se copian cartas nuevas
-        missingClearedMs = now;
-        for (Missing& m : missing) m.z = -1;
+    if (now - L.missingClearedMs > 30000) {               // por si se cambia la tarjeta o se copian cartas nuevas
+        L.missingClearedMs = now;
+        for (Missing& m : L.missing) m.z = -1;
     }
     int max = (1 << chZoom) - 1;
     int tx0 = (int)floor((cx - CH_W / 2.0) / kTileSize), tx1 = (int)floor((cx + CH_W / 2.0) / kTileSize);
     int ty0 = (int)floor((cy - CH_H / 2.0) / kTileSize), ty1 = (int)floor((cy + CH_H / 2.0) / kTileSize);
-    for (TileImg& t : tileImgs) t.used = false;
+    for (int i = 0; i < kTileImgs; i++) tileImgs[i].used = false;
     int shown = 0;
     // Primero las que ya estan cargadas; despues las nuevas, en los huecos que queden
     for (int pass = 0; pass < 2; pass++) {
@@ -926,15 +947,15 @@ static int layoutTiles(double cx, double cy) {
             for (int tx = tx0; tx <= tx1; tx++) {
                 if (tx < 0 || ty < 0 || tx > max || ty > max) continue;
                 TileImg* slot = nullptr;
-                for (TileImg& t : tileImgs)
-                    if (t.z == chZoom && t.x == tx && t.y == ty) { slot = &t; break; }
+                for (int i = 0; i < kTileImgs; i++)
+                    if (tileImgs[i].z == chZoom && tileImgs[i].x == tx && tileImgs[i].y == ty) { slot = &tileImgs[i]; break; }
                 if (pass == 0 && !slot) continue;
                 if (pass == 1) {
                     if (slot) continue;
                     char path[64];
-                    if (!tileExists(chZoom, tx, ty, path, sizeof(path))) continue;
-                    for (TileImg& t : tileImgs)
-                        if (!t.used) { slot = &t; break; }
+                    if (!tileExists(L, folder, ext, chZoom, tx, ty, path, sizeof(path))) continue;
+                    for (int i = 0; i < kTileImgs; i++)
+                        if (!tileImgs[i].used) { slot = &tileImgs[i]; break; }
                     if (!slot) continue;
                     lv_image_set_src(slot->img, path);
                     slot->z = chZoom; slot->x = tx; slot->y = ty;
@@ -946,8 +967,8 @@ static int layoutTiles(double cx, double cy) {
             }
         }
     }
-    for (TileImg& t : tileImgs)
-        if (!t.used) { lv_obj_set_hidden(t.img, true); t.z = -1; }
+    for (int i = 0; i < kTileImgs; i++)
+        if (!tileImgs[i].used) { lv_obj_set_hidden(tileImgs[i].img, true); tileImgs[i].z = -1; }
     return shown;
 }
 
@@ -1169,6 +1190,335 @@ static void onPanelBtn(lv_event_t* e) {
     }
 }
 
+enum { LAY_ALERTS = 1, LAY_QUAKES = 2, LAY_NIGHT = 4, LAY_NAVAREA = 8, LAY_SEAMARK = 16 };
+// ---------- Capas de la carta: avisos oficiales, terremotos, linea dia / noche, radioavisos NAVAREA, marcas OpenSeaMap ----------
+static const int kOaMarks = 16, kNavMarks = 12, kNavLinePts = 16;
+struct OaMark { lv_obj_t* dot = nullptr; lv_obj_t* lbl = nullptr; int x = 0, y = 0; bool vis = false; std::string id; };
+static OaMark oaMarks[kOaMarks];
+struct NavMark {
+    lv_obj_t* dot = nullptr; lv_obj_t* lbl = nullptr; lv_obj_t* line = nullptr;
+    lv_point_precise_t pts[kNavLinePts];
+    int x = 0, y = 0, idx = -1;
+    bool vis = false;
+};
+static NavMark navMarks[kNavMarks];
+static lv_obj_t* chNight = nullptr;
+static lv_obj_t* layPanel = nullptr;
+static lv_obj_t* layRow[5] = {};
+static lv_obj_t* layRowLbl[5] = {};
+static lv_obj_t* layOpaLbl[5] = {};
+static lv_obj_t* layNote = nullptr;
+static double chCx = 0, chCy = 0;                   // centro de la vista en pixeles del mundo (lo usa la linea dia / noche)
+static const int kLayBits[5] = {LAY_ALERTS, LAY_QUAKES, LAY_NIGHT, LAY_NAVAREA, LAY_SEAMARK};
+static const char* const kLayNames[5] = {"Avisos oficiales", "Terremotos", "D\xC3\xAD" "a / noche", "Radioavisos NAVAREA", "Marcas OpenSeaMap"};
+
+static void chartXY(LatLon p, double& x, double& y) {
+    double px, py;
+    lonLatToWorldPx(p, chZoom, px, py);
+    x = CH_W / 2.0 + (px - chCx);
+    y = CH_H / 2.0 + (py - chCy);
+}
+
+// Noche: franjas de 4 px desde la linea dia / noche hasta el borde del lado sin sol, y la linea encima
+static void onNightDraw(lv_event_t* e) {
+    const int64_t t = tsync::now();
+    if (!t) return;
+    double sla, slo;
+    subsolarPoint(t, sla, slo);
+    lv_layer_t* layer = lv_event_get_layer(e);
+    lv_area_t a;
+    lv_obj_get_coords(chNight, &a);
+    lv_draw_rect_dsc_t r;
+    lv_draw_rect_dsc_init(&r);
+    r.bg_color = lv_color_hex(0x02060D);
+    r.bg_opa = (lv_opa_t)(settings::get().nightOpa * 255 / 100);
+    lv_draw_line_dsc_t ld;
+    lv_draw_line_dsc_init(&ld);
+    ld.color = lv_color_hex(0xFFB347);
+    ld.width = 2;
+    ld.opa = LV_OPA_COVER;
+    const int step = 4;
+    bool prev = false;
+    double px = 0, py = 0;
+    for (int sx = 0; sx < CH_W; sx += step) {
+        const LatLon p = worldPxToLonLat(chCx - CH_W / 2.0 + sx + step / 2.0, chCy, chZoom);
+        double tl = terminatorLat(sla, slo, p.lon);
+        if (tl > 85.05) tl = 85.05;
+        if (tl < -85.05) tl = -85.05;
+        double wx, wy;
+        lonLatToWorldPx({tl, p.lon}, chZoom, wx, wy);
+        const double sy = CH_H / 2.0 + (wy - chCy);
+        const int cy = (int)lround(sy < 0 ? 0 : sy > CH_H ? CH_H : sy);
+        lv_area_t ra;
+        ra.x1 = a.x1 + sx;
+        ra.x2 = a.x1 + sx + step - 1;
+        if (sla > 0) { ra.y1 = a.y1 + cy; ra.y2 = a.y2; }         // sol al norte del ecuador: de noche al sur de la linea
+        else { ra.y1 = a.y1; ra.y2 = a.y1 + cy - 1; }
+        if (ra.y2 >= ra.y1) lv_draw_rect(layer, &r, &ra);
+        const double x = sx + step / 2.0;
+        if (prev && sy > -50 && sy < CH_H + 50 && py > -50 && py < CH_H + 50) {
+            ld.p1.x = (lv_value_precise_t)(a.x1 + px); ld.p1.y = (lv_value_precise_t)(a.y1 + py);
+            ld.p2.x = (lv_value_precise_t)(a.x1 + x); ld.p2.y = (lv_value_precise_t)(a.y1 + sy);
+            lv_draw_line(layer, &ld);
+        }
+        prev = true; px = x; py = sy;
+    }
+}
+
+static void refreshLayPanel() {
+    const settings::Values& v = settings::get();
+    for (int i = 0; i < 5; i++) {
+        const bool on = (v.chartLayers & kLayBits[i]) != 0;
+        lv_obj_set_style_bg_color(layRow[i], lv_color_hex(on ? 0x1F4E7A : C_BAR), 0);
+        lv_obj_set_style_border_color(layRow[i], lv_color_hex(on ? C_ACC : C_LINE), 0);
+        char b[48];
+        snprintf(b, sizeof(b), "%s  %s", on ? "S\xC3\x8D" : "NO ", kLayNames[i]);
+        lv_label_set_text(layRowLbl[i], b);
+        if (layOpaLbl[i]) {
+            snprintf(b, sizeof(b), "%d %%", i == 2 ? v.nightOpa : v.seamarkOpa);
+            lv_label_set_text(layOpaLbl[i], b);
+        }
+    }
+    char n[200];
+    snprintf(n, sizeof(n), "%s%s", v.alertsOn ? "" : "Avisos y terremotos: encienda los avisos oficiales en Ajustes > Red.\n",
+             "Marcas: teselas PNG transparentes en /charts/seamark");
+    lv_label_set_text(layNote, n);
+}
+
+static void onLayToggle(lv_event_t* e) {
+    const int i = (int)(intptr_t)lv_event_get_user_data(e);
+    settings::Values& v = settings::get();
+    v.chartLayers ^= kLayBits[i];
+    settings::save();
+    if (kLayBits[i] == LAY_NAVAREA) links::applyAlerts();   // los radioavisos solo se bajan con la capa encendida
+    refreshLayPanel();
+}
+
+static void onLayOpa(lv_event_t* e) {
+    const int d = (int)(intptr_t)lv_event_get_user_data(e);  // +-1: dia / noche, +-2: marcas
+    settings::Values& v = settings::get();
+    int& o = (d == 1 || d == -1) ? v.nightOpa : v.seamarkOpa;
+    o += d > 0 ? 10 : -10;
+    if (o < 20) o = 20;
+    if (o > 100) o = 100;
+    settings::save();
+    refreshLayPanel();
+    if (chNight) lv_obj_invalidate(chNight);
+}
+
+static void onLayBtn(lv_event_t*) {
+    const bool show = lv_obj_is_hidden(layPanel);
+    if (show) refreshLayPanel();
+    lv_obj_set_hidden(layPanel, !show);
+}
+
+// Las marcas, por debajo de la derrota y de los blancos AIS; el panel de capas se crea aparte, encima de todo
+static void makeLayers() {
+    chNight = lv_obj_create(chart);
+    lv_obj_remove_style_all(chNight);
+    lv_obj_set_size(chNight, CH_W, CH_H);
+    lv_obj_set_pos(chNight, 0, 0);
+    lv_obj_set_clickable(chNight, false);
+    lv_obj_set_scrollable(chNight, false);
+    lv_obj_add_event_cb(chNight, onNightDraw, LV_EVENT_DRAW_MAIN, nullptr);
+    lv_obj_set_hidden(chNight, true);
+    for (NavMark& m : navMarks) {
+        m.line = lv_line_create(chart);
+        lv_obj_set_style_line_color(m.line, lv_color_hex(0xFFB347), 0);
+        lv_obj_set_style_line_width(m.line, 3, 0);
+        lv_obj_set_style_line_dash_width(m.line, 8, 0);
+        lv_obj_set_style_line_dash_gap(m.line, 5, 0);
+        m.dot = box(chart, 0xFFB347, 3);
+        lv_obj_set_size(m.dot, 16, 16);
+        lv_obj_set_style_border_color(m.dot, lv_color_hex(C_INK), 0);
+        lv_obj_set_style_border_width(m.dot, 2, 0);
+        lv_obj_set_style_transform_rotation(m.dot, 450, 0);   // rombo
+        lv_obj_set_style_transform_pivot_x(m.dot, 8, 0);
+        lv_obj_set_style_transform_pivot_y(m.dot, 8, 0);
+        m.lbl = label(chart, "", &dejavu_12, 0xFFD3A1);
+        lv_obj_set_style_bg_color(m.lbl, lv_color_hex(C_BAR), 0);
+        lv_obj_set_style_bg_opa(m.lbl, 210, 0);
+        lv_obj_set_style_pad_hor(m.lbl, 4, 0);
+        lv_obj_set_style_radius(m.lbl, 4, 0);
+        for (lv_obj_t* o : {m.line, m.dot, m.lbl}) { lv_obj_set_clickable(o, false); lv_obj_set_hidden(o, true); }
+    }
+    for (OaMark& m : oaMarks) {
+        m.dot = box(chart, C_WARN, LV_RADIUS_CIRCLE);
+        lv_obj_set_style_border_width(m.dot, 3, 0);
+        m.lbl = label(chart, "", &dejavu_12, C_TEXT);
+        lv_obj_set_style_bg_color(m.lbl, lv_color_hex(C_BAR), 0);
+        lv_obj_set_style_bg_opa(m.lbl, 210, 0);
+        lv_obj_set_style_pad_hor(m.lbl, 4, 0);
+        lv_obj_set_style_radius(m.lbl, 4, 0);
+        for (lv_obj_t* o : {m.dot, m.lbl}) { lv_obj_set_clickable(o, false); lv_obj_set_hidden(o, true); }
+    }
+}
+
+static void makeLayPanel() {
+    lv_obj_t* lb = textButton(chart, "Capas", 110, 46, onLayBtn, 0);
+    lv_obj_align(lb, LV_ALIGN_TOP_RIGHT, -184, 68);
+    layPanel = box(chart, C_PANEL, 10);
+    lv_obj_set_size(layPanel, 420, 340);
+    lv_obj_align(layPanel, LV_ALIGN_TOP_RIGHT, -68, 122);
+    lv_obj_set_style_border_color(layPanel, lv_color_hex(C_LINE), 0);
+    lv_obj_set_style_border_width(layPanel, 2, 0);
+    lv_obj_set_clickable(layPanel, true);                 // tocar el panel no marca un punto en la carta
+    lv_obj_t* t = label(layPanel, "Capas de la carta", &dejavu_bold_16, C_TEXT);
+    lv_obj_set_pos(t, 14, 10);
+    for (int i = 0; i < 5; i++) {
+        const int y = 38 + i * 50;
+        layRow[i] = textButton(layPanel, "", 250, 46, onLayToggle, i);
+        lv_obj_set_pos(layRow[i], 10, y);
+        layRowLbl[i] = lv_obj_get_child(layRow[i], 0);
+        lv_obj_set_style_text_font(layRowLbl[i], &dejavu_14, 0);
+        lv_obj_align(layRowLbl[i], LV_ALIGN_LEFT_MID, 10, 0);
+        if (i == 2 || i == 4) {                           // transparencia de las capas que tapan el mapa
+            const intptr_t k = i == 2 ? 1 : 2;
+            lv_obj_t* m = textButton(layPanel, "-", 44, 46, onLayOpa, -k);
+            lv_obj_set_pos(m, 268, y);
+            layOpaLbl[i] = label(layPanel, "", &dejavu_14, C_SOFT);
+            lv_obj_set_width(layOpaLbl[i], 52);
+            lv_obj_set_style_text_align(layOpaLbl[i], LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_pos(layOpaLbl[i], 314, y + 14);
+            lv_obj_t* p = textButton(layPanel, "+", 44, 46, onLayOpa, k);
+            lv_obj_set_pos(p, 366, y);
+        }
+    }
+    layNote = label(layPanel, "", &dejavu_12, C_DIM);
+    lv_obj_set_width(layNote, 396);
+    lv_obj_set_pos(layNote, 14, 292);
+    lv_obj_set_hidden(layPanel, true);
+}
+
+static void updateLayers() {
+    const int layers = settings::get().chartLayers;
+    auto inside = [](double x, double y) { return x > -20 && x < CH_W + 20 && y > -20 && y < CH_H + 20; };
+    lv_obj_set_hidden(chNight, !(layers & LAY_NIGHT) || !tsync::now());
+    if (layers & LAY_NIGHT) lv_obj_invalidate(chNight);
+    // Avisos con posicion y terremotos (circulo segun la magnitud)
+    int k = 0;
+    for (size_t i = 0; i < oaList.size() && k < kOaMarks; i++) {
+        const plotter::Alert& a = oaList[i];
+        if (!a.hasPos()) continue;
+        const bool quake = a.src == plotter::AlertSrc::Usgs || a.src == plotter::AlertSrc::Emsc;
+        if (!(layers & (quake ? LAY_QUAKES : LAY_ALERTS))) continue;
+        double x, y;
+        chartXY({a.lat, a.lon}, x, y);
+        if (!inside(x, y)) continue;
+        OaMark& m = oaMarks[k++];
+        const uint32_t col = oaColor(a.level);
+        char b[48];
+        int r;
+        if (quake) {
+            const double mag = plotter::quakeMag(a);
+            r = (int)lround(6 + (mag - 2) * 5);
+            if (r < 6) r = 6;
+            if (r > 40) r = 40;
+            lv_obj_set_style_bg_opa(m.dot, 70, 0);
+            lv_obj_set_style_border_color(m.dot, lv_color_hex(col == C_DIM ? 0xFF8A80 : col), 0);
+            lv_obj_set_style_radius(m.dot, LV_RADIUS_CIRCLE, 0);
+            snprintf(b, sizeof(b), "M%.1f", mag);
+        } else {
+            r = 9;
+            lv_obj_set_style_bg_opa(m.dot, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_color(m.dot, lv_color_hex(C_INK), 0);
+            lv_obj_set_style_radius(m.dot, 4, 0);
+            snprintf(b, sizeof(b), "%.24s", a.event.c_str());
+        }
+        lv_obj_set_style_bg_color(m.dot, lv_color_hex(col == C_DIM ? 0xFF8A80 : col), 0);
+        lv_obj_set_size(m.dot, 2 * r, 2 * r);
+        lv_obj_set_pos(m.dot, (int)lround(x) - r, (int)lround(y) - r);
+        lv_label_set_text(m.lbl, b);
+        lv_obj_set_style_text_color(m.lbl, lv_color_hex(col == C_DIM ? 0xFF8A80 : col), 0);
+        lv_obj_set_pos(m.lbl, (int)lround(x) + r + 4, (int)lround(y) - 9);
+        lv_obj_set_hidden(m.dot, false);
+        lv_obj_set_hidden(m.lbl, false);
+        m.x = (int)lround(x); m.y = (int)lround(y); m.vis = true; m.id = a.id;
+    }
+    for (; k < kOaMarks; k++) { lv_obj_set_hidden(oaMarks[k].dot, true); lv_obj_set_hidden(oaMarks[k].lbl, true); oaMarks[k].vis = false; }
+    // Radioavisos: rombo en su primera posicion a la vista y linea por sus posiciones (zona o derrota)
+    k = 0;
+    for (size_t i = 0; (layers & LAY_NAVAREA) && i < navWarns.size() && k < kNavMarks; i++) {
+        const plotter::NavWarning& w = navWarns[i];
+        if (w.positions.empty()) continue;
+        NavMark& m = navMarks[k];
+        int np = 0, first = -1;
+        for (size_t j = 0; j < w.positions.size() && np < kNavLinePts; j++) {
+            double x, y;
+            chartXY(w.positions[j], x, y);
+            if (first < 0 && inside(x, y)) first = np;
+            m.pts[np++] = {(lv_value_precise_t)x, (lv_value_precise_t)y};
+        }
+        if (first < 0) continue;                          // ninguna posicion a la vista
+        k++;
+        if (np >= 2) lv_line_set_points(m.line, m.pts, (uint32_t)np);
+        lv_obj_set_hidden(m.line, np < 2);
+        const int x = (int)lround(m.pts[first].x), y = (int)lround(m.pts[first].y);
+        lv_obj_set_pos(m.dot, x - 8, y - 8);
+        lv_label_set_text(m.lbl, w.number.c_str());
+        lv_obj_set_pos(m.lbl, x + 12, y - 9);
+        lv_obj_set_hidden(m.dot, false);
+        lv_obj_set_hidden(m.lbl, false);
+        m.x = x; m.y = y; m.idx = (int)i; m.vis = true;
+    }
+    for (; k < kNavMarks; k++) {
+        lv_obj_set_hidden(navMarks[k].dot, true); lv_obj_set_hidden(navMarks[k].lbl, true); lv_obj_set_hidden(navMarks[k].line, true);
+        navMarks[k].vis = false;
+    }
+}
+
+// Un toque cerca de una marca abre su ficha. true si habia una.
+static bool tapLayerMark(int x, int y) {
+    int best = 26 * 26, kind = 0, which = -1;
+    for (int i = 0; i < kOaMarks; i++) {
+        if (!oaMarks[i].vis) continue;
+        const int d = (oaMarks[i].x - x) * (oaMarks[i].x - x) + (oaMarks[i].y - y) * (oaMarks[i].y - y);
+        if (d < best) { best = d; kind = 1; which = i; }
+    }
+    for (int i = 0; i < kNavMarks; i++) {
+        if (!navMarks[i].vis) continue;
+        const int d = (navMarks[i].x - x) * (navMarks[i].x - x) + (navMarks[i].y - y) * (navMarks[i].y - y);
+        if (d < best) { best = d; kind = 2; which = i; }
+    }
+    if (kind == 1) { oaModalId = oaMarks[which].id; openModal(M_OFFICIAL, 0); return true; }
+    if (kind == 2) { navModalIdx = navMarks[which].idx; openModal(M_NAVWARN, 0); return true; }
+    return false;
+}
+
+static void goToNavWarn() {
+    if (navModalIdx >= 0 && navModalIdx < (int)navWarns.size() && !navWarns[(size_t)navModalIdx].positions.empty()) {
+        const plotter::NavWarning& w = navWarns[(size_t)navModalIdx];
+        startGoTo(w.positions[0], w.number.c_str(), false);
+    }
+    navModalIdx = -1;
+    closeModal();
+}
+
+static void updateNavWarnModal() {
+    if (navModalIdx < 0 || navModalIdx >= (int)navWarns.size()) { closeModal(); return; }
+    const plotter::NavWarning& w = navWarns[(size_t)navModalIdx];
+    lv_obj_set_style_bg_color(modalHead, lv_color_hex(0xFFB347), 0);
+    lv_label_set_text(modalTitle, "NAVAREA III");
+    char sub[80], name[64], b[460];
+    snprintf(sub, sizeof(sub), "%s \xC2\xB7 %s \xC2\xB7 IHM", w.number.c_str(), w.date.c_str());
+    lv_label_set_text(modalSub, sub);
+    const std::string& title = w.titleEs.empty() ? w.titleEn : w.titleEs;
+    snprintf(name, sizeof(name), "%.44s", title.c_str());
+    lv_label_set_text(modalName, name);
+    const std::string& area = w.areaEs.empty() ? w.areaEn : w.areaEs;
+    const std::string& text = w.textEs.empty() ? w.textEn : w.textEs;
+    std::string body = area + "\n" + text;
+    if (body.size() > 300) {                              // sin partir una letra de UTF-8
+        size_t cut = 300;
+        while (cut > 0 && ((unsigned char)body[cut] & 0xC0) == 0x80) cut--;
+        body = body.substr(0, cut) + "...";
+    }
+    snprintf(b, sizeof(b), "%s", body.c_str());
+    lv_label_set_text(modalBody, b);
+    lv_label_set_text(modalBtnALbl, "GO TO");
+    lv_label_set_text(modalBtnBLbl, "CLOSE");
+}
+
 static void onChartPressed(lv_event_t*) { dragDist = 0; }
 
 static void onChartClicked(lv_event_t*) {
@@ -1181,6 +1531,7 @@ static void onChartClicked(lv_event_t*) {
     lv_obj_get_coords(chart, &a);
     double cx, cy;
     lonLatToWorldPx(chCenter, chZoom, cx, cy);
+    if (tapLayerMark(pt.x - a.x1, pt.y - a.y1)) return;
     selectPoint(worldPxToLonLat(cx + (pt.x - a.x1) - CH_W / 2.0, cy + (pt.y - a.y1) - CH_H / 2.0, chZoom));
 }
 
@@ -1193,11 +1544,14 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_add_event_cb(chart, onChartDrag, LV_EVENT_PRESSING, nullptr);
     lv_obj_add_event_cb(chart, onChartPressed, LV_EVENT_PRESSED, nullptr);
     lv_obj_add_event_cb(chart, onChartClicked, LV_EVENT_CLICKED, nullptr);
-    for (TileImg& t : tileImgs) {                         // lo primero: quedan debajo de todo lo demas
-        t.img = lv_image_create(chart);
-        lv_obj_set_size(t.img, kTileSize, kTileSize);
-        lv_obj_set_hidden(t.img, true);
-    }
+    for (TileLayer* L : {&baseTiles, &seaTiles})          // lo primero: quedan debajo de todo lo demas
+        for (TileImg& t : L->imgs) {
+            t.img = lv_image_create(chart);
+            lv_obj_set_size(t.img, kTileSize, kTileSize);
+            lv_obj_set_hidden(t.img, true);
+            lv_obj_set_clickable(t.img, false);
+        }
+    makeLayers();
     chTrack = lv_line_create(chart);
     lv_obj_set_style_line_color(chTrack, lv_color_hex(0xFF9F43), 0);
     lv_obj_set_style_line_width(chTrack, 3, 0);
@@ -1325,6 +1679,7 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_set_style_pad_hor(chInfo, 6, 0);
     lv_obj_set_style_pad_ver(chInfo, 3, 0);
     lv_obj_set_style_radius(chInfo, 6, 0);
+    makeLayPanel();
 }
 
 static void updateChart() {
@@ -1334,6 +1689,7 @@ static void updateChart() {
     if (own && chFollow) chCenter = {la, lo};
     double cx, cy;
     lonLatToWorldPx(chCenter, chZoom, cx, cy);
+    chCx = cx; chCy = cy;
     auto toScreen = [&](LatLon p, double& x, double& y) {
         double px, py;
         lonLatToWorldPx(p, chZoom, px, py);
@@ -1342,7 +1698,10 @@ static void updateChart() {
     };
     auto inside = [](double x, double y) { return x > -20 && x < CH_W + 20 && y > -20 && y < CH_H + 20; };
     double mpp = metersPerPixel(chCenter.lat, chZoom);
-    int tilesShown = layoutTiles(cx, cy);
+    const int layers = settings::get().chartLayers;
+    int tilesShown = layoutTiles(baseTiles, kBaseMaps[baseMap].folder, kBaseMaps[baseMap].ext, true, cx, cy);
+    const int seaShown = layoutTiles(seaTiles, kSeamarkFolder, "png", (layers & LAY_SEAMARK) != 0, cx, cy);
+    for (TileImg& t : seaTiles.imgs) lv_obj_set_style_image_opa(t.img, (lv_opa_t)(settings::get().seamarkOpa * 255 / 100), 0);
 
     // Barco y vector de 6 minutos
     bool boatVis = false;
@@ -1631,13 +1990,15 @@ static void updateChart() {
     for (double st : kSteps)
         if (st / distFromNm(1, U.dist) * kMetersPerNm / mpp <= 180) best = st;       // pasos redondos en la unidad elegida
     lv_obj_set_width(chScaleBar, (int)lround(best / distFromNm(1, U.dist) * kMetersPerNm / mpp));
-    char b[112];
+    char b[160];
     snprintf(b, sizeof(b), best < 1 ? "%.2g %s" : "%.0f %s", best, distLabel());
     comma(b);
     lv_label_set_text(chScaleLbl, b);
     snprintf(b, sizeof(b), "Norte arriba \xC2\xB7 zoom %d \xC2\xB7 %s%s", chZoom,
              tilesShown ? kBaseMaps[baseMap].credit : "sin cartas en la tarjeta para esta zona", chFollow ? "" : " \xC2\xB7 carta movida");
+    if (seaShown && baseMap != 0 && strlen(b) < sizeof(b) - 30) strcat(b, " \xC2\xB7 marcas OpenSeaMap");
     lv_label_set_text(chInfo, b);
+    updateLayers();
     lv_obj_set_hidden(chCenterBtn, chFollow);
 }
 
@@ -2680,8 +3041,8 @@ static void updateMeteo() {
 // ---------- Ajustes ----------
 static void setBaseMap(int i) {
     baseMap = (i >= 0 && i < kBaseMapN) ? i : 0;
-    for (Missing& m : missing) m = Missing();             // otra carpeta: lo que faltaba ya no vale
-    for (TileImg& t : tileImgs) t.z = -1;                 // y las teselas puestas se vuelven a buscar
+    for (Missing& m : baseTiles.missing) m = Missing();   // otra carpeta: lo que faltaba ya no vale
+    for (TileImg& t : baseTiles.imgs) t.z = -1;           // y las teselas puestas se vuelven a buscar
 }
 
 static void onSetting(lv_event_t* e) {
@@ -3140,6 +3501,27 @@ void testInternet() {                                      // como si acabara de
     for (const auto& e : v) store->set((Key)(int)e[0], e[1], Source::Internet, now, Quality::Estimated);
 }
 void testNet() { openNet(); }
+void testLayers(int zoom) {                                // avisos, terremoto y radioaviso inventados, todas las capas
+    settings::get().chartLayers = LAY_ALERTS | LAY_QUAKES | LAY_NIGHT | LAY_NAVAREA | LAY_SEAMARK;
+    chZoom = zoom;
+    plotter::Alert a;
+    a.id = "demo-aemet"; a.src = plotter::AlertSrc::Aemet; a.level = 2; a.event = "Fen\xC3\xB3menos costeros";
+    a.area = "Litoral de C\xC3\xA1" "diz"; a.text = "Viento del este fuerza 7, olas de 3 a 4 m."; a.lat = 36.05; a.lon = -5.95;
+    oaList.upsert(a);
+    plotter::Alert q;
+    q.id = "demo-quake"; q.src = plotter::AlertSrc::Emsc; q.level = 1; q.event = "M4.3 Earthquake"; q.area = "Golfo de C\xC3\xA1" "diz";
+    q.lat = 36.25; q.lon = -7.35;
+    oaList.upsert(q);
+    plotter::NavWarning w;
+    w.number = "0123/26"; w.date = "2026-11-12"; w.titleEs = "Ejercicios de tiro"; w.areaEs = "Golfo de C\xC3\xA1" "diz";
+    w.textEs = "Ejercicios de tiro de superficie en la zona limitada por 36-40N 006-50W, 36-40N 006-35W, 36-30N 006-35W, 36-30N 006-50W.";
+    navWarningPositions(w.textEs, w.positions);
+    w.positions.push_back(w.positions.front());
+    navWarns.clear();
+    navWarns.push_back(w);
+}
+void testLayerPanel() { onLayBtn(nullptr); }
+void testTapLayer(int x, int y) { tapLayerMark(x, y); }
 void testSetting(int what) {                               // 4 unidades, 5 mapa base
     settings::Values& v = settings::get();
     if (what == 4) { v.units = (v.units + 1) % 3; applyUnits(); }

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- **Capas de la carta** (botón *Capas*, como las del mapa de la app Android): avisos oficiales con posición (color del nivel), terremotos (círculo según la magnitud), línea día / noche con el lado de noche oscurecido (transparencia ajustable), radioavisos NAVAREA III del IHM (rombo y línea por sus posiciones; `alerts_net` los baja como mucho cada hora con la capa encendida) y marcas de OpenSeaMap de `/charts/seamark` encima del mapa base (transparencia ajustable). Tocar una marca abre su ficha; la del radioaviso tiene *GO TO*. Núcleo: `subsolarPoint`, `terminatorLat`; 1651 comprobaciones.
 - **Avisos oficiales por la WiFi** (`lib/aprs_links/alerts_net`, tarea propia): AEMET (RSS de Meteoalerta), MeteoAlarm (por país), NWS (EE. UU.), tsunami.gov, terremotos (USGS, EMSC) y tiempo espacial (SWPC). Ventana como las demás alertas y resumen en la pestaña Meteo. *Ajustes > Red*: zonas y país. Núcleo: `alerts`, `minijson`, `same` (NOAA Weather Radio).
 - Registro de arranque con la línea común del ecosistema: «[INFO][Main] APRS LoRa+ (c) 2026 Manuel - EA7JRS».
 

@@ -243,6 +243,12 @@ gives after checking the amateur radio licence. If so, «EA7JRS validado en Radi
 again every 90 days (kept if there is no connection). **Without a validated CALLSIGN the plotter does not send the data to
 the transponder** (they change what it transmits): it only reads the transponder's. A new CALLSIGN must be validated again.
 
+**Verified maritime call sign**: the transponder only sends it once verified. With the MarineTraffic API key (paid, 40
+characters) in *Clave API MarineTraffic*, the **MarineTraffic** button looks up the MMSI and compares the call sign
+(MarineTraffic only knows vessels it has received over real AIS). If it is not there, look it up in the **ITU MARS**
+(itu.int/mmsapp/ShipStation/list, the official register) and press **MARS UIT** to confirm it by hand («MARS: OK»). The
+result is sent to the transponder. Changing the MMSI or the call sign needs a new check.
+
 **Estado** (Status), on the right: version, lines received on each route, where the position comes from, AIS targets
 and waypoints. At its top, the **Acerca de** (About) button: version and board, copyright, licence, project, library
 and chart credits, and the donation QR code (paypal.me/ea7jrs).

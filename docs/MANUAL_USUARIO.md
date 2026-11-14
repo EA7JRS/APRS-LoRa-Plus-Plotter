@@ -235,6 +235,12 @@ RadioID solo da tras comprobar la licencia de radioaficionado. Si es así, sale 
 guarda y se vuelve a comprobar cada 90 días (sin conexión se conserva). **Sin CALLSIGN validado el plotter no manda los
 datos al transponder** (cambian lo que emite): solo lee los suyos. Si cambias el CALLSIGN hay que validarlo otra vez.
 
+**Distintivo marítimo comprobado**: el transponder solo lo emite comprobado. Con la clave de la API de MarineTraffic (de
+pago, 40 caracteres) en *Clave API MarineTraffic*, el botón **MarineTraffic** busca el MMSI y compara el distintivo
+(MarineTraffic solo conoce barcos que ha recibido por AIS de verdad). Si no está, búscalo en el **MARS de la UIT**
+(itu.int/mmsapp/ShipStation/list, el registro oficial) y pulsa **MARS UIT** para confirmarlo a mano («MARS: OK»). El
+resultado se manda al transponder. Si cambias el MMSI o el distintivo, hay que comprobarlo otra vez.
+
 **Estado**, a la derecha: versión, líneas recibidas por cada vía, de dónde sale la posición, blancos AIS y waypoints.
 Arriba, el botón **Acerca de**: versión y placa, copyright, licencia, proyecto, créditos de las librerías y de las cartas,
 y el QR del donativo (paypal.me/ea7jrs).

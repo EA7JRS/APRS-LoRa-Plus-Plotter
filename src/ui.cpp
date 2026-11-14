@@ -2146,7 +2146,7 @@ static void updateVessel() {
     if (!vesScr || lv_obj_is_hidden(vesScr)) return;
     char b[160];
     const bool onlyB = vessel_link::sync().classBOnly();
-    snprintf(b, sizeof(b), "%s%s", vesselStateText(), onlyB ? "\nTransponder de clase B: velero o lancha de recreo" : "");
+    snprintf(b, sizeof(b), "%s%s", vesselStateText(), onlyB ? "\nTransponder de clase B: velero de recreo (B CS) o lancha de recreo (B SO)" : "");
     lv_label_set_text(vesStatus, b);
     const char cls = plotter::vessel::typeClass(vesType);
     snprintf(b, sizeof(b), "%s \xC2\xB7 %s", plotter::vessel::typeName(vesType), cls == 'A' ? "clase A" : (cls == 'S' ? "clase B SO" : "clase B CS"));

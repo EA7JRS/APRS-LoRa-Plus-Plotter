@@ -226,7 +226,7 @@ En **Embarcación**, **Guardar y enviar** guarda los datos y, si hay un **APRS L
 el perfil náutico AIS) enlazado por Bluetooth, se los manda: el transponder los pone en su baliza AIS. Al enlazarse, el
 plotter le pide los suyos; si el plotter no tiene datos, toma los del transponder, y si los tiene y son distintos, manda
 los suyos. El transponder ajusta lo que AIS no admite (nombre en mayúsculas, eslora de clase B de 6 a 24 m) y el plotter se
-queda con lo que confirma. Con el MAPRS (clase B) el tipo solo puede ser velero o lancha de recreo. Arriba se ve el estado:
+queda con lo que confirma. Con el MAPRS (clase B) el botón de tipo alterna entre los dos de clase B: velero de recreo (B «CS») y lancha de recreo (B «SO»). Arriba se ve el estado:
 «mismos datos que el plotter», «enviando», «los ha ajustado» o «sin conectar».
 
 **Estado**, a la derecha: versión, líneas recibidas por cada vía, de dónde sale la posición, blancos AIS y waypoints.

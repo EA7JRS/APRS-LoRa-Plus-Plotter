@@ -233,7 +233,7 @@ In **Embarcación**, **Guardar y enviar** ("Save and send") stores the data and,
 tracker with the nautical AIS profile) is linked over Bluetooth, sends them: the transponder puts them in its AIS beacon.
 When it links, the plotter asks for the transponder's data; if the plotter has none, it takes the transponder's, and if it
 has different ones, it sends its own. The transponder adjusts what AIS does not accept (upper-case name, class B length of
-6 to 24 m) and the plotter keeps what it confirms. With the MAPRS (class B) the type can only be sailing yacht or power boat.
+6 to 24 m) and the plotter keeps what it confirms. With the MAPRS (class B) the type button switches between the two class B types: sailing yacht (B "CS") and power boat (B "SO").
 The status is shown at the top: «mismos datos que el plotter» (same data), «enviando» (sending), «los ha ajustado»
 (adjusted) or «sin conectar» (not linked).
 

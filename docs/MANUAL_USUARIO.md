@@ -216,8 +216,18 @@ horas de salida y puesta) del día en la posición del barco, en hora UTC.
 | **Unidades** | Náutico, métrico o imperial. El fondeo va siempre en metros |
 | **Mapa base** | OpenSeaMap, IHM, IGN u ortofoto; cada uno lee su carpeta de la tarjeta |
 | **NMEA 2000** | Escucha de la red por el CAN |
-| **Red: WiFi, TCP y UDP** | Pantalla de red, con teclado |
+| **Red: WiFi y TCP** | Pantalla de red, con teclado |
+| **Embarcación** | Datos del barco: nombre, MMSI, indicativo APRS, tipo, eslora, manga y calado |
 | **Bluetooth** | Enlace con el tracker, la pasarela o el instrumento de viento |
+
+![Embarcación](img/embarcacion.png)
+
+En **Embarcación**, **Guardar y enviar** guarda los datos y, si hay un **APRS LoRa+ MAPRS transponder** (o un tracker con
+el perfil náutico AIS) enlazado por Bluetooth, se los manda: el transponder los pone en su baliza AIS. Al enlazarse, el
+plotter le pide los suyos; si el plotter no tiene datos, toma los del transponder, y si los tiene y son distintos, manda
+los suyos. El transponder ajusta lo que AIS no admite (nombre en mayúsculas, eslora de clase B de 6 a 24 m) y el plotter se
+queda con lo que confirma. Con el MAPRS (clase B) el tipo solo puede ser velero o lancha de recreo. Arriba se ve el estado:
+«mismos datos que el plotter», «enviando», «los ha ajustado» o «sin conectar».
 
 **Estado**, a la derecha: versión, líneas recibidas por cada vía, de dónde sale la posición, blancos AIS y waypoints.
 Arriba, el botón **Acerca de**: versión y placa, copyright, licencia, proyecto, créditos de las librerías y de las cartas,

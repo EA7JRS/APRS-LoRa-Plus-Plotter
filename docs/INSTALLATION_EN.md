@@ -133,7 +133,7 @@ pressure, engine rpm, battery, rudder, and class A and B AIS with vessel details
 
 ### 5.3 Network: Wi-Fi
 
-Ajustes > **Red: WiFi, TCP y UDP**. Type the network and its password, choose the server and press **Guardar y
+Ajustes > **Red: WiFi y TCP**. Type the network and its password, choose the server and press **Guardar y
 conectar** (Save and connect).
 
 | Type | Usual port | For |
@@ -162,6 +162,7 @@ remembers its address and from then on only connects to that one. Turning it off
 | Device | Notes |
 |---|---|
 | APRS LoRa+ tracker (T-Beam Supreme) | Enter its **control PIN** in Ajustes > Red («PIN del tracker»). Factory default 123456. Gives position, weather and the APRS stations heard as AIS targets |
+| APRS LoRa+ MAPRS transponder (LilyGO T3 v1.6.1) | Same as the tracker (control PIN). Gives the own vessel (`!AIVDO`) and the APRS LoRa AIS vessels heard, and receives the data of Ajustes > **Embarcación** (Vessel) |
 | XIAO gateway | Protocol in `BLE_NMEA.md` (Spanish). The gateway has not been adapted yet |
 | APRS LoRa+ Wind instrument | Sends the wind; the plotter sends it boat heading and speed once a second so it can compute true wind (section 5.6) |
 | NMEA bridge with the Nordic UART service | Accepted |
@@ -231,7 +232,8 @@ heading, the true one is that plus the declination.
 | Unidades (Units) | Náutico (nm, kn, m) / Métrico (km, km/h, wind in m/s) / Imperial (mi, mph, ft, °F) |
 | Mapa base (Base map) | OpenSeaMap / IHM / IGN / Ortofoto |
 | NMEA 2000 | On / Off |
-| Red: WiFi, TCP y UDP (Network) | Section 5.3 |
+| Red: WiFi y TCP (Network) | Section 5.3 |
+| Embarcación (Vessel) | Vessel data; sent to the MAPRS transponder (section 5.4) |
 | Bluetooth | Section 5.4 |
 
 Everything is saved and restored at power-up, including an active anchor watch.

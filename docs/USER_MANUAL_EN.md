@@ -223,8 +223,19 @@ fraction, rise and set) for the day at the boat's position, in UTC.
 | **Unidades** | Nautical, metric or imperial. Anchoring is always in metres |
 | **Mapa base** | OpenSeaMap, IHM, IGN or aerial imagery; each reads its own folder on the card |
 | **NMEA 2000** | Listening to the network over CAN |
-| **Red: WiFi, TCP y UDP** | Network screen, with a keyboard |
+| **Red: WiFi y TCP** | Network screen, with a keyboard |
+| **Embarcación** (Vessel) | Vessel data: name, MMSI, APRS callsign, type, length, beam and draught |
 | **Bluetooth** | Link with the tracker, the gateway or the wind instrument |
+
+![Embarcación](img/embarcacion.png)
+
+In **Embarcación**, **Guardar y enviar** ("Save and send") stores the data and, if an **APRS LoRa+ MAPRS transponder** (or a
+tracker with the nautical AIS profile) is linked over Bluetooth, sends them: the transponder puts them in its AIS beacon.
+When it links, the plotter asks for the transponder's data; if the plotter has none, it takes the transponder's, and if it
+has different ones, it sends its own. The transponder adjusts what AIS does not accept (upper-case name, class B length of
+6 to 24 m) and the plotter keeps what it confirms. With the MAPRS (class B) the type can only be sailing yacht or power boat.
+The status is shown at the top: «mismos datos que el plotter» (same data), «enviando» (sending), «los ha ajustado»
+(adjusted) or «sin conectar» (not linked).
 
 **Estado** (Status), on the right: version, lines received on each route, where the position comes from, AIS targets
 and waypoints. At its top, the **Acerca de** (About) button: version and board, copyright, licence, project, library

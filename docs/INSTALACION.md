@@ -130,7 +130,7 @@ humedad y presión, rpm del motor, batería, timón, y AIS de clase A y B con lo
 
 ### 5.3 Red: WiFi
 
-Ajustes > **Red: WiFi, TCP y UDP**. Escribe la red y su clave, elige el servidor y pulsa **Guardar y conectar**.
+Ajustes > **Red: WiFi y TCP**. Escribe la red y su clave, elige el servidor y pulsa **Guardar y conectar**.
 
 | Tipo | Puerto habitual | Para |
 |---|---|---|
@@ -158,6 +158,7 @@ dirección y desde entonces solo se conecta a ese. Apagar y encender lo olvida.
 | Equipo | Notas |
 |---|---|
 | Tracker APRS LoRa+ (T-Beam Supreme) | Hay que poner su **PIN de control** en Ajustes > Red («PIN del tracker»). De fábrica, 123456. Da posición, meteorología y las estaciones APRS oídas como blancos AIS |
+| APRS LoRa+ MAPRS transponder (LilyGO T3 v1.6.1) | Igual que el tracker (PIN de control). Da el barco propio (`!AIVDO`) y los barcos APRS LoRa AIS oídos, y recibe los datos de Ajustes > **Embarcación** |
 | Pasarela XIAO | Protocolo en `BLE_NMEA.md`. La pasarela todavía no está adaptada |
 | Instrumento de viento APRS LoRa+ Wind | Manda el viento; el plotter le manda rumbo y velocidad del barco una vez por segundo para que calcule el viento real (apartado 5.6) |
 | Puente NMEA con el servicio UART de Nordic | Aceptado |
@@ -226,7 +227,8 @@ verdadero sale de sumarla.
 | Unidades | Náutico (mn, kn, m) / Métrico (km, km/h, viento en m/s) / Imperial (mi, mph, ft, °F) |
 | Mapa base | OpenSeaMap / IHM / IGN / Ortofoto |
 | NMEA 2000 | Encendido / Apagado |
-| Red: WiFi, TCP y UDP | Apartado 5.3 |
+| Red: WiFi y TCP | Apartado 5.3 |
+| Embarcación | Datos del barco; se mandan al MAPRS transponder (apartado 5.4) |
 | Bluetooth | Apartado 5.4 |
 
 Todo se guarda y se recupera al encender, también un fondeo en vigilancia.

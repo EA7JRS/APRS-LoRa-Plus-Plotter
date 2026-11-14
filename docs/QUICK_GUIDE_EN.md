@@ -76,6 +76,7 @@ They appear in a window over any screen:
 | Local network (NMEA, gpsd, Signal K) | Ajustes > Red |
 | Phone with the APRS LoRa+ app | Ajustes > Red: the phone's Wi-Fi, «TCP: NMEA 0183», empty server, port 10110 |
 | APRS LoRa+ tracker or gateway | Ajustes > Bluetooth (the tracker PIN goes in Ajustes > Red) |
+| APRS LoRa+ MAPRS transponder | Same as the tracker; vessel data in Ajustes > Embarcación (sent to it automatically) |
 | Internet weather | Ajustes > Red: OpenWeatherMap key |
 | APRS LoRa+ Wind instrument | By itself on NMEA 2000; or Ajustes > Bluetooth; or Ajustes > Red, UDP port 10110 (`WIND_INSTRUMENT_EN.md`) |
 

@@ -59,7 +59,7 @@ Versión 5.4.4, preliminar. El núcleo de cálculo (`lib/plotter_core`) no depen
 
 ## Fases
 
-1. **Núcleo:** instrumentos, carta con waypoints y rutas, radar AIS, alarmas, viento, piloto (datos de ruta). Datos por CAN (NMEA 2000) y serie.
+1. **Núcleo:** instrumentos, carta con waypoints y rutas, radar AIS, alarmas, viento, piloto (datos de ruta por RS485, TCP, BLE o **NMEA 2000**: emite 129283/129284 para un piloto del bus; sin probar en piloto real). Datos por CAN (NMEA 2000) y serie.
 2. **Tracker y emergencias:** enlace BLE con el tracker APRS LoRa+ y la ventana de emergencias de la app Android, LSD de la emisora.
 3. **Internet y mensajes:** mapas base (OpenSeaMap, IHM), capas de Portus y AEMET, meteo, Navtex y SafetyNET por TCP.
 4. **Mareas y navegación astronómica:** mareas por cálculo armónico y rectas de altura con sextante.

@@ -478,6 +478,16 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
 
 - **Avisos oficiales (2026-11-12, rama `alertas`)**: núcleo `alerts` (AEMET RSS y CAP, MeteoAlarm, NWS, tsunami.gov, USGS / EMSC, SWPC; lista con niveles 0–3), `same` (NOAA Weather Radio: cabeceras y demodulador AFSK 520,83 bd, probado con ruido a 12 / 13,2 / 48 kHz) y `minijson`; pruebas con muestras reales (franlindebl/nomad-pocket, GPL-3; no copiadas al repositorio). `lib/aprs_links/alerts_net` (tarea propia, `-DAPRS_LINKS_ALERTS`; el rotor no lo lleva). Plotter: ventana `M_OFFICIAL` (LIST lleva a Meteo), resumen en Meteo, zonas y país en Ajustes > Red. Lo mismo en el tracker (por la app), la app y la Display. 1644 comprobaciones.
 
+- **Embarcación y APRS LoRa+ MAPRS transponder (2026-11-13, rama `embarcacion-maprs`; Manuel: «si en el plotter cambio los
+  datos de mi embarcación, en el transponder se modificará»)**: el MAPRS es un tracker en la LilyGO T3 v1.6.1 (rama
+  `transponder-ais` del tracker, entorno `ttgo-lora32-v21_MAPRS`, clase B, barco propio como `!AIVDO`). Núcleo `vessel`
+  (orden y evento `vessel` del tracker, `Sync`: el plotter manda; sin datos propios toma los del transponder; tras enviar
+  adopta lo que confirma) y `src/vessel_link.*`; `lib/aprs_links/ble`: con un tracker emparejado se suscribe también a los
+  eventos (`…a000-…0003`) y escribe órdenes (`…0002`): `ble::command`, `ble::readEvent`, `Status::canCommand` (copiar a la
+  Display y al rotor tras fusionar). Ajustes > **Embarcación** (NVS `vName`, `vMmsi`, `vCall`, `vType`, `vLen`, `vBeam`,
+  `vDraft`); el botón de red pasa a «Red: WiFi y TCP». Acción `barco` en el dibujo del PC. 1672 comprobaciones. Sin probar
+  con un transponder.
+
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y
    medir hechos. Fondeo, unidades, mapa base, NMEA 2000 (escucha) y red (WiFi, NMEA por TCP / UDP, gpsd) hechos. Pestaña Viento hecha. Pestaña Piloto hecha. Relevo por internet y pestaña Meteo hechos. BLE con la pasarela hecho (lado plotter). Signal K nativo hecho. Lo siguiente: zumbador (pin por decidir), AEMET, lista de equipos BLE, y probar en la placa.

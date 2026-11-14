@@ -1420,6 +1420,29 @@ static void testN2kTx() {
     CHECK(d[3] == 0xFF && d[4] == 0xFF);
     n2kWind(3, 0.0, 359.9999, 2, d);
     CHECK(d[3] == 0 && d[4] == 0);
+    // 129283 XTE, 129284 datos de navegacion y partido de fast packet (para el piloto por NMEA 2000)
+    auto rd16 = [](const uint8_t* p) { return (uint16_t)(p[0] | (p[1] << 8)); };
+    auto rd32 = [](const uint8_t* p) { return (uint32_t)(p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24)); };
+    uint8_t x[8];
+    n2kXte(5, 12.34, false, x);
+    CHECK(x[0] == 5 && x[1] == 0x30 && (int32_t)rd32(&x[2]) == 1234 && x[6] == 0xFF);
+    n2kXte(5, -5.0, true, x);
+    CHECK(x[1] == 0x70 && (int32_t)rd32(&x[2]) == -500);
+    N2kNav nav; nav.distanceM = 1852.0; nav.bearingPosToDestRad = M_PI / 2; nav.calcGreatCircle = false;
+    nav.arrivalEntered = true; nav.destWp = 2; nav.destLat = 37.5; nav.destLon = -5.5; nav.closingVelMs = 1.23;
+    uint8_t nd[34];
+    n2kNavData(9, nav, nd);
+    CHECK(nd[0] == 9 && rd32(&nd[1]) == 185200u);
+    CHECK(nd[5] == ((1 << 4) | (1 << 6)));                         // dentro del circulo de llegada + loxodromica
+    CHECK(rd16(&nd[12]) == 0xFFFF && rd16(&nd[14]) == 15708);      // demora origen->destino sin dato; posicion->destino 90 grados
+    CHECK(rd32(&nd[20]) == 2u && (int32_t)rd32(&nd[24]) == 375000000 && (int32_t)rd32(&nd[28]) == -55000000);
+    CHECK((int16_t)rd16(&nd[32]) == 123);
+    uint8_t frm[8 * 8];
+    int nFr = n2kFastFrames(nd, 34, 3, frm, sizeof frm);
+    CHECK(nFr == 5 && frm[0] == ((3 << 5) | 0) && frm[1] == 34 && frm[2] == nd[0]);
+    CHECK(frm[8] == ((3 << 5) | 1) && frm[9] == nd[6] && frm[15] == nd[12]);
+    uint8_t p5[5] = {1, 2, 3, 4, 5};
+    CHECK(n2kFastFrames(p5, 5, 0, frm, sizeof frm) == 1 && frm[1] == 5 && frm[2] == 1 && frm[6] == 5 && frm[7] == 0xFF);
     // NAME: los campos van en su sitio
     N2kName nm; nm.unique = 0x12345;
     uint64_t name = n2kNameValue(nm);

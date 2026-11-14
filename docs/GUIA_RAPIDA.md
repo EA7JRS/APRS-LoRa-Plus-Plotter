@@ -1,6 +1,6 @@
 # APRS LoRa+ Plotter — Guía rápida
 
-Versión 5.4.4 · Waveshare ESP32-S3-Touch-LCD-7B (7", 1024 × 600)
+Versión 5.4.5 · Waveshare ESP32-S3-Touch-LCD-7B (7", 1024 × 600)
 
 **Es una ayuda a la navegación. No sustituye a la carta oficial ni a la vigilancia.**
 Esta primera versión compila, pero **todavía no se ha probado en la placa**: úsala para probar, no para navegar.

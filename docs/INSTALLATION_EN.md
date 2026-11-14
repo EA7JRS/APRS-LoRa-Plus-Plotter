@@ -1,6 +1,6 @@
 # APRS LoRa+ Plotter — Installation and operation manual
 
-Version 5.4.4 · Waveshare ESP32-S3-Touch-LCD-7B (7", 1024 × 600)
+Version 5.4.5 · Waveshare ESP32-S3-Touch-LCD-7B (7", 1024 × 600)
 
 **This is an aid to navigation. It does not replace official charts or a proper lookout.**
 
@@ -43,18 +43,18 @@ Each release has two files:
 
 | File | Use | Address |
 |---|---|---|
-| `aprs-lora-plus-plotter-7b-5.4.4-full.bin` | First install: bootloader, partitions and firmware | `0x0` |
-| `aprs-lora-plus-plotter-7b-5.4.4-firmware.bin` | Updating a board that already runs the plotter | `0x10000` |
+| `aprs-lora-plus-plotter-7b-5.4.5-full.bin` | First install: bootloader, partitions and firmware | `0x0` |
+| `aprs-lora-plus-plotter-7b-5.4.5-firmware.bin` | Updating a board that already runs the plotter | `0x10000` |
 
 ```
 pip install esptool
-esptool.py --chip esp32s3 --port PORT --baud 460800 write_flash 0x0 aprs-lora-plus-plotter-7b-5.4.4-full.bin
+esptool.py --chip esp32s3 --port PORT --baud 460800 write_flash 0x0 aprs-lora-plus-plotter-7b-5.4.5-full.bin
 ```
 
 `PORT` is `COM5`, `/dev/ttyACM0`, `/dev/ttyUSB0`... depending on the system. To update:
 
 ```
-esptool.py --chip esp32s3 --port PORT --baud 460800 write_flash 0x10000 aprs-lora-plus-plotter-7b-5.4.4-firmware.bin
+esptool.py --chip esp32s3 --port PORT --baud 460800 write_flash 0x10000 aprs-lora-plus-plotter-7b-5.4.5-firmware.bin
 ```
 
 If it does not enter flashing mode by itself: hold **BOOT**, press **RESET**, release **BOOT** and run the command again.
@@ -72,7 +72,7 @@ pio run -e waveshare_lcd7b -t upload
 
 ## 3. First start
 
-1. On power-up the APRS LoRa+ welcome screen shows for about 2 seconds (the logo and «Plotter 5.4.4»), the same as in
+1. On power-up the APRS LoRa+ welcome screen shows for about 2 seconds (the logo and «Plotter 5.4.5»), the same as in
    the app and in APRS LoRa+ Display.
 
    ![Welcome](img/bienvenida.png)

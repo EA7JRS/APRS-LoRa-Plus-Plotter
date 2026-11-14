@@ -9,7 +9,7 @@
 #include <string.h>
 
 #ifndef PLOTTER_VERSION                 // la pone platformio.ini; en el dibujo del PC no esta
-#define PLOTTER_VERSION "5.4.4"
+#define PLOTTER_VERSION "5.4.5"
 #endif
 
 namespace about {

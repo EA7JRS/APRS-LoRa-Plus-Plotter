@@ -54,9 +54,9 @@ static void palette(bool night) {
     }
 }
 static const int TOP_H = 36, NAV_H = 44, PAD = 8, BODY = 480 - TOP_H - NAV_H - 2 * PAD;      // 384
-static const int kPages = 5;
-static const char* const kTabs[kPages] = {"Rosa", "Viento", "N\xC3\xBAmeros", "Historial", "Ajustes"};
-static const char* const kTitles[kPages] = {"Rosa de viento", "Viento", "N\xC3\xBAmeros", "Historial \xC2\xB7 30 min", "Ajustes y enlace"};
+static const int kPages = 6;
+static const char* const kTabs[kPages] = {"Rosa", "Viento", "N\xC3\xBAmeros", "Historial", "Barco", "Ajustes"};
+static const char* const kTitles[kPages] = {"Rosa de viento", "Viento", "N\xC3\xBAmeros", "Historial \xC2\xB7 30 min", "Datos del barco (NMEA 2000)", "Ajustes y enlace"};
 
 static DataStore* store = nullptr;
 static lv_obj_t* pages[kPages] = {};
@@ -69,7 +69,8 @@ static lv_obj_t* dotWifi = nullptr;
 static int active = 0;
 
 // Datos que se pintan en varias paginas a la vez: cada uno, con todas sus etiquetas
-enum Datum { D_AWA, D_AWS, D_TWA, D_TWS, D_TWD, D_DRIFT, D_COUNT };
+enum Datum { D_AWA, D_AWS, D_TWA, D_TWS, D_TWD, D_DRIFT,
+             D_SOG, D_COG, D_DEPTH, D_STW, D_RPM, D_BATT, D_AIRT, D_PRESS, D_COUNT };
 static const int kMaxLbl = 6;
 static lv_obj_t* valLbl[D_COUNT][kMaxLbl] = {};
 static lv_obj_t* subLbl[D_COUNT][kMaxLbl] = {};
@@ -147,7 +148,8 @@ static void comma(char* b) {
 static lv_obj_t* regVal(Datum d, lv_obj_t* l) { if (valN[d] < kMaxLbl) valLbl[d][valN[d]++] = l; return l; }
 static lv_obj_t* regSub(Datum d, lv_obj_t* l) { if (subN[d] < kMaxLbl) subLbl[d][subN[d]++] = l; return l; }
 static uint32_t datumColor(Datum d) { return d == D_AWA ? C_APP : (d == D_TWA ? C_ACC : C_TEXT); }
-static const char* const kName[D_COUNT] = {"APARENTE", "APARENTE", "REAL", "REAL", "DIRECCI\xC3\x93N", "DERIVA"};
+static const char* const kName[D_COUNT] = {"APARENTE", "APARENTE", "REAL", "REAL", "DIRECCI\xC3\x93N", "DERIVA",
+    "SOG", "COG", "SONDA", "VEL.AGUA", "RPM", "BATER\xC3\x8DA", "TEMP.AIRE", "PRESI\xC3\x93N"};
 static const char* const kUnit[D_COUNT] = {"AWA", "AWS kn", "TWA", "TWS kn", "TWD", "kn"};
 
 // ---- Rosa: proa arriba, sectores de cenida, aguja A (aparente) y R (real) ----
@@ -345,6 +347,12 @@ static void makeHistory(lv_obj_t* page) {
         if (i) { chDir = histChart(p, C_APP, serDir); lblDirNow = now; lblDirFoot = foot; }
         else { chSpd = histChart(p, C_ACC, serSpd); lblSpdNow = now; lblSpdFoot = foot; lblSpdTitle = t; }
     }
+}
+
+// Página «Barco»: datos del bus NMEA 2000 (GPS, sonda, velocidad, motor, ambiente)
+static void makeBarco(lv_obj_t* page) {
+    static const Datum ds[8] = {D_SOG, D_COG, D_DEPTH, D_STW, D_RPM, D_BATT, D_AIRT, D_PRESS};
+    for (int i = 0; i < 8; i++) tile(page, ds[i], (i % 2) * 236, (i / 2) * 97, 228, 92, &dejavu_num_32, true);
 }
 
 static void refreshSettings();
@@ -660,7 +668,8 @@ static void build() {
     makeWind(pages[1]);
     makeNumbers(pages[2]);
     makeHistory(pages[3]);
-    makeSettings(pages[4]);
+    makeBarco(pages[4]);
+    makeSettings(pages[5]);
 
     lv_obj_t* nav = box(scr, C_BAR, 0);
     lv_obj_set_size(nav, 480, NAV_H);
@@ -668,8 +677,8 @@ static void build() {
     for (int i = 0; i < kPages; i++) {
         lv_obj_t* b = lv_button_create(nav);
         lv_obj_remove_style_all(b);
-        lv_obj_set_size(b, 96, NAV_H);
-        lv_obj_set_pos(b, i * 96, 0);
+        lv_obj_set_size(b, 480 / kPages, NAV_H);
+        lv_obj_set_pos(b, i * (480 / kPages), 0);
         lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
         lv_obj_set_style_border_side(b, LV_BORDER_SIDE_TOP, 0);
         lv_obj_set_style_border_width(b, 3, 0);
@@ -795,6 +804,16 @@ void update() {
     }
     if (w.drift) { snprintf(b, sizeof(b), "%.1f", w.driftKn); comma(b); setVal(D_DRIFT, b, ""); }
     else setVal(D_DRIFT, "--", "");
+    // Datos del barco del bus NMEA 2000 (página «Barco»)
+    double v;
+    if (store->get(Key::Sog, now, v)) { snprintf(b, sizeof(b), "%.1f", v); comma(b); setVal(D_SOG, b, "kn"); } else setVal(D_SOG, "--", "kn");
+    if (store->get(Key::Cog, now, v)) { snprintf(b, sizeof(b), "%03.0f\xC2\xB0", v); setVal(D_COG, b, "verdadero"); } else setVal(D_COG, "--", "");
+    if (store->get(Key::Depth, now, v)) { snprintf(b, sizeof(b), "%.1f", v); comma(b); setVal(D_DEPTH, b, "m"); } else setVal(D_DEPTH, "--", "m");
+    if (store->get(Key::Stw, now, v)) { snprintf(b, sizeof(b), "%.1f", v); comma(b); setVal(D_STW, b, "kn"); } else setVal(D_STW, "--", "kn");
+    if (store->get(Key::Rpm, now, v)) { snprintf(b, sizeof(b), "%.0f", v); setVal(D_RPM, b, "rpm"); } else setVal(D_RPM, "--", "rpm");
+    if (store->get(Key::BatteryV, now, v)) { snprintf(b, sizeof(b), "%.1f", v); comma(b); setVal(D_BATT, b, "V"); } else setVal(D_BATT, "--", "V");
+    if (store->get(Key::AirTemp, now, v)) { snprintf(b, sizeof(b), "%.1f", v); comma(b); setVal(D_AIRT, b, "\xC2\xB0""C"); } else setVal(D_AIRT, "--", "\xC2\xB0""C");
+    if (store->get(Key::Pressure, now, v)) { snprintf(b, sizeof(b), "%.0f", v); setVal(D_PRESS, b, "hPa"); } else setVal(D_PRESS, "--", "hPa");
 
     const wlinks::Status& ls = wlinks::status();
     const wble::Status& bs = wble::status();

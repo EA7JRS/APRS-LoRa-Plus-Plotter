@@ -39,6 +39,7 @@
 #include "wxstation.h"
 #include "wmm.h"
 #include "wxcalc.h"
+#include "vessel.h"
 
 using namespace plotter;
 
@@ -1782,6 +1783,65 @@ static void testSame() {
     }
 }
 
+
+// Datos del barco y su sincronizacion con el transpondedor APRS LoRa+ MAPRS (orden / evento "vessel" del tracker)
+static void testVessel() {
+    using namespace plotter::vessel;
+    CHECK(typeCount() == 17);
+    CHECK(classB(0) && classB(1) && !classB(2) && !classB(16));
+    CHECK(typeClass(0) == 'C' && typeClass(1) == 'S' && typeClass(5) == 'A');
+    Data a;
+    snprintf(a.name, sizeof(a.name), "Sea Breeze");
+    a.mmsi = 224123456; snprintf(a.call, sizeof(a.call), "ea7jrs"); a.type = 0; a.lengthM = 12; a.beamM = 4; a.draftDm = 18;
+    CHECK(configured(a) && !configured(Data()));
+    char b[256];
+    size_t n = setCommand(a, true, b, sizeof(b));
+    CHECK(n > 0 && std::string(b) == "{\"c\":\"vessel\",\"mmsi\":224123456,\"n\":\"Sea Breeze\",\"call\":\"EA7JRS\",\"t\":0,\"len\":12,\"beam\":4,\"dr\":1.8}");
+    Data c = a; c.type = 2;
+    setCommand(c, true, b, sizeof(b));
+    CHECK(std::strstr(b, "\"t\":") == nullptr);                 // clase A a un transpondedor de clase B: sin tipo
+    setCommand(c, false, b, sizeof(b));
+    CHECK(std::strstr(b, "\"t\":2") != nullptr);
+    Data q = a; snprintf(q.name, sizeof(q.name), "A\"B\\C");
+    setCommand(q, true, b, sizeof(b));
+    CHECK(std::strstr(b, "\"n\":\"A\\\"B\\\\C\"") != nullptr);
+    CHECK(setCommand(a, true, b, 20) == 0);
+    Data bad = a; bad.mmsi = 12345;
+    setCommand(bad, true, b, sizeof(b));
+    CHECK(std::strstr(b, "\"mmsi\":0,") != nullptr);
+
+    Data r; bool cb = false;
+    CHECK(parseEvent("{\"e\":\"vessel\",\"b\":true,\"ok\":true,\"i\":3,\"act\":true,\"call\":\"EA7JRS-5\",\"mmsi\":224123456,\"n\":\"SEA BREEZE\",\"t\":0,\"cls\":\"C\",\"st\":36,\"len\":12,\"beam\":4,\"dr\":1.8}", r, cb));
+    CHECK(cb && r.mmsi == 224123456 && std::strcmp(r.name, "SEA BREEZE") == 0 && r.draftDm == 18 && r.lengthM == 12 && r.type == 0);
+    CHECK(same(a, r));                                            // SSID y mayusculas no cuentan
+    CHECK(!parseEvent("{\"e\":\"vessel\",\"b\":false,\"ok\":false}", r, cb) && !cb);
+    CHECK(!parseEvent("{\"e\":\"status\"}", r, cb));
+    CHECK(!parseEvent("no json", r, cb));
+
+    // plotter con datos: el transpondedor tiene otros -> se envian; su respuesta normalizada se adopta
+    Sync s;
+    CHECK(s.state() == NO_LINK && s.localChanged(a) == NONE);
+    CHECK(s.link(true) == QUERY && s.state() == WAITING);
+    CHECK(s.link(true) == NONE);
+    Data old; snprintf(old.name, sizeof(old.name), "OTRO"); old.mmsi = 224000001; snprintf(old.call, sizeof(old.call), "EA7JRS-5");
+    CHECK(s.remote(old, true, a) == PUSH && s.state() == SENT);
+    Data norm = a; norm.lengthM = 12; snprintf(norm.name, sizeof(norm.name), "SEA BREEZE");
+    CHECK(s.remote(norm, true, a) == NONE && s.state() == SYNCED);
+    Data adj = norm; adj.lengthM = 24;                            // el transpondedor ajusta (clase B: 6 - 24 m)
+    Data big = a; big.lengthM = 30;
+    CHECK(s.localChanged(big) == PUSH && s.state() == SENT);
+    CHECK(s.remote(adj, true, big) == ADOPT && s.state() == ADJUSTED);
+    CHECK(s.localChanged(adj) == NONE && s.state() == SYNCED);   // ya es lo que tiene: no se reenvia
+    // otro equipo (la app) cambia el transpondedor: el plotter vuelve a mandar lo suyo
+    CHECK(s.remote(old, true, adj) == PUSH);
+    // plotter sin datos: toma los del transpondedor
+    Sync e;
+    e.link(true);
+    CHECK(e.remote(norm, true, Data()) == ADOPT && e.state() == SYNCED && e.classBOnly());
+    CHECK(e.noProfile() == NONE && e.state() == NO_PROFILE);
+    CHECK(e.link(false) == NONE && e.state() == NO_LINK);
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
@@ -1790,6 +1850,7 @@ int main() {
     testWindAlarm();
     testAlerts();
     testSame();
+    testVessel();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

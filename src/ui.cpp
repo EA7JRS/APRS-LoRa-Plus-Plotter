@@ -24,6 +24,7 @@
 #include "links.h"
 #include "motion.h"
 #include "route.h"
+#include "vessel_link.h"
 #include "settings.h"
 #include "net.h"
 #include "tsync.h"
@@ -215,6 +216,12 @@ static lv_obj_t* aboutScr = nullptr;
 static lv_obj_t* netTa[9] = {};                        // red, clave, servidor, puerto TCP, puerto UDP, clave de OpenWeatherMap
 static lv_obj_t* netKb = nullptr;
 static lv_obj_t* netKindLbl = nullptr;
+static lv_obj_t* vesScr = nullptr;                      // Ajustes > Embarcacion
+static lv_obj_t* vesTa[6] = {};                         // nombre, MMSI, indicativo, eslora, manga, calado
+static lv_obj_t* vesKb = nullptr;
+static lv_obj_t* vesTypeLbl = nullptr;
+static lv_obj_t* vesStatus = nullptr;
+static int vesType = 0;
 static lv_obj_t* netStatus = nullptr;
 static int netKind = 0;
 static lv_obj_t* setMapLbl = nullptr;
@@ -1997,6 +2004,155 @@ static void netSummary(char* b, size_t n, bool full) {
     snprintf(b, n, "WiFi: %s \xC2\xB7 %s \xC2\xB7 %d dBm\n%s%s", v.wifiSsid, ns.ip, ns.rssi, tcp[0] ? tcp + 4 : "", tcp[0] ? udp : (udp[0] ? udp + 4 : ""));
 }
 
+// ---------- Embarcacion: datos propios, sincronizados con el transpondedor APRS LoRa+ MAPRS ----------
+static void onVesField(lv_event_t* e) { lv_keyboard_set_textarea(vesKb, (lv_obj_t*)lv_event_get_target(e)); }
+
+static void openVessel() {
+    const settings::Values& v = settings::get();
+    char b[16];
+    lv_textarea_set_text(vesTa[0], v.vesselName);
+    snprintf(b, sizeof(b), "%09lu", (unsigned long)v.vesselMmsi);
+    lv_textarea_set_text(vesTa[1], v.vesselMmsi ? b : "");
+    lv_textarea_set_text(vesTa[2], v.vesselCall);
+    snprintf(b, sizeof(b), "%d", v.vesselLen);
+    lv_textarea_set_text(vesTa[3], v.vesselLen ? b : "");
+    snprintf(b, sizeof(b), "%d", v.vesselBeam);
+    lv_textarea_set_text(vesTa[4], v.vesselBeam ? b : "");
+    snprintf(b, sizeof(b), "%d,%d", v.vesselDraftDm / 10, v.vesselDraftDm % 10);
+    lv_textarea_set_text(vesTa[5], v.vesselDraftDm ? b : "");
+    vesType = v.vesselType;
+    lv_keyboard_set_textarea(vesKb, vesTa[0]);
+    lv_obj_set_hidden(vesScr, false);
+}
+
+void testVessel() { openVessel(); }
+
+static void onVesBtn(lv_event_t* e) {
+    int a = (int)(intptr_t)lv_event_get_user_data(e);
+    if (a == 0) {                                         // tipo; con un transpondedor de clase B solo los de clase B
+        const bool onlyB = vessel_link::sync().classBOnly();
+        do vesType = (vesType + 1) % plotter::vessel::typeCount();
+        while (onlyB && !plotter::vessel::classB(vesType));
+    } else if (a == 1) {                                  // guardar y mandar al transpondedor
+        settings::Values& v = settings::get();
+        snprintf(v.vesselName, sizeof(v.vesselName), "%s", lv_textarea_get_text(vesTa[0]));
+        for (char* c = v.vesselName; *c; c++) *c = (char)toupper((unsigned char)*c);
+        v.vesselMmsi = (uint32_t)strtoul(lv_textarea_get_text(vesTa[1]), nullptr, 10);
+        if (!plotter::vessel::validMmsi(v.vesselMmsi)) v.vesselMmsi = 0;
+        snprintf(v.vesselCall, sizeof(v.vesselCall), "%s", lv_textarea_get_text(vesTa[2]));
+        for (char* c = v.vesselCall; *c; c++) { *c = (char)toupper((unsigned char)*c); if (*c == '-') { *c = 0; break; } }
+        auto clampi = [](int x, int lo, int hi) { return x < lo ? lo : (x > hi ? hi : x); };
+        v.vesselLen = clampi(atoi(lv_textarea_get_text(vesTa[3])), 0, 999);
+        v.vesselBeam = clampi(atoi(lv_textarea_get_text(vesTa[4])), 0, 126);
+        char d[12];
+        snprintf(d, sizeof(d), "%s", lv_textarea_get_text(vesTa[5]));
+        for (char* c = d; *c; c++) if (*c == ',') *c = '.';
+        v.vesselDraftDm = clampi((int)lround(atof(d) * 10.0), 0, 255);
+        v.vesselType = vesType;
+        settings::save();
+        vessel_link::changed();
+        openVessel();                                     // con los valores ya corregidos
+    } else lv_obj_set_hidden(vesScr, true);
+}
+
+static lv_obj_t* vesField(int idx, int x, int y, int w, const char* hint, int maxLen, const char* chars) {
+    lv_obj_t* ta = lv_textarea_create(vesScr);
+    lv_obj_remove_style_all(ta);
+    lv_obj_set_pos(ta, x, y);
+    lv_obj_set_size(ta, w, 48);
+    lv_textarea_set_one_line(ta, true);
+    lv_textarea_set_max_length(ta, (uint32_t)maxLen);
+    lv_textarea_set_placeholder_text(ta, hint);
+    if (chars) lv_textarea_set_accepted_chars(ta, chars);
+    lv_obj_set_style_bg_color(ta, lv_color_hex(C_BAR), 0);
+    lv_obj_set_style_bg_opa(ta, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(ta, 8, 0);
+    lv_obj_set_style_border_color(ta, lv_color_hex(C_LINE), 0);
+    lv_obj_set_style_border_width(ta, 1, 0);
+    lv_obj_set_style_border_color(ta, lv_color_hex(C_ACC), LV_STATE_FOCUSED);
+    lv_obj_set_style_border_width(ta, 2, LV_STATE_FOCUSED);
+    lv_obj_set_style_pad_hor(ta, 12, 0);
+    lv_obj_set_style_pad_ver(ta, 12, 0);
+    lv_obj_set_style_text_font(ta, &dejavu_16, 0);
+    lv_obj_set_style_text_color(ta, lv_color_hex(C_TEXT), 0);
+    lv_obj_set_style_text_color(ta, lv_color_hex(C_DIM), LV_PART_TEXTAREA_PLACEHOLDER);
+    lv_obj_set_style_bg_color(ta, lv_color_hex(C_TEXT), LV_PART_CURSOR | LV_STATE_FOCUSED);
+    lv_obj_set_style_bg_opa(ta, LV_OPA_COVER, LV_PART_CURSOR | LV_STATE_FOCUSED);
+    lv_obj_set_style_width(ta, 2, LV_PART_CURSOR);
+    lv_obj_add_event_cb(ta, onVesField, LV_EVENT_FOCUSED, nullptr);
+    lv_obj_add_event_cb(ta, onVesField, LV_EVENT_CLICKED, nullptr);
+    vesTa[idx] = ta;
+    return ta;
+}
+
+static void makeVessel() {
+    vesScr = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(vesScr);
+    lv_obj_set_size(vesScr, board::W, board::H);
+    lv_obj_set_style_bg_color(vesScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(vesScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(vesScr, false);
+    lv_obj_set_clickable(vesScr, true);
+    lv_obj_t* t = label(vesScr, "Embarcaci\xC3\xB3n", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    vesStatus = label(vesScr, "", &dejavu_14, C_SOFT);
+    lv_obj_set_pos(vesStatus, 170, 12);
+    lv_obj_set_width(vesStatus, 460);
+    lv_obj_t* b = textButton(vesScr, "Guardar y enviar", 220, 48, onVesBtn, 1);
+    lv_obj_set_pos(b, 648, 8);
+    b = textButton(vesScr, "Cerrar", 124, 48, onVesBtn, 2);
+    lv_obj_set_pos(b, 884, 8);
+    vesField(0, 16, 68, 420, "Nombre (20 letras)", 20, nullptr);
+    vesField(1, 452, 68, 230, "MMSI (9 cifras)", 9, "0123456789");
+    vesField(2, 698, 68, 310, "Indicativo APRS (sin SSID)", 6, nullptr);
+    b = textButton(vesScr, "", 420, 48, onVesBtn, 0);
+    lv_obj_set_pos(b, 16, 126);
+    vesTypeLbl = lv_obj_get_child(b, 0);
+    vesField(3, 452, 126, 180, "Eslora, m", 3, "0123456789");
+    vesField(4, 640, 126, 180, "Manga, m", 3, "0123456789");
+    vesField(5, 828, 126, 180, "Calado, m", 4, "0123456789.,");
+    vesKb = lv_keyboard_create(vesScr);
+    lv_obj_set_size(vesKb, board::W, 360);
+    lv_obj_align(vesKb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(vesKb, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(vesKb, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(vesKb, 6, 0);
+    lv_obj_set_style_pad_gap(vesKb, 6, 0);
+    lv_obj_set_style_border_width(vesKb, 0, 0);
+    lv_obj_set_style_bg_color(vesKb, lv_color_hex(C_PANEL), LV_PART_ITEMS);
+    lv_obj_set_style_bg_opa(vesKb, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(vesKb, lv_color_hex(C_LINE), LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(vesKb, lv_color_hex(C_ACC), LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(vesKb, lv_color_hex(C_TEXT), LV_PART_ITEMS);
+    lv_obj_set_style_text_color(vesKb, lv_color_hex(C_TEXT), LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_radius(vesKb, 8, LV_PART_ITEMS);
+    lv_obj_set_style_border_width(vesKb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_width(vesKb, 0, LV_PART_ITEMS);
+    lv_obj_set_hidden(vesScr, true);
+}
+
+static const char* vesselStateText() {
+    switch (vessel_link::sync().state()) {
+        case plotter::vessel::WAITING:    return "Transponder: leyendo sus datos...";
+        case plotter::vessel::SYNCED:     return "Transponder: mismos datos que el plotter";
+        case plotter::vessel::SENT:       return "Transponder: enviando los datos...";
+        case plotter::vessel::ADJUSTED:   return "Transponder: los ha ajustado a lo que admite AIS";
+        case plotter::vessel::NO_PROFILE: return "El tracker conectado no tiene perfil n\xC3\xA1utico AIS";
+        default:                          return "Transponder sin conectar (Ajustes > Bluetooth): se enviar\xC3\xA1n al conectar";
+    }
+}
+
+static void updateVessel() {
+    if (!vesScr || lv_obj_is_hidden(vesScr)) return;
+    char b[160];
+    const bool onlyB = vessel_link::sync().classBOnly();
+    snprintf(b, sizeof(b), "%s%s", vesselStateText(), onlyB ? "\nTransponder de clase B: velero o lancha de recreo" : "");
+    lv_label_set_text(vesStatus, b);
+    const char cls = plotter::vessel::typeClass(vesType);
+    snprintf(b, sizeof(b), "%s \xC2\xB7 %s", plotter::vessel::typeName(vesType), cls == 'A' ? "clase A" : (cls == 'S' ? "clase B SO" : "clase B CS"));
+    lv_label_set_text(vesTypeLbl, b);
+}
+
 static void updateNet() {
     if (!netScr || lv_obj_is_hidden(netScr)) return;
     char b[220];
@@ -2693,6 +2849,7 @@ static void onSetting(lv_event_t* e) {
     else if (what == 6) { v.can = !v.can; links::setCan(v.can); }
     else if (what == 7) { openNet(); return; }
     else if (what == 9) { lv_obj_set_hidden(aboutScr, false); return; }
+    else if (what == 10) { openVessel(); return; }
     else if (what == 8) {                                 // Bluetooth: encender busca pasarela; apagar la olvida
         v.bleOn = !v.bleOn;
         v.bleAddr[0] = 0;
@@ -2749,8 +2906,10 @@ static void makeSettings(lv_obj_t* page) {
     setCanLbl = lv_obj_get_child(b, 0);
     lv_obj_t* info = box(page, C_PANEL, 10);
     lv_obj_set_size(info, 374, 336);
-    b = textButton(page, "Red: WiFi, TCP y UDP", 374, 60, onSetting, 7);
+    b = textButton(page, "Red: WiFi y TCP", 183, 60, onSetting, 7);
     lv_obj_set_pos(b, 630, 344);
+    b = textButton(page, "Embarcaci\xC3\xB3n", 183, 60, onSetting, 10);
+    lv_obj_set_pos(b, 821, 344);
     b = textButton(page, "", 374, 60, onSetting, 8);
     lv_obj_set_pos(b, 630, 412);
     setBleLbl = lv_obj_get_child(b, 0);
@@ -2971,6 +3130,7 @@ void begin(DataStore* s) {
         tabBtn[i] = b;
     }
     makeNet();                                            // antes que las alertas: estas quedan por encima
+    makeVessel();
     makeAbout();
     makeModal();
     loadWaypoints();
@@ -3040,6 +3200,7 @@ void update() {
     if (active == 4) updateWind();
     if (active == 7) updateSettings();
     updateNet();
+    updateVessel();
     if (active == 3) updateRadar();
     checkCollision();
     checkOfficial();

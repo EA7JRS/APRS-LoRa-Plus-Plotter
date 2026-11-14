@@ -34,6 +34,14 @@ struct Values {
     double anchorLat = 0, anchorLon = 0;
     int anchorRadius = 40;          // radio de alarma, m
     int anchorRode = 30;            // cadena filada, m
+    // Embarcacion propia (Ajustes > Embarcacion); se sincroniza con el transpondedor APRS LoRa+ MAPRS por BLE
+    char vesselName[21] = "";
+    uint32_t vesselMmsi = 0;
+    char vesselCall[10] = "";       // indicativo APRS sin SSID
+    int vesselType = 0;             // tipo del perfil nautico AIS (0 velero de recreo, 1 lancha de recreo...)
+    int vesselLen = 0;              // eslora, m
+    int vesselBeam = 0;             // manga, m
+    int vesselDraftDm = 0;          // calado, decimas de metro
 };
 Values& get();
 void load();

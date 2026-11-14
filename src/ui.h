@@ -19,6 +19,7 @@ void testRs485();                   // abre el aviso de RS485 compartido
 void testInternet();                // mete una observacion de internet de prueba
 void testNet();                     // abre la pantalla de red
 void testAbout();                   // abre "Acerca de"
+void testVessel();                  // abre Ajustes > Embarcacion
 void testSetting(int what);         // 4 cambia de unidades, 5 de mapa base
 void testAnchor();                  // boton Fondeo de la carta
 void testRoutes(int action);       // botones de la pestana Rutas (4 a la ruta, 6 navegar, 8 vaciar)

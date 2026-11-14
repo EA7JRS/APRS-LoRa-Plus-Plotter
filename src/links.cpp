@@ -14,6 +14,7 @@
 #include "settings.h"
 #include "sim.h"
 #include "sk_link.h"
+#include "vessel_link.h"
 #include "stream.h"
 #include "tsync.h"
 #include "astro.h"
@@ -331,6 +332,7 @@ void loop() {
     netLoop(now);
     internetLoop(now);
     bleLoop(now);
+    vessel_link::loop();                                    // datos del barco con el transpondedor MAPRS
 
     if (st.simulator && now - simLast >= 1000) {
         simLast = now;

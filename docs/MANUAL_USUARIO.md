@@ -178,8 +178,14 @@ Wind), que se lo pasa al plotter por NMEA 2000, Bluetooth o WiFi: ver `INSTRUMEN
   gobernar.
 - **Timón**: si llega el ángulo de timón.
 - **Datos de ruta para el piloto**: dos botones. El de la izquierda elige el piloto: **ST2000+** (el Raymarine ST2000 Plus
-  de cana, de serie) o **Genérico**. El de la derecha, por dónde sale: Apagado, **RS485**, **Red (TCP)** o **Bluetooth**
-  (la pasarela XIAO lo saca hacia el piloto).
+  de cana, de serie) o **Genérico**. El de la derecha, por dónde sale: Apagado, **RS485**, **Red (TCP)**, **Bluetooth**
+  (la pasarela XIAO lo saca hacia el piloto) o **NMEA 2000** (por el bus CAN de la placa).
+
+Con **NMEA 2000** el plotter reclama una dirección en el bus y emite, con la ruta activa y una vez por segundo, **129283**
+(error de cross-track) y **129284** (datos de navegación: demora y distancia al destino, posición del waypoint, círculo de
+llegada), que es lo que un piloto del bus (Garmin, Raymarine por NMEA 2000, etc.) necesita para seguir la ruta. Requiere
+**NMEA 2000 encendido** en Ajustes. ⚠️ **Sin certificar y sin probar en un piloto real: compruébalo con cuidado antes de
+confiarle el gobierno en navegación.**
 
 Con el **ST2000+**, una vez por segundo: **RMB** y **APB** con destino (para su modo Track), **VWR** con el viento aparente
 (para su modo WindTrim, aunque no haya destino) y **VHW** con la velocidad en el agua. Los waypoints van como «W001»,

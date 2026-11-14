@@ -2482,8 +2482,9 @@ static bool pilotWind = false;                             // se esta mandando e
 static void onPilotOut(lv_event_t* e) {
     settings::Values& v = settings::get();
     if ((intptr_t)lv_event_get_user_data(e) == 1) v.pilotModel = (v.pilotModel + 1) % 2;
-    else v.pilotOut = (v.pilotOut + 1) % 4;
+    else v.pilotOut = (v.pilotOut + 1) % 5;
     settings::save();
+    links::pilotN2kEnable(v.pilotOut == 4);               // reclama/suelta la direccion en el bus
 }
 
 // Una vez por segundo por la via elegida: con ruta activa, APB y RMB; con el ST2000+, ademas el viento aparente (VWR, para su
@@ -2497,6 +2498,7 @@ static void pilotSend() {
     pilotOk = false;
     pilotWind = false;
     if (!v.pilotOut) return;
+    if (v.pilotOut == 4) links::pilotN2kEnable(true);        // reclama la direccion (idempotente) por si el CAN se encendio despues
     const bool st2000 = v.pilotModel == 1;
     char b[128];
     bool ok = true, any = false;
@@ -2514,10 +2516,16 @@ static void pilotSend() {
         bool arrived = navCount > 1 ? st.finished : st.inArrival;
         double sog = 0, cog = 0, closing = 0;
         if (store->get(Key::Sog, now, sog) && store->get(Key::Cog, now, cog)) closing = sog * cos(deg2rad(norm180(st.bearing - cog)));
-        int n = nmeaRmb(b, sizeof(b), st.xteNm, orig, dest, navPts[st.target].lat, navPts[st.target].lon, st.distanceNm, st.bearing, closing, arrived);
-        ok = links::sendPilot(b, n, v.pilotOut);
-        n = nmeaApb(b, sizeof(b), st.xteNm, arrived, st.abeam, st.legBearing, dest, st.bearing, st.bearing, false);
-        ok = links::sendPilot(b, n, v.pilotOut) && ok;
+        if (v.pilotOut == 4) {                                     // piloto por NMEA 2000: 129283 (XTE) + 129284 (navegacion)
+            ok = links::sendPilotN2k(st.xteNm, st.bearing, st.legBearing, st.distanceNm, navPts[st.target].lat, navPts[st.target].lon,
+                                     navCount > 1 && st.target > 0 ? (uint32_t)st.target : 0xFFFFFFFF,
+                                     navCount > 1 ? (uint32_t)(st.target + 1) : 1, closing, arrived, false);
+        } else {
+            int n = nmeaRmb(b, sizeof(b), st.xteNm, orig, dest, navPts[st.target].lat, navPts[st.target].lon, st.distanceNm, st.bearing, closing, arrived);
+            ok = links::sendPilot(b, n, v.pilotOut);
+            n = nmeaApb(b, sizeof(b), st.xteNm, arrived, st.abeam, st.legBearing, dest, st.bearing, st.bearing, false);
+            ok = links::sendPilot(b, n, v.pilotOut) && ok;
+        }
         any = true;
     }
     if (st2000) {
@@ -2691,7 +2699,7 @@ static void updatePilot() {
         lv_obj_set_hidden(pRudBar, true);
         lv_label_set_text(pRudTxt, "Sin sensor de tim\xC3\xB3n (RSA o NMEA 2000)");
     }
-    static const char* const kOut[4] = {"Apagado", "RS485", "Red (TCP)", "Bluetooth"};
+    static const char* const kOut[5] = {"Apagado", "RS485", "Red (TCP)", "Bluetooth", "NMEA 2000"};
     lv_label_set_text(pOutLbl, kOut[v.pilotOut]);
     lv_label_set_text(pModelLbl, v.pilotModel == 1 ? "ST2000+" : "Gen\xC3\xA9rico");
     const bool st2000 = v.pilotModel == 1;

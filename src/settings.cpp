@@ -68,7 +68,7 @@ void load() {
     if (v.tcpKind < 0 || v.tcpKind > 3) v.tcpKind = 0;
     if (v.tcpPort < 1 || v.tcpPort > 65535) v.tcpPort = 10110;
     if (v.udpPort < 0 || v.udpPort > 65535) v.udpPort = 0;
-    if (v.pilotOut < 0 || v.pilotOut > 3) v.pilotOut = 0;
+    if (v.pilotOut < 0 || v.pilotOut > 4) v.pilotOut = 0;
     if (v.pilotModel < 0 || v.pilotModel > 1) v.pilotModel = 1;
     if (v.units < 0 || v.units > 2) v.units = 0;
     if (v.baseMap < 0 || v.baseMap > 3) v.baseMap = 0;

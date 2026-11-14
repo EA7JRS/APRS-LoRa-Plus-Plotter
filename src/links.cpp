@@ -9,6 +9,7 @@
 #include "nmea.h"
 #include "board.h"
 #include "n2k.h"
+#include "n2ktx.h"
 #include "net.h"
 #include "alerts_net.h"
 #include "settings.h"
@@ -44,16 +45,45 @@ static N2kReader n2k;
 static Nmea0183 tcpNmea, udpNmea, bleNmea;
 static LineBuffer tcpLine, udpLine, bleLine;
 [[maybe_unused]] static bool canRunning = false;
+[[maybe_unused]] static plotter::N2kAddressClaim* claim = nullptr;   // reclamo de direccion ISO cuando el piloto sale por NMEA 2000
+[[maybe_unused]] static bool n2kPilot = false;
+[[maybe_unused]] static uint8_t n2kSeq = 0;
 
-// NMEA 2000: el plotter solo escucha. El controlador va en modo normal para dar el acuse de recibo a las tramas de los
-// demas (con un solo equipo mas en la red, sin acuse este repetiria sin parar), pero nunca transmite.
+[[maybe_unused]] static uint64_t plotterName() {
+    plotter::N2kName n;
+    n.deviceClass = 60;                                            // navegacion
+    n.deviceFunction = 130;
+#ifdef ESP32
+    n.unique = (uint32_t)(ESP.getEfuseMac() & 0x1FFFFF);
+#else
+    n.unique = 0x1F2E3;
+#endif
+    return plotter::n2kNameValue(n);
+}
+
+[[maybe_unused]] static void canTx(uint32_t id, const uint8_t* d, int len) {
+#ifdef ESP32
+    if (!canRunning) return;
+    twai_message_t m = {};
+    m.extd = 1;
+    m.identifier = id;
+    m.data_length_code = (uint8_t)len;
+    memcpy(m.data, d, (size_t)len);
+    twai_transmit(&m, 0);
+#else
+    (void)id; (void)d; (void)len;
+#endif
+}
+
+// NMEA 2000: el plotter escucha siempre. El controlador va en modo normal para dar el acuse de recibo a las tramas de los
+// demas (con un solo equipo mas en la red, sin acuse este repetiria sin parar). Solo transmite si el piloto sale por el bus.
 static void canStart() {
 #ifdef ESP32
     if (canRunning) return;
     board::setCanMode(true);                                       // los pines 19 / 20 pasan del USB al transceptor
     twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)board::PIN_CAN_TX, (gpio_num_t)board::PIN_CAN_RX, TWAI_MODE_NORMAL);
     g.rx_queue_len = 96;
-    g.tx_queue_len = 0;
+    g.tx_queue_len = 8;
     twai_timing_config_t t = TWAI_TIMING_CONFIG_250KBITS();
     twai_filter_config_t f = TWAI_FILTER_CONFIG_ACCEPT_ALL();
     if (twai_driver_install(&g, &t, &f) != ESP_OK) { Serial.println("[links] CAN: no se pudo instalar el controlador"); return; }
@@ -88,6 +118,11 @@ static void canLoop(uint32_t now) {
         }
         int64_t utc;
         if (n2k.takeUtc(utc)) tsync::offer(plotter::TimeSource::Gps, utc);   // hora del bus (GPS de la red NMEA 2000)
+        if (claim && n2kPilot) {                                             // defender/negociar la direccion ISO
+            plotter::N2kAddressClaim::Frame fr;
+            if (claim->onFrame(m.identifier, m.data, m.data_length_code, now, fr)) canTx(fr.id, fr.d, fr.len);
+            st.canAddress = claim->address();
+        }
     }
     st.canMessages = n2k.stats().known;
     static uint32_t tCheck = 0;
@@ -121,6 +156,59 @@ bool sendPilot(const char* sentence, int len, int via) {
     if (via == 2 && net::status().tcp) { net::sendTcp(sentence, len); st.pilotSent++; return true; }
     if (via == 3 && ble::write(sentence, len)) { st.pilotSent++; return true; }   // la pasarela lo saca a 4800 hacia el piloto
     return false;
+}
+
+[[maybe_unused]] static void ensureClaim() {
+    if (!n2kPilot || !canRunning || claim) return;
+    claim = new plotter::N2kAddressClaim(plotterName(), 35);
+    plotter::N2kAddressClaim::Frame fr;
+    claim->start(millis(), fr);
+    canTx(fr.id, fr.d, fr.len);
+    st.canAddress = claim->address();
+}
+
+void pilotN2kEnable(bool on) {
+    n2kPilot = on;
+    if (on) ensureClaim();
+    else st.canAddress = -1;
+}
+
+bool pilotN2kReady() {
+#ifdef ESP32
+    return n2kPilot && canRunning && claim && claim->ready(millis()) && !claim->lost();
+#else
+    return false;
+#endif
+}
+
+bool sendPilotN2k(double xteNm, double bearingDeg, double legBearingDeg, double distanceNm, double destLat, double destLon,
+                  uint32_t origWp, uint32_t destWp, double closingKn, bool arrived, bool rhumb) {
+    if (!pilotN2kReady()) return false;
+    const uint8_t addr = (uint8_t)claim->address();
+    const double kMsPerKn = 1852.0 / 3600.0, kMPerNm = 1852.0, kRad = M_PI / 180.0;
+    n2kSeq = (uint8_t)((n2kSeq + 1) & 7);
+    uint8_t d[8];
+    plotter::n2kXte(n2kSeq, std::isfinite(xteNm) ? xteNm * kMPerNm : NAN, arrived, d);
+    canTx(plotter::n2kMakeId(3, 129283, addr), d, 8);
+    plotter::N2kNav nav;
+    nav.distanceM = std::isfinite(distanceNm) ? distanceNm * kMPerNm : NAN;
+    nav.arrivalEntered = arrived;
+    nav.calcGreatCircle = !rhumb;
+    nav.bearingOrigToDestRad = std::isfinite(legBearingDeg) ? legBearingDeg * kRad : NAN;
+    nav.bearingPosToDestRad = std::isfinite(bearingDeg) ? bearingDeg * kRad : NAN;
+    nav.originWp = origWp;
+    nav.destWp = destWp;
+    nav.destLat = destLat;
+    nav.destLon = destLon;
+    nav.closingVelMs = std::isfinite(closingKn) ? closingKn * kMsPerKn : NAN;
+    uint8_t payload[34];
+    plotter::n2kNavData(n2kSeq, nav, payload);
+    uint8_t frames[8 * 5];
+    const int nf = plotter::n2kFastFrames(payload, 34, n2kSeq, frames, (int)sizeof frames);
+    const uint32_t id = plotter::n2kMakeId(3, 129284, addr);
+    for (int i = 0; i < nf; i++) canTx(id, frames + i * 8, 8);
+    st.pilotSent++;
+    return true;
 }
 
 void applyNetwork() {

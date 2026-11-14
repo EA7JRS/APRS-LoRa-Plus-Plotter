@@ -25,6 +25,7 @@ struct Status {
     uint32_t canFrames = 0;             // tramas CAN recibidas
     uint32_t canMessages = 0;           // mensajes NMEA 2000 reconocidos
     uint32_t canLastMs = 0;
+    int canAddress = -1;                 // direccion reclamada en el bus cuando el piloto sale por NMEA 2000 (-1 = no)
     uint32_t tcpLines = 0, udpLines = 0;   // lineas NMEA recibidas por la red
     uint32_t netLastMs = 0;
     char wxPlace[32] = "";              // ultima observacion de internet: lugar y cuando (0 = ninguna)
@@ -44,8 +45,15 @@ struct Status {
 void begin(plotter::DataStore* store);
 void loop();                            // llamar a menudo
 void setSimulator(bool on);
-// Datos de ruta para el piloto: via 1 = RS485, 2 = servidor TCP. Devuelve false si esa via no esta disponible.
+// Datos de ruta para el piloto: via 1 = RS485, 2 = servidor TCP, 3 = BLE (pasarela). Devuelve false si esa via no esta disponible.
 bool sendPilot(const char* sentence, int len, int via);
+// Piloto por NMEA 2000 (via 4): reclama direccion en el bus (true) o la suelta (false)
+void pilotN2kEnable(bool on);
+bool pilotN2kReady();                   // ya tiene direccion y puede emitir
+// Emite 129283 (XTE) y 129284 (datos de navegacion) para un piloto del bus. Angulos en grados, distancias en millas,
+// posicion del destino en grados, velocidad de acercamiento en nudos. Devuelve false si aun no hay direccion.
+bool sendPilotN2k(double xteNm, double bearingDeg, double legBearingDeg, double distanceNm, double destLat, double destLon,
+                  uint32_t origWp, uint32_t destWp, double closingKn, bool arrived, bool rhumb);
 void applyBle();                        // enlace BLE con la pasarela segun los ajustes
 void applyNetwork();                    // WiFi, TCP y UDP segun los ajustes guardados
 void setCan(bool on);                   // NMEA 2000 (250 kbit/s, solo escucha); quita el USB nativo de los pines 19 / 20

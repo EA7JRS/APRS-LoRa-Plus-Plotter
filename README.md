@@ -1,3 +1,5 @@
+<p align="center"><a href="https://ea7jrs.github.io/APRS-LoRa-Plus/"><img src="docs/img/aprs-lora-plus-banner.jpg" alt="APRS LoRa+ · Tracker · APRS · Map · Alerts" width="100%"></a></p>
+
 # APRS LoRa+ Plotter
 
 Plotter náutico para la pantalla Waveshare ESP32-S3-Touch-LCD-7B (1024×600), parte del ecosistema APRS LoRa+.

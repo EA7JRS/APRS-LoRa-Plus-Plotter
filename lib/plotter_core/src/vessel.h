@@ -22,6 +22,7 @@ struct Data {
     uint32_t mmsi     = 0;          // 0 = sin MMSI
     char     call[10] = "";         // indicativo APRS base (el transpondedor le pone el SSID del tipo de barco)
     char     mcall[8] = "";         // distintivo de llamada maritimo del MMSI (vacio = el indicativo APRS)
+    int      mcok     = 0;          // distintivo comprobado: 0 no, 1 MarineTraffic, 2 MARS de la UIT (mtcheck)
     int      type     = 0;          // tipo del perfil nautico AIS (0 velero de recreo ... 16 otro buque)
     int      lengthM  = 0;          // eslora, m
     int      beamM    = 0;          // manga, m

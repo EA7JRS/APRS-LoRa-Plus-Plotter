@@ -41,6 +41,7 @@
 #include "wxcalc.h"
 #include "vessel.h"
 #include "callsign.h"
+#include "mtcheck.h"
 
 using namespace plotter;
 
@@ -1800,7 +1801,11 @@ static void testVessel() {
     CHECK(n > 0 && std::string(b) == "{\"c\":\"vessel\",\"mmsi\":224123456,\"n\":\"Sea Breeze\",\"call\":\"EA7JRS\",\"mc\":\"\",\"t\":0,\"len\":12,\"beam\":4,\"dr\":1.8}");
     Data m = a; snprintf(m.mcall, sizeof(m.mcall), "EBXY");
     setCommand(m, true, b, sizeof(b));
-    CHECK(std::strstr(b, "\"mc\":\"EBXY\"") != nullptr && !same(a, m));
+    CHECK(std::strstr(b, "\"mc\":\"EBXY\",\"mcok\":0") != nullptr && !same(a, m));
+    Data m2 = m; m2.mcok = 1;
+    CHECK(!same(m, m2) && same(a, Data(a)));
+    setCommand(m2, true, b, sizeof(b));
+    CHECK(std::strstr(b, "\"mcok\":1") != nullptr);
     Data c = a; c.type = 2;
     setCommand(c, true, b, sizeof(b));
     CHECK(std::strstr(b, "\"t\":") == nullptr);                 // clase A a un transpondedor de clase B: sin tipo
@@ -1886,6 +1891,32 @@ static void testCallsign() {
     CHECK(!needsRecheck(noTime, 0) && needsRecheck(noTime, 5));
 }
 
+// Distintivo maritimo del MMSI con MarineTraffic (shipsearch) o el MARS de la UIT
+static void testMtCheck() {
+    using namespace plotter::mtcheck;
+    CHECK(validKey("0123456789abcdef0123456789ABCDEF01234567") && !validKey("123") && !validKey("0123456789abcdef0123456789ABCDEF0123456g"));
+    CHECK(searchUrl("abc", 224123456) == "https://services.marinetraffic.com/api/shipsearch/abc?mmsi=224123456&protocol=jsono");
+    char c[8];
+    const std::string two = "[{\"SHIPNAME\":\"SEA BREEZE\",\"MMSI\":\"224123456\",\"IMO\":\"0\",\"CALLSIGN\":\"EBXY\"},{\"SHIPNAME\":\"X\",\"MMSI\":\"224123456\",\"CALLSIGN\":\"EA1234\"}]";
+    CHECK(parse(200, two, "ebxy", c, sizeof(c)) == MATCH && std::string(c) == "EBXY");
+    CHECK(parse(200, two, "EA1234", c, sizeof(c)) == MATCH && std::string(c) == "EA1234");
+    CHECK(parse(200, two, "EBZZ", c, sizeof(c)) == MISMATCH && std::string(c) == "EBXY");
+    CHECK(parse(200, "[]", "EBXY", c, sizeof(c)) == NOT_FOUND && c[0] == 0);
+    CHECK(parse(200, "[{\"MMSI\":\"224123456\",\"CALLSIGN\":\"\"}]", "EBXY", c, sizeof(c)) == NOT_FOUND);
+    CHECK(parse(200, "{\"errors\":[{\"code\":\"5\",\"detail\":\"INVALID API KEY\"}]}", "EBXY", c, sizeof(c)) == BAD_KEY);
+    CHECK(parse(200, "{\"errors\":[{\"code\":\"2\",\"detail\":\"ABOVE SERVICE CALL RATE LIMIT\"}]}", "EBXY", c, sizeof(c)) == LIMIT);
+    CHECK(parse(200, "{\"errors\":[{\"code\":\"7\",\"detail\":\"NO DATA\"}]}", "EBXY", c, sizeof(c)) == NOT_FOUND);
+    CHECK(parse(429, "", "EBXY", c, sizeof(c)) == LIMIT && parse(-1, "", "EBXY", c, sizeof(c)) == FAILED && parse(200, "<html>", "EBXY", c, sizeof(c)) == FAILED);
+    CHECK(parse(200, "{\"DATA\":[{\"CALLSIGN\":\"EBXY\"}]}", "EBXY", c, sizeof(c)) == MATCH);
+    char k[24];
+    pairKey(224123456, "eb-xy", k, sizeof(k));
+    CHECK(std::string(k) == "224123456/EBXY");
+    CHECK(verified(MARINETRAFFIC, k, 224123456, "EBXY") && verified(MARS, k, 224123456, "ebxy"));
+    CHECK(!verified(NONE, k, 224123456, "EBXY") && !verified(MARS, k, 224123457, "EBXY") && !verified(MARS, k, 224123456, "EBXZ") && !verified(MARS, k, 224123456, ""));
+    CHECK(std::string(sourceName(MARS)) == "ITU MARS" && std::string(sourceName(NONE)).empty());
+    CHECK(std::string(resultEn(NOT_FOUND)).find("MARS") != std::string::npos);
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
@@ -1896,6 +1927,7 @@ int main() {
     testSame();
     testVessel();
     testCallsign();
+    testMtCheck();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

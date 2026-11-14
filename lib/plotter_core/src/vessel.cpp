@@ -55,7 +55,7 @@ bool same(const Data& a, const Data& b) {
     char ca[10], cb[10];
     baseCall(a.call, ca, sizeof(ca));
     baseCall(b.call, cb, sizeof(cb));
-    return a.mmsi == b.mmsi && sameText(a.name, b.name) && strcmp(ca, cb) == 0 && sameText(a.mcall, b.mcall) && a.type == b.type
+    return a.mmsi == b.mmsi && sameText(a.name, b.name) && strcmp(ca, cb) == 0 && sameText(a.mcall, b.mcall) && (a.mcall[0] || b.mcall[0] ? a.mcok == b.mcok : true) && a.type == b.type
         && a.lengthM == b.lengthM && a.beamM == b.beamM && a.draftDm == b.draftDm;
 }
 
@@ -69,6 +69,7 @@ size_t setCommand(const Data& d, bool classBOnly, char* out, size_t size) {
     baseCall(d.call, c, sizeof(c));
     if (c[0]) put(s, "call", c);
     put(s, "mc", d.mcall);
+    if (d.mcall[0]) put(s, "mcok", (long)d.mcok);
     if (!classBOnly || classB(d.type)) put(s, "t", (long)d.type);
     put(s, "len", (long)d.lengthM);
     put(s, "beam", (long)d.beamM);
@@ -89,6 +90,7 @@ bool parseEvent(const std::string& line, Data& out, bool& classBOnly) {
     snprintf(d.name, sizeof(d.name), "%s", v["n"].str().c_str());
     snprintf(d.call, sizeof(d.call), "%s", v["call"].str().c_str());
     snprintf(d.mcall, sizeof(d.mcall), "%s", v["mc"].str().c_str());
+    d.mcok    = (int)v["mcok"].num(0);
     d.mmsi    = (uint32_t)v["mmsi"].num(0);
     d.type    = (int)v["t"].num(0);
     d.lengthM = (int)v["len"].num(0);

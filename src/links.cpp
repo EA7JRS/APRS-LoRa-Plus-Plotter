@@ -16,6 +16,7 @@
 #include "sk_link.h"
 #include "vessel_link.h"
 #include "licence.h"
+#include "maritime.h"
 #include "stream.h"
 #include "tsync.h"
 #include "astro.h"
@@ -335,6 +336,7 @@ void loop() {
     bleLoop(now);
     vessel_link::loop();                                    // datos del barco con el transponder MAPRS
     licence::loop();                                        // indicativo validado en RadioID
+    maritime::loop();                                       // distintivo maritimo en MarineTraffic
 
     if (st.simulator && now - simLast >= 1000) {
         simLast = now;

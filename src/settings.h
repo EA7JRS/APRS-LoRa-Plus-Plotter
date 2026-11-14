@@ -39,6 +39,9 @@ struct Values {
     uint32_t vesselMmsi = 0;
     char vesselCall[10] = "";       // indicativo APRS sin SSID
     char vesselMCall[8] = "";       // distintivo de llamada maritimo del MMSI
+    int vesselMcOk = 0;             // distintivo comprobado: 0 no, 1 MarineTraffic, 2 MARS de la UIT (a mano)
+    char vesselMcPair[24] = "";     // MMSI/distintivo comprobado ("224123456/EBXY")
+    char mtKey[48] = "";            // clave de la API de MarineTraffic (40 hex)
     int vesselType = 0;             // tipo del perfil nautico AIS (0 velero de recreo, 1 lancha de recreo...)
     int vesselLen = 0;              // eslora, m
     int vesselBeam = 0;             // manga, m

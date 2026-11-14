@@ -6,6 +6,7 @@
 #include "ble.h"
 #include "settings.h"
 #include "licence.h"
+#include "mtcheck.h"
 #include <Arduino.h>
 #include <string>
 
@@ -21,6 +22,7 @@ vessel::Data local() {
     snprintf(d.name, sizeof(d.name), "%s", v.vesselName);
     snprintf(d.call, sizeof(d.call), "%s", v.vesselCall);
     snprintf(d.mcall, sizeof(d.mcall), "%s", v.vesselMCall);
+    d.mcok = mtcheck::verified((uint8_t)v.vesselMcOk, v.vesselMcPair, v.vesselMmsi, v.vesselMCall) ? v.vesselMcOk : 0;
     d.mmsi = v.vesselMmsi;
     d.type = v.vesselType;
     d.lengthM = v.vesselLen;
@@ -38,6 +40,10 @@ static void adopt(const vessel::Data& r) {
     call[k] = 0;
     snprintf(v.vesselCall, sizeof(v.vesselCall), "%s", call);
     snprintf(v.vesselMCall, sizeof(v.vesselMCall), "%s", r.mcall);
+    if (r.mcok && r.mcall[0]) {                             // el transponder ya lo tenia comprobado
+        v.vesselMcOk = r.mcok;
+        mtcheck::pairKey(r.mmsi, r.mcall, v.vesselMcPair, sizeof(v.vesselMcPair));
+    }
     v.vesselMmsi = r.mmsi;
     v.vesselType = (r.type >= 0 && r.type < vessel::typeCount()) ? r.type : 0;
     v.vesselLen = r.lengthM;

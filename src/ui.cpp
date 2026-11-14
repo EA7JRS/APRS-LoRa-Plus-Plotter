@@ -26,6 +26,8 @@
 #include "route.h"
 #include "vessel_link.h"
 #include "licence.h"
+#include "maritime.h"
+#include "mtcheck.h"
 #include "settings.h"
 #include "net.h"
 #include "tsync.h"
@@ -218,7 +220,9 @@ static lv_obj_t* netTa[9] = {};                        // red, clave, servidor, 
 static lv_obj_t* netKb = nullptr;
 static lv_obj_t* netKindLbl = nullptr;
 static lv_obj_t* vesScr = nullptr;                      // Ajustes > Embarcacion
-static lv_obj_t* vesTa[8] = {};                         // nombre, MMSI, CALLSIGN, eslora, manga, calado, DMR ID / CCS7, distintivo maritimo
+static lv_obj_t* vesTa[9] = {};                         // nombre, MMSI, CALLSIGN, eslora, manga, calado, DMR ID / CCS7, distintivo maritimo, clave MarineTraffic
+static lv_obj_t* vesMar = nullptr;                      // distintivo maritimo comprobado
+static lv_obj_t* vesMarsLbl = nullptr;
 static lv_obj_t* vesLic = nullptr;                      // licencia (RadioID)
 static lv_obj_t* vesKb = nullptr;
 static lv_obj_t* vesTypeLbl = nullptr;
@@ -2022,6 +2026,7 @@ static void openVessel() {
     lv_textarea_set_text(vesTa[1], v.vesselMmsi ? b : "");
     lv_textarea_set_text(vesTa[2], v.vesselCall);
     lv_textarea_set_text(vesTa[7], v.vesselMCall);
+    lv_textarea_set_text(vesTa[8], v.mtKey);
     snprintf(b, sizeof(b), "%d", v.vesselLen);
     lv_textarea_set_text(vesTa[3], v.vesselLen ? b : "");
     snprintf(b, sizeof(b), "%d", v.vesselBeam);
@@ -2041,7 +2046,7 @@ static void onVesBtn(lv_event_t* e) {
         const bool onlyB = vessel_link::sync().classBOnly();
         do vesType = (vesType + 1) % plotter::vessel::typeCount();
         while (onlyB && !plotter::vessel::classB(vesType));
-    } else if (a == 1 || a == 3) {                        // 1 guardar y mandar al transponder; 3 guardar y validar el CALLSIGN
+    } else if (a == 1 || a == 3 || a == 4 || a == 5) {    // 1 guardar y mandar; 3 validar el CALLSIGN; 4 MarineTraffic; 5 MARS
         settings::Values& v = settings::get();
         snprintf(v.vesselName, sizeof(v.vesselName), "%s", lv_textarea_get_text(vesTa[0]));
         for (char* c = v.vesselName; *c; c++) *c = (char)toupper((unsigned char)*c);
@@ -2064,7 +2069,16 @@ static void onVesBtn(lv_event_t* e) {
         v.vesselDraftDm = clampi((int)lround(atof(d) * 10.0), 0, 255);
         v.vesselType = vesType;
         settings::save();
+        snprintf(v.mtKey, sizeof(v.mtKey), "%s", lv_textarea_get_text(vesTa[8]));
+        if (strcmp(v.vesselMcPair, "") != 0) {            // otro MMSI u otro distintivo: deja de estar comprobado
+            char k[24];
+            plotter::mtcheck::pairKey(v.vesselMmsi, v.vesselMCall, k, sizeof(k));
+            if (strcmp(k, v.vesselMcPair) != 0) { v.vesselMcOk = 0; v.vesselMcPair[0] = 0; }
+        }
+        settings::save();
         if (a == 3) licence::validate((uint32_t)strtoul(lv_textarea_get_text(vesTa[6]), nullptr, 10));
+        else if (a == 4) maritime::checkMarineTraffic();
+        else if (a == 5) maritime::confirmMars(v.vesselMcOk != plotter::mtcheck::MARS);
         else vessel_link::changed();
         openVessel();                                     // con los valores ya corregidos
     } else lv_obj_set_hidden(vesScr, true);
@@ -2133,8 +2147,17 @@ static void makeVessel() {
     vesLic = label(vesScr, "", &dejavu_14, C_SOFT);
     lv_obj_set_pos(vesLic, 458, 186);
     lv_obj_set_width(vesLic, 550);
+    vesField(8, 16, 242, 300, "Clave API MarineTraffic", 40, "0123456789abcdefABCDEF");
+    b = textButton(vesScr, "MarineTraffic", 180, 48, onVesBtn, 4);
+    lv_obj_set_pos(b, 328, 242);
+    b = textButton(vesScr, "MARS UIT", 140, 48, onVesBtn, 5);
+    lv_obj_set_pos(b, 520, 242);
+    vesMarsLbl = lv_obj_get_child(b, 0);
+    vesMar = label(vesScr, "", &dejavu_14, C_SOFT);
+    lv_obj_set_pos(vesMar, 672, 244);
+    lv_obj_set_width(vesMar, 336);
     vesKb = lv_keyboard_create(vesScr);
-    lv_obj_set_size(vesKb, board::W, 360);
+    lv_obj_set_size(vesKb, board::W, 300);
     lv_obj_align(vesKb, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(vesKb, lv_color_hex(C_BG), 0);
     lv_obj_set_style_bg_opa(vesKb, LV_OPA_COVER, 0);
@@ -2178,6 +2201,10 @@ static void updateVessel() {
     licence::text(l, sizeof(l));
     lv_label_set_text(vesLic, l);
     lv_obj_set_style_text_color(vesLic, lv_color_hex(licence::valid() ? 0x3CE68Au : C_WARN), 0);
+    maritime::text(l, sizeof(l));
+    lv_label_set_text(vesMar, l);
+    lv_obj_set_style_text_color(vesMar, lv_color_hex(maritime::verified() ? 0x3CE68Au : C_WARN), 0);
+    lv_label_set_text(vesMarsLbl, settings::get().vesselMcOk == plotter::mtcheck::MARS && maritime::verified() ? "MARS: OK" : "MARS UIT");
 }
 
 static void updateNet() {

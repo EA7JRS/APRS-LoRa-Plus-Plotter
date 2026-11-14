@@ -46,6 +46,9 @@ void load() {
     v.vesselMmsi = p.getUInt("vMmsi", 0);
     p.getString("vCall", v.vesselCall, sizeof(v.vesselCall));
     p.getString("vMCall", v.vesselMCall, sizeof(v.vesselMCall));
+    v.vesselMcOk = p.getInt("vMcOk", 0);
+    p.getString("vMcPair", v.vesselMcPair, sizeof(v.vesselMcPair));
+    p.getString("mtKey", v.mtKey, sizeof(v.mtKey));
     v.vesselType = p.getInt("vType", 0);
     v.vesselLen = p.getInt("vLen", 0);
     v.vesselBeam = p.getInt("vBeam", 0);
@@ -105,6 +108,9 @@ void save() {
     p.putUInt("vMmsi", v.vesselMmsi);
     p.putString("vCall", v.vesselCall);
     p.putString("vMCall", v.vesselMCall);
+    p.putInt("vMcOk", v.vesselMcOk);
+    p.putString("vMcPair", v.vesselMcPair);
+    p.putString("mtKey", v.mtKey);
     p.putInt("vType", v.vesselType);
     p.putInt("vLen", v.vesselLen);
     p.putInt("vBeam", v.vesselBeam);

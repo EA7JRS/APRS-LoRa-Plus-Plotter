@@ -218,7 +218,7 @@ static lv_obj_t* netTa[9] = {};                        // red, clave, servidor, 
 static lv_obj_t* netKb = nullptr;
 static lv_obj_t* netKindLbl = nullptr;
 static lv_obj_t* vesScr = nullptr;                      // Ajustes > Embarcacion
-static lv_obj_t* vesTa[7] = {};                         // nombre, MMSI, CALLSIGN, eslora, manga, calado, DMR ID / CCS7
+static lv_obj_t* vesTa[8] = {};                         // nombre, MMSI, CALLSIGN, eslora, manga, calado, DMR ID / CCS7, distintivo maritimo
 static lv_obj_t* vesLic = nullptr;                      // licencia (RadioID)
 static lv_obj_t* vesKb = nullptr;
 static lv_obj_t* vesTypeLbl = nullptr;
@@ -2021,6 +2021,7 @@ static void openVessel() {
     snprintf(b, sizeof(b), "%09lu", (unsigned long)v.vesselMmsi);
     lv_textarea_set_text(vesTa[1], v.vesselMmsi ? b : "");
     lv_textarea_set_text(vesTa[2], v.vesselCall);
+    lv_textarea_set_text(vesTa[7], v.vesselMCall);
     snprintf(b, sizeof(b), "%d", v.vesselLen);
     lv_textarea_set_text(vesTa[3], v.vesselLen ? b : "");
     snprintf(b, sizeof(b), "%d", v.vesselBeam);
@@ -2048,6 +2049,12 @@ static void onVesBtn(lv_event_t* e) {
         if (!plotter::vessel::validMmsi(v.vesselMmsi)) v.vesselMmsi = 0;
         snprintf(v.vesselCall, sizeof(v.vesselCall), "%s", lv_textarea_get_text(vesTa[2]));
         for (char* c = v.vesselCall; *c; c++) { *c = (char)toupper((unsigned char)*c); if (*c == '-') { *c = 0; break; } }
+        size_t mk = 0;                                    // distintivo maritimo: A-Z 0-9, maximo 7
+        for (const char* c = lv_textarea_get_text(vesTa[7]); *c && mk + 1 < sizeof(v.vesselMCall); c++) {
+            const char u = (char)toupper((unsigned char)*c);
+            if ((u >= 'A' && u <= 'Z') || (u >= '0' && u <= '9')) v.vesselMCall[mk++] = u;
+        }
+        v.vesselMCall[mk] = 0;
         auto clampi = [](int x, int lo, int hi) { return x < lo ? lo : (x > hi ? hi : x); };
         v.vesselLen = clampi(atoi(lv_textarea_get_text(vesTa[3])), 0, 999);
         v.vesselBeam = clampi(atoi(lv_textarea_get_text(vesTa[4])), 0, 126);
@@ -2110,9 +2117,10 @@ static void makeVessel() {
     lv_obj_set_pos(b, 648, 8);
     b = textButton(vesScr, "Cerrar", 124, 48, onVesBtn, 2);
     lv_obj_set_pos(b, 884, 8);
-    vesField(0, 16, 68, 420, "Nombre (20 letras)", 20, nullptr);
-    vesField(1, 452, 68, 230, "MMSI (9 cifras)", 9, "0123456789");
-    vesField(2, 698, 68, 310, "CALLSIGN", 6, nullptr);
+    vesField(0, 16, 68, 300, "Nombre (20 letras)", 20, nullptr);
+    vesField(1, 328, 68, 200, "MMSI (9 cifras)", 9, "0123456789");
+    vesField(7, 540, 68, 228, "Distintivo mar\xC3\xADtimo", 7, nullptr);
+    vesField(2, 780, 68, 228, "CALLSIGN", 6, nullptr);
     b = textButton(vesScr, "", 420, 48, onVesBtn, 0);
     lv_obj_set_pos(b, 16, 126);
     vesTypeLbl = lv_obj_get_child(b, 0);

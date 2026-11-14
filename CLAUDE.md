@@ -492,7 +492,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   `database.radioid.net/api/dmr/user/?callsign=`, DMR ID / CCS7 tecleado, revisión a los 90 días), `src/licence.*` (NVS
   `licCall`, `licIds`, `licName`, `licCtry`, `licAt`), `net::requestGet` / `takeGet` (HTTPS de una vez en la tarea de red).
   Sin validar, `vessel_link` no manda `vessel` (estado `NOT_LICENSED`). Campo «CALLSIGN» (antes «Indicativo APRS (sin SSID)»).
-  1697 comprobaciones.
+  1697 comprobaciones. Casilla «Distintivo marítimo» del MMSI (NVS `vMCall`, campo `mc` de `vessel`; 1698).
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y

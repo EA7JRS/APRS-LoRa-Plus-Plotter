@@ -217,7 +217,7 @@ horas de salida y puesta) del día en la posición del barco, en hora UTC.
 | **Mapa base** | OpenSeaMap, IHM, IGN u ortofoto; cada uno lee su carpeta de la tarjeta |
 | **NMEA 2000** | Escucha de la red por el CAN |
 | **Red: WiFi y TCP** | Pantalla de red, con teclado |
-| **Embarcación** | Datos del barco: nombre, MMSI, CALLSIGN, tipo, eslora, manga y calado, y la validación del CALLSIGN |
+| **Embarcación** | Datos del barco: nombre, MMSI, distintivo marítimo (el de la licencia de la estación de barco del MMSI), CALLSIGN (indicativo de radioaficionado), tipo, eslora, manga y calado, y la validación del CALLSIGN |
 | **Bluetooth** | Enlace con el tracker, la pasarela o el instrumento de viento |
 
 ![Embarcación](img/embarcacion.png)

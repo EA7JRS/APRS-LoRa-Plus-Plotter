@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- **Distintivo marítimo** del MMSI en Ajustes > Embarcación: se manda al transponder (campo `mc` de `vessel`), que lo pone en los datos estáticos AIS.
 - **Validación del CALLSIGN en RadioID.net** (como en la app): Ajustes > Embarcación, DMR ID / CCS7 y *Validar*. Sin CALLSIGN validado no se mandan los datos del barco al transponder. Se guarda y se revisa cada 90 días. Núcleo `callsign` (mismas pruebas que `CallsignCheck` de la app); `net::requestGet` / `net::takeGet` en `lib/aprs_links`.
 - **Ajustes > Embarcación** (nombre, MMSI, indicativo APRS, tipo, eslora, manga y calado): se mantienen iguales en el **APRS LoRa+ MAPRS transponder** (o un tracker con el perfil náutico AIS) enlazado por Bluetooth, con la orden y el evento `vessel` de su servicio de control. El plotter manda; sin datos propios, toma los del transponder. Núcleo `vessel`; `ble::command` y `ble::readEvent` en `lib/aprs_links` (copiar a la Display y al rotor). El botón de red pasa a llamarse «Red: WiFi y TCP».
 - **Avisos oficiales por la WiFi** (`lib/aprs_links/alerts_net`, tarea propia): AEMET (RSS de Meteoalerta), MeteoAlarm (por país), NWS (EE. UU.), tsunami.gov, terremotos (USGS, EMSC) y tiempo espacial (SWPC). Ventana como las demás alertas y resumen en la pestaña Meteo. *Ajustes > Red*: zonas y país. Núcleo: `alerts`, `minijson`, `same` (NOAA Weather Radio).

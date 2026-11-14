@@ -224,7 +224,7 @@ fraction, rise and set) for the day at the boat's position, in UTC.
 | **Mapa base** | OpenSeaMap, IHM, IGN or aerial imagery; each reads its own folder on the card |
 | **NMEA 2000** | Listening to the network over CAN |
 | **Red: WiFi y TCP** | Network screen, with a keyboard |
-| **Embarcación** (Vessel) | Vessel data: name, MMSI, CALLSIGN, type, length, beam and draught, and the CALLSIGN check |
+| **Embarcación** (Vessel) | Vessel data: name, MMSI, «Distintivo marítimo» (maritime call sign of the ship station licence with the MMSI), CALLSIGN (amateur radio callsign), type, length, beam and draught, and the CALLSIGN check |
 | **Bluetooth** | Link with the tracker, the gateway or the wind instrument |
 
 ![Embarcación](img/embarcacion.png)

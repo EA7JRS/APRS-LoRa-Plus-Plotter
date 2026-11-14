@@ -20,6 +20,7 @@ vessel::Data local() {
     vessel::Data d;
     snprintf(d.name, sizeof(d.name), "%s", v.vesselName);
     snprintf(d.call, sizeof(d.call), "%s", v.vesselCall);
+    snprintf(d.mcall, sizeof(d.mcall), "%s", v.vesselMCall);
     d.mmsi = v.vesselMmsi;
     d.type = v.vesselType;
     d.lengthM = v.vesselLen;
@@ -36,6 +37,7 @@ static void adopt(const vessel::Data& r) {
     for (; r.call[k] && r.call[k] != '-' && k + 1 < sizeof(call); k++) call[k] = r.call[k];
     call[k] = 0;
     snprintf(v.vesselCall, sizeof(v.vesselCall), "%s", call);
+    snprintf(v.vesselMCall, sizeof(v.vesselMCall), "%s", r.mcall);
     v.vesselMmsi = r.mmsi;
     v.vesselType = (r.type >= 0 && r.type < vessel::typeCount()) ? r.type : 0;
     v.vesselLen = r.lengthM;

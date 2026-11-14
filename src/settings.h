@@ -38,6 +38,7 @@ struct Values {
     char vesselName[21] = "";
     uint32_t vesselMmsi = 0;
     char vesselCall[10] = "";       // indicativo APRS sin SSID
+    char vesselMCall[8] = "";       // distintivo de llamada maritimo del MMSI
     int vesselType = 0;             // tipo del perfil nautico AIS (0 velero de recreo, 1 lancha de recreo...)
     int vesselLen = 0;              // eslora, m
     int vesselBeam = 0;             // manga, m

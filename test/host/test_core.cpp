@@ -1797,7 +1797,10 @@ static void testVessel() {
     CHECK(configured(a) && !configured(Data()));
     char b[256];
     size_t n = setCommand(a, true, b, sizeof(b));
-    CHECK(n > 0 && std::string(b) == "{\"c\":\"vessel\",\"mmsi\":224123456,\"n\":\"Sea Breeze\",\"call\":\"EA7JRS\",\"t\":0,\"len\":12,\"beam\":4,\"dr\":1.8}");
+    CHECK(n > 0 && std::string(b) == "{\"c\":\"vessel\",\"mmsi\":224123456,\"n\":\"Sea Breeze\",\"call\":\"EA7JRS\",\"mc\":\"\",\"t\":0,\"len\":12,\"beam\":4,\"dr\":1.8}");
+    Data m = a; snprintf(m.mcall, sizeof(m.mcall), "EBXY");
+    setCommand(m, true, b, sizeof(b));
+    CHECK(std::strstr(b, "\"mc\":\"EBXY\"") != nullptr && !same(a, m));
     Data c = a; c.type = 2;
     setCommand(c, true, b, sizeof(b));
     CHECK(std::strstr(b, "\"t\":") == nullptr);                 // clase A a un transpondedor de clase B: sin tipo
@@ -1812,7 +1815,7 @@ static void testVessel() {
     CHECK(std::strstr(b, "\"mmsi\":0,") != nullptr);
 
     Data r; bool cb = false;
-    CHECK(parseEvent("{\"e\":\"vessel\",\"b\":true,\"ok\":true,\"i\":3,\"act\":true,\"call\":\"EA7JRS-5\",\"mmsi\":224123456,\"n\":\"SEA BREEZE\",\"t\":0,\"cls\":\"C\",\"st\":36,\"len\":12,\"beam\":4,\"dr\":1.8}", r, cb));
+    CHECK(parseEvent("{\"e\":\"vessel\",\"b\":true,\"ok\":true,\"i\":3,\"act\":true,\"call\":\"EA7JRS-5\",\"mmsi\":224123456,\"n\":\"SEA BREEZE\",\"mc\":\"\",\"t\":0,\"cls\":\"C\",\"st\":36,\"len\":12,\"beam\":4,\"dr\":1.8}", r, cb));
     CHECK(cb && r.mmsi == 224123456 && std::strcmp(r.name, "SEA BREEZE") == 0 && r.draftDm == 18 && r.lengthM == 12 && r.type == 0);
     CHECK(same(a, r));                                            // SSID y mayusculas no cuentan
     CHECK(!parseEvent("{\"e\":\"vessel\",\"b\":false,\"ok\":false}", r, cb) && !cb);

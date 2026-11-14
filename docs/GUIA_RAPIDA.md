@@ -73,7 +73,7 @@ Salen en una ventana sobre cualquier pantalla:
 | Red local (NMEA, gpsd, Signal K) | Ajustes > Red |
 | Móvil con la app APRS LoRa+ | Ajustes > Red: la WiFi del móvil, «TCP: NMEA 0183», servidor vacío, puerto 10110 |
 | Tracker APRS LoRa+ o pasarela | Ajustes > Bluetooth (el PIN del tracker, en Ajustes > Red) |
-| APRS LoRa+ MAPRS transponder | Igual que el tracker; los datos del barco, en Ajustes > Embarcación (se le mandan solos) |
+| APRS LoRa+ MAPRS transponder | Igual que el tracker; los datos del barco, en Ajustes > Embarcación (se le mandan solos con el CALLSIGN validado: DMR ID / CCS7 y Validar) |
 | Tiempo de internet | Ajustes > Red: clave de OpenWeatherMap |
 | Instrumento de viento APRS LoRa+ Wind | Solo: NMEA 2000; o Ajustes > Bluetooth; o Ajustes > Red, puerto UDP 10110 (`INSTRUMENTO_VIENTO.md`) |
 

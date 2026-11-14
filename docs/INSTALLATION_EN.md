@@ -233,7 +233,7 @@ heading, the true one is that plus the declination.
 | Mapa base (Base map) | OpenSeaMap / IHM / IGN / Ortofoto |
 | NMEA 2000 | On / Off |
 | Red: WiFi y TCP (Network) | Section 5.3 |
-| Embarcación (Vessel) | Vessel data; sent to the MAPRS transponder (section 5.4) |
+| Embarcación (Vessel) | Vessel data; sent to the MAPRS transponder once the CALLSIGN is validated in RadioID (DMR ID / CCS7, with internet) (section 5.4) |
 | Bluetooth | Section 5.4 |
 
 Everything is saved and restored at power-up, including an active anchor watch.

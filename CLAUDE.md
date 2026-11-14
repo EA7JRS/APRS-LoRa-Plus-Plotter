@@ -487,6 +487,12 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   Display y al rotor tras fusionar). Ajustes > **Embarcación** (NVS `vName`, `vMmsi`, `vCall`, `vType`, `vLen`, `vBeam`,
   `vDraft`); el botón de red pasa a «Red: WiFi y TCP». Acción `barco` en el dibujo del PC. 1672 comprobaciones. Sin probar
   con un transponder.
+  **CALLSIGN validado (2026-11-14; Manuel: «el plotter ha de llevar sistema de validación del callsign como en la app»)**:
+  núcleo `callsign` (puerto de `CallsignCheck.kt` / `Licence.kt`: forma del indicativo, RadioID
+  `database.radioid.net/api/dmr/user/?callsign=`, DMR ID / CCS7 tecleado, revisión a los 90 días), `src/licence.*` (NVS
+  `licCall`, `licIds`, `licName`, `licCtry`, `licAt`), `net::requestGet` / `takeGet` (HTTPS de una vez en la tarea de red).
+  Sin validar, `vessel_link` no manda `vessel` (estado `NOT_LICENSED`). Campo «CALLSIGN» (antes «Indicativo APRS (sin SSID)»).
+  1697 comprobaciones.
 
 ## Siguiente
 1. Hechos Instrumentos, Carta (teselas, ir a, waypoints, MOB), Radar AIS, alertas y Ajustes básicos (ver Estado). Rutas y

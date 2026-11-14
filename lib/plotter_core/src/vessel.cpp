@@ -128,6 +128,11 @@ Action Sync::remote(const Data& r, bool classBOnly, const Data& local) {
     return PUSH;
 }
 
+void Sync::blocked() {
+    pushed_ = false;
+    state_ = up_ ? NOT_LICENSED : NO_LINK;
+}
+
 Action Sync::localChanged(const Data& local) {
     if (!up_) return NONE;
     if (known_ && same(last_, local)) { state_ = SYNCED; return NONE; }

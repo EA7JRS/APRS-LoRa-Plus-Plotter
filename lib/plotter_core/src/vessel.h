@@ -42,7 +42,7 @@ size_t      setCommand(const Data& d, bool classBOnly, char* out, size_t size);
 bool        parseEvent(const std::string& line, Data& out, bool& classBOnly);
 
 enum Action { NONE = 0, QUERY, PUSH, ADOPT };
-enum State  { NO_LINK = 0, WAITING, SYNCED, SENT, ADJUSTED, NO_PROFILE };
+enum State  { NO_LINK = 0, WAITING, SYNCED, SENT, ADJUSTED, NO_PROFILE, NOT_LICENSED };
 
 class Sync {
 public:
@@ -50,6 +50,7 @@ public:
     Action remote(const Data& r, bool classBOnly, const Data& local);   // evento recibido: PUSH, ADOPT (copiar r) o NONE
     Action noProfile();                     // el tracker no tiene perfil nautico AIS
     Action localChanged(const Data& local); // el usuario ha guardado los datos: PUSH si hay enlace y son otros
+    void   blocked();                       // PUSH sin indicativo validado: no se manda nada (NOT_LICENSED)
     State  state() const { return state_; }
     bool   classBOnly() const { return classB_; }
     const Data& last() const { return last_; }  // lo ultimo que dijo el transpondedor

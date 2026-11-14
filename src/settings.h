@@ -42,6 +42,12 @@ struct Values {
     int vesselLen = 0;              // eslora, m
     int vesselBeam = 0;             // manga, m
     int vesselDraftDm = 0;          // calado, decimas de metro
+    // Indicativo validado en RadioID.net (DMR ID / CCS7), como la app: sin el, no se mandan datos al transponder
+    char licCall[10] = "";
+    char licIds[64] = "";
+    char licName[48] = "";
+    char licCountry[32] = "";
+    uint32_t licAt = 0;             // hora UNIX de la validacion (0 = sin hora)
 };
 Values& get();
 void load();

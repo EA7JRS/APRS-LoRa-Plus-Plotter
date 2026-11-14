@@ -40,6 +40,7 @@
 #include "wmm.h"
 #include "wxcalc.h"
 #include "vessel.h"
+#include "callsign.h"
 
 using namespace plotter;
 
@@ -1838,8 +1839,48 @@ static void testVessel() {
     Sync e;
     e.link(true);
     CHECK(e.remote(norm, true, Data()) == ADOPT && e.state() == SYNCED && e.classBOnly());
+    Sync f;                                                       // sin licencia: no se envia
+    f.link(true);
+    CHECK(f.remote(old, true, a) == PUSH);
+    f.blocked();
+    CHECK(f.state() == NOT_LICENSED && f.remote(old, true, a) == PUSH);   // sigue pidiendo; quien llama vuelve a bloquear
     CHECK(e.noProfile() == NONE && e.state() == NO_PROFILE);
     CHECK(e.link(false) == NONE && e.state() == NO_LINK);
+}
+
+// Indicativo de radioaficionado en RadioID.net (mismos casos que CallsignCheck de la app Android)
+static void testCallsign() {
+    using namespace plotter::callsign;
+    char b[10];
+    CHECK(base("ea7jrs-7", b, sizeof(b)) && std::string(b) == "EA7JRS");
+    CHECK(base("EA7JRS", b, sizeof(b)) && std::string(b) == "EA7JRS");
+    CHECK(base("2E0ABC", b, sizeof(b)) && std::string(b) == "2E0ABC");
+    CHECK(base("K1A", b, sizeof(b)) && std::string(b) == "K1A");
+    CHECK(base("EB7ABC", b, sizeof(b)) && base("AM70A", b, sizeof(b)) && base("E73A", b, sizeof(b)));
+    CHECK(!base("N0CALL-7", b, sizeof(b)) && !base("NOCALL", b, sizeof(b)));
+    CHECK(!base("HELLO", b, sizeof(b)) && !base("EA7", b, sizeof(b)) && !base("", b, sizeof(b)) && !base("EA7JRS1", b, sizeof(b)));
+    CHECK(url("EA7JRS") == "https://database.radioid.net/api/dmr/user/?callsign=EA7JRS");
+    Result r;
+    CHECK(parse("{\"count\":2,\"results\":[{\"callsign\":\"EA7JRS\",\"city\":\"X\",\"country\":\"Spain\",\"fname\":\"Manuel\",\"id\":2147001,\"surname\":\"Canca\",\"state\":\"Y\"},"
+                "{\"callsign\":\"EA7JRS\",\"country\":\"Spain\",\"fname\":\"Manuel\",\"id\":2147002,\"surname\":\"Canca\"}]}", "EA7JRS", r));
+    CHECK(r.found && r.nIds == 2 && r.ids[0] == 2147001 && r.ids[1] == 2147002 && std::string(r.name) == "Manuel Canca" && std::string(r.country) == "Spain");
+    char ids[64]; r.idsText(ids, sizeof(ids));
+    CHECK(std::string(ids) == "2147001,2147002" && r.has(2147002) && !r.has(1));
+    Result o;
+    CHECK(parse("{\"count\":1,\"results\":[{\"callsign\":\"EA7JRT\",\"id\":1}]}", "EA7JRS", o) && !o.found);
+    CHECK(parse("{\"count\":0,\"results\":[]}", "EA7JRS", o) && !o.found);
+    CHECK(!parse("<html>", "EA7JRS", o));
+    Licence l;
+    CHECK(!valid("EA7JRS", l));
+    CHECK(check("EA7JRS-5", &o, 0, 1000, l) != nullptr && !l.call[0]);                    // no encontrado
+    CHECK(check("EA7JRS", &r, 9999999, 1000, l) != nullptr && !l.call[0]);                // otro DMR ID
+    CHECK(check("NOCALL", &r, 0, 1000, l) != nullptr);
+    CHECK(check("ea7jrs", nullptr, 0, 1000, l) != nullptr);
+    CHECK(check("ea7jrs", &r, 2147001, 1000, l) == nullptr && std::string(l.call) == "EA7JRS" && std::string(l.ids) == "2147001,2147002" && l.atUnix == 1000);
+    CHECK(valid("EA7JRS-5", l) && valid("ea7jrs", l) && !valid("EA7JRT", l) && !valid("", l));
+    CHECK(!needsRecheck(l, 1000 + RECHECK_S - 1) && needsRecheck(l, 1000 + RECHECK_S));
+    Licence noTime = l; noTime.atUnix = 0;
+    CHECK(!needsRecheck(noTime, 0) && needsRecheck(noTime, 5));
 }
 
 int main() {
@@ -1851,6 +1892,7 @@ int main() {
     testAlerts();
     testSame();
     testVessel();
+    testCallsign();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

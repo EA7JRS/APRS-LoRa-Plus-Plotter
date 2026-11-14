@@ -25,6 +25,7 @@
 #include "motion.h"
 #include "route.h"
 #include "vessel_link.h"
+#include "licence.h"
 #include "settings.h"
 #include "net.h"
 #include "tsync.h"
@@ -217,7 +218,8 @@ static lv_obj_t* netTa[9] = {};                        // red, clave, servidor, 
 static lv_obj_t* netKb = nullptr;
 static lv_obj_t* netKindLbl = nullptr;
 static lv_obj_t* vesScr = nullptr;                      // Ajustes > Embarcacion
-static lv_obj_t* vesTa[6] = {};                         // nombre, MMSI, indicativo, eslora, manga, calado
+static lv_obj_t* vesTa[7] = {};                         // nombre, MMSI, CALLSIGN, eslora, manga, calado, DMR ID / CCS7
+static lv_obj_t* vesLic = nullptr;                      // licencia (RadioID)
 static lv_obj_t* vesKb = nullptr;
 static lv_obj_t* vesTypeLbl = nullptr;
 static lv_obj_t* vesStatus = nullptr;
@@ -2011,6 +2013,11 @@ static void openVessel() {
     const settings::Values& v = settings::get();
     char b[16];
     lv_textarea_set_text(vesTa[0], v.vesselName);
+    char id[12];
+    size_t k = 0;
+    for (; v.licIds[k] && v.licIds[k] != ',' && k + 1 < sizeof(id); k++) id[k] = v.licIds[k];
+    id[k] = 0;
+    lv_textarea_set_text(vesTa[6], id);
     snprintf(b, sizeof(b), "%09lu", (unsigned long)v.vesselMmsi);
     lv_textarea_set_text(vesTa[1], v.vesselMmsi ? b : "");
     lv_textarea_set_text(vesTa[2], v.vesselCall);
@@ -2033,7 +2040,7 @@ static void onVesBtn(lv_event_t* e) {
         const bool onlyB = vessel_link::sync().classBOnly();
         do vesType = (vesType + 1) % plotter::vessel::typeCount();
         while (onlyB && !plotter::vessel::classB(vesType));
-    } else if (a == 1) {                                  // guardar y mandar al transpondedor
+    } else if (a == 1 || a == 3) {                        // 1 guardar y mandar al transponder; 3 guardar y validar el CALLSIGN
         settings::Values& v = settings::get();
         snprintf(v.vesselName, sizeof(v.vesselName), "%s", lv_textarea_get_text(vesTa[0]));
         for (char* c = v.vesselName; *c; c++) *c = (char)toupper((unsigned char)*c);
@@ -2050,7 +2057,8 @@ static void onVesBtn(lv_event_t* e) {
         v.vesselDraftDm = clampi((int)lround(atof(d) * 10.0), 0, 255);
         v.vesselType = vesType;
         settings::save();
-        vessel_link::changed();
+        if (a == 3) licence::validate((uint32_t)strtoul(lv_textarea_get_text(vesTa[6]), nullptr, 10));
+        else vessel_link::changed();
         openVessel();                                     // con los valores ya corregidos
     } else lv_obj_set_hidden(vesScr, true);
 }
@@ -2104,13 +2112,19 @@ static void makeVessel() {
     lv_obj_set_pos(b, 884, 8);
     vesField(0, 16, 68, 420, "Nombre (20 letras)", 20, nullptr);
     vesField(1, 452, 68, 230, "MMSI (9 cifras)", 9, "0123456789");
-    vesField(2, 698, 68, 310, "Indicativo APRS (sin SSID)", 6, nullptr);
+    vesField(2, 698, 68, 310, "CALLSIGN", 6, nullptr);
     b = textButton(vesScr, "", 420, 48, onVesBtn, 0);
     lv_obj_set_pos(b, 16, 126);
     vesTypeLbl = lv_obj_get_child(b, 0);
     vesField(3, 452, 126, 180, "Eslora, m", 3, "0123456789");
     vesField(4, 640, 126, 180, "Manga, m", 3, "0123456789");
     vesField(5, 828, 126, 180, "Calado, m", 4, "0123456789.,");
+    vesField(6, 16, 184, 230, "DMR ID / CCS7", 7, "0123456789");
+    b = textButton(vesScr, "Validar", 180, 48, onVesBtn, 3);
+    lv_obj_set_pos(b, 262, 184);
+    vesLic = label(vesScr, "", &dejavu_14, C_SOFT);
+    lv_obj_set_pos(vesLic, 458, 186);
+    lv_obj_set_width(vesLic, 550);
     vesKb = lv_keyboard_create(vesScr);
     lv_obj_set_size(vesKb, board::W, 360);
     lv_obj_align(vesKb, LV_ALIGN_BOTTOM_MID, 0, 0);
@@ -2138,6 +2152,7 @@ static const char* vesselStateText() {
         case plotter::vessel::SENT:       return "Transponder: enviando los datos...";
         case plotter::vessel::ADJUSTED:   return "Transponder: los ha ajustado a lo que admite AIS";
         case plotter::vessel::NO_PROFILE: return "El tracker conectado no tiene perfil n\xC3\xA1utico AIS";
+        case plotter::vessel::NOT_LICENSED: return "Transponder: sin CALLSIGN validado no se le mandan los datos";
         default:                          return "Transponder sin conectar (Ajustes > Bluetooth): se enviar\xC3\xA1n al conectar";
     }
 }
@@ -2151,6 +2166,10 @@ static void updateVessel() {
     const char cls = plotter::vessel::typeClass(vesType);
     snprintf(b, sizeof(b), "%s \xC2\xB7 %s", plotter::vessel::typeName(vesType), cls == 'A' ? "clase A" : (cls == 'S' ? "clase B SO" : "clase B CS"));
     lv_label_set_text(vesTypeLbl, b);
+    char l[200];
+    licence::text(l, sizeof(l));
+    lv_label_set_text(vesLic, l);
+    lv_obj_set_style_text_color(vesLic, lv_color_hex(licence::valid() ? 0x3CE68Au : C_WARN), 0);
 }
 
 static void updateNet() {

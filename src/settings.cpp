@@ -49,6 +49,11 @@ void load() {
     v.vesselLen = p.getInt("vLen", 0);
     v.vesselBeam = p.getInt("vBeam", 0);
     v.vesselDraftDm = p.getInt("vDraft", 0);
+    p.getString("licCall", v.licCall, sizeof(v.licCall));
+    p.getString("licIds", v.licIds, sizeof(v.licIds));
+    p.getString("licName", v.licName, sizeof(v.licName));
+    p.getString("licCtry", v.licCountry, sizeof(v.licCountry));
+    v.licAt = p.getUInt("licAt", 0);
     p.end();
     if (v.vesselType < 0 || v.vesselType > 16) v.vesselType = 0;
     if (v.vesselLen < 0 || v.vesselLen > 999) v.vesselLen = 0;
@@ -102,6 +107,11 @@ void save() {
     p.putInt("vLen", v.vesselLen);
     p.putInt("vBeam", v.vesselBeam);
     p.putInt("vDraft", v.vesselDraftDm);
+    p.putString("licCall", v.licCall);
+    p.putString("licIds", v.licIds);
+    p.putString("licName", v.licName);
+    p.putString("licCtry", v.licCountry);
+    p.putUInt("licAt", v.licAt);
     p.end();
 }
 

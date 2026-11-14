@@ -224,7 +224,7 @@ fraction, rise and set) for the day at the boat's position, in UTC.
 | **Mapa base** | OpenSeaMap, IHM, IGN or aerial imagery; each reads its own folder on the card |
 | **NMEA 2000** | Listening to the network over CAN |
 | **Red: WiFi y TCP** | Network screen, with a keyboard |
-| **Embarcación** (Vessel) | Vessel data: name, MMSI, APRS callsign, type, length, beam and draught |
+| **Embarcación** (Vessel) | Vessel data: name, MMSI, CALLSIGN, type, length, beam and draught, and the CALLSIGN check |
 | **Bluetooth** | Link with the tracker, the gateway or the wind instrument |
 
 ![Embarcación](img/embarcacion.png)
@@ -236,6 +236,12 @@ has different ones, it sends its own. The transponder adjusts what AIS does not 
 6 to 24 m) and the plotter keeps what it confirms. With the MAPRS (class B) the type button switches between the two class B types: sailing yacht (B "CS") and power boat (B "SO").
 The status is shown at the top: «mismos datos que el plotter» (same data), «enviando» (sending), «los ha ajustado»
 (adjusted) or «sin conectar» (not linked).
+
+**CALLSIGN check**, as in the app: type your **DMR ID / CCS7** (7 digits) and press **Validar** ("Validate"). The plotter
+asks RadioID.net (Wi-Fi with internet needed, Ajustes > Red) whether that CALLSIGN has that DMR ID or CCS7, which RadioID only
+gives after checking the amateur radio licence. If so, «EA7JRS validado en RadioID» shows in green; it is stored and checked
+again every 90 days (kept if there is no connection). **Without a validated CALLSIGN the plotter does not send the data to
+the transponder** (they change what it transmits): it only reads the transponder's. A new CALLSIGN must be validated again.
 
 **Estado** (Status), on the right: version, lines received on each route, where the position comes from, AIS targets
 and waypoints. At its top, the **Acerca de** (About) button: version and board, copyright, licence, project, library

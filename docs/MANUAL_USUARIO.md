@@ -217,7 +217,7 @@ horas de salida y puesta) del día en la posición del barco, en hora UTC.
 | **Mapa base** | OpenSeaMap, IHM, IGN u ortofoto; cada uno lee su carpeta de la tarjeta |
 | **NMEA 2000** | Escucha de la red por el CAN |
 | **Red: WiFi y TCP** | Pantalla de red, con teclado |
-| **Embarcación** | Datos del barco: nombre, MMSI, indicativo APRS, tipo, eslora, manga y calado |
+| **Embarcación** | Datos del barco: nombre, MMSI, CALLSIGN, tipo, eslora, manga y calado, y la validación del CALLSIGN |
 | **Bluetooth** | Enlace con el tracker, la pasarela o el instrumento de viento |
 
 ![Embarcación](img/embarcacion.png)
@@ -228,6 +228,12 @@ plotter le pide los suyos; si el plotter no tiene datos, toma los del transponde
 los suyos. El transponder ajusta lo que AIS no admite (nombre en mayúsculas, eslora de clase B de 6 a 24 m) y el plotter se
 queda con lo que confirma. Con el MAPRS (clase B) el botón de tipo alterna entre los dos de clase B: velero de recreo (B «CS») y lancha de recreo (B «SO»). Arriba se ve el estado:
 «mismos datos que el plotter», «enviando», «los ha ajustado» o «sin conectar».
+
+**Validación del CALLSIGN**, como en la app: escribe tu **DMR ID / CCS7** (7 cifras) y pulsa **Validar**. El plotter
+pregunta a RadioID.net (hace falta la WiFi con internet, Ajustes > Red) si ese CALLSIGN tiene ese DMR ID o CCS7, que
+RadioID solo da tras comprobar la licencia de radioaficionado. Si es así, sale en verde «EA7JRS validado en RadioID»; se
+guarda y se vuelve a comprobar cada 90 días (sin conexión se conserva). **Sin CALLSIGN validado el plotter no manda los
+datos al transponder** (cambian lo que emite): solo lee los suyos. Si cambias el CALLSIGN hay que validarlo otra vez.
 
 **Estado**, a la derecha: versión, líneas recibidas por cada vía, de dónde sale la posición, blancos AIS y waypoints.
 Arriba, el botón **Acerca de**: versión y placa, copyright, licencia, proyecto, créditos de las librerías y de las cartas,

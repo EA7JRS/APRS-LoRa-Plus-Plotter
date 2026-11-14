@@ -5,6 +5,7 @@
 #include "vessel_link.h"
 #include "ble.h"
 #include "settings.h"
+#include "licence.h"
 #include <Arduino.h>
 #include <string>
 
@@ -46,6 +47,7 @@ static void adopt(const vessel::Data& r) {
 static void act(vessel::Action a) {
     if (a == vessel::QUERY) ble::command(vessel::queryCommand());
     else if (a == vessel::PUSH) {
+        if (!licence::valid()) { st.blocked(); return; }        // sin indicativo validado no se cambia lo que emite el transponder
         char b[256];
         if (vessel::setCommand(local(), st.classBOnly(), b, sizeof(b))) ble::command(b);
     } else if (a == vessel::ADOPT) adopt(st.last());

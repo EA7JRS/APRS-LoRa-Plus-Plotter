@@ -232,7 +232,7 @@ tu barco. La nota de abajo dice si la consulta a OpenWeatherMap funciona y de d�
 
 Cálculos a bordo: la casilla de temperatura da la **sensación térmica** (enfriamiento por el viento real con frío,
 índice de calor con calor y humedad) cuando se aparta medio grado del aire, y la de humedad el **punto de rocío**
-(fórmula de Magnus). Arriba de la nota, el **sol** (salida y puesta, crepúsculo civil) y la **luna** (fase, iluminada y
+(fórmula de Magnus). Arriba de la nota, el **sol** (salida y puesta, crepúsculo civil y náutico) y la **luna** (fase, iluminada y
 horas de salida y puesta) del día en la posición del barco, en hora UTC.
 
 ## 9. Ajustes

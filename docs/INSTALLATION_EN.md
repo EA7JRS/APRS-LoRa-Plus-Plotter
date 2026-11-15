@@ -102,12 +102,18 @@ On the UART port, at 115200 baud:
 | `/charts/ign/<zoom>/<x>/<y>.jpeg` | Spanish IGN base map |
 | `/charts/pnoa/<zoom>/<x>/<y>.jpeg` | PNOA aerial imagery |
 | `/waypoints.gpx` | Waypoints and the route; written by the plotter |
+| `/luces.txt` | Light list: `name;latitude;longitude;characteristic;height m;range nm` (optional) |
 
 Tiles use the usual OpenStreetMap numbering (XYZ, 256 × 256). You have to copy them by hand: the plotter does not
 download them yet. Zooms 10 to 15 are enough to sail an area. Respect each provider's terms: do not bulk-download from
 the OpenStreetMap servers. More detail in `CARTAS.md` (Spanish).
 
 `waypoints.gpx` is standard GPX: it can be opened and edited with OpenCPN and other programs.
+
+`luces.txt` can be written by hand or built from the PDF of the Spanish *Libro de Faros* (IHM list of lights) with
+`tools/faros/libro_faros.py` (see its `README.md`): `python3 tools/faros/libro_faros.py part_I.pdf part_II.pdf -o luces.txt`.
+That list is for your own use only: the data belong to the Instituto Hidrográfico de la Marina. Both parts give about
+4,900 lights; the plotter reads up to 20,000.
 
 ## 5. Data connections
 

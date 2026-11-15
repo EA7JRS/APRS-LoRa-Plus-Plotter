@@ -10,6 +10,7 @@
 #include <cctype>
 #include <cmath>
 #include <ctime>
+#include <vector>
 
 #include "board.h"
 #include "anchor.h"
@@ -165,6 +166,16 @@ static bool selOn = false;
 static LatLon selPos{0, 0};
 static lv_obj_t* selMark = nullptr;
 static RouteFollower nav;
+// Luces de la lista de la tarjeta (S:/luces.txt: una por linea, nombre;lat;lon;caracteristica;altura;alcance; por ejemplo la
+// que saca tools/faros/libro_faros.py del Libro de Faros del IHM, para uso personal)
+static std::vector<LightRecord> lightList;
+static const char* kLightFile = "S:/luces.txt";
+static const int kLightMarks = 40;
+static lv_obj_t* lightDot[kLightMarks] = {};
+static lv_obj_t* lightLbl[kLightMarks] = {};
+static int lightShown[kLightMarks];
+static int lightShownN = 0;
+static int selLight = -1;                                 // luz elegida al tocar la carta (-1 = ninguna)
 // Fondeo: vigilancia del ancla, panel de la carta y circulo de alarma
 static AnchorWatch anchorW;
 static bool anchorPanel = false;
@@ -1392,6 +1403,61 @@ static void loadWaypoints() {
         }
 }
 
+static void loadLights() {
+    lv_fs_file_t f;
+    if (lv_fs_open(&f, kLightFile, LV_FS_MODE_RD) != LV_FS_RES_OK) return;           // sin lista: no se dibujan luces
+    lightList.clear();
+    std::string line;
+    char buf[512];
+    uint32_t br = 0;
+    LightRecord r;
+    while (lightList.size() < 20000 && lv_fs_read(&f, buf, sizeof(buf), &br) == LV_FS_RES_OK && br > 0) {
+        for (uint32_t i = 0; i < br; i++) {
+            if (buf[i] != '\n') { if (line.size() < 300) line += buf[i]; continue; }
+            if (parseLightRecord(line.c_str(), r)) lightList.push_back(r);
+            line.clear();
+        }
+    }
+    if (!line.empty() && parseLightRecord(line.c_str(), r)) lightList.push_back(r);
+    lv_fs_close(&f);
+}
+
+// Color de la marca de una luz
+static uint32_t lightColor(const LightCharacter& c) {
+    switch (c.color) {
+        case LightColor::Red: return 0xFF4D4D;
+        case LightColor::Green: return 0x2ECC71;
+        case LightColor::Yellow: return 0xF2D43D;
+        case LightColor::Blue: return 0x4DA3FF;
+        default: return 0xFFF6C8;
+    }
+}
+
+// Las marcas de luz encendidas o apagadas segun su ritmo (cada 100 ms, solo con la Carta a la vista)
+static void lightBlink(lv_timer_t*) {
+    if (!chart || lv_obj_is_hidden(chart) || lightShownN == 0) return;
+    const uint32_t t = millis();
+    for (int i = 0; i < lightShownN; i++) {
+        const LightRecord& l = lightList[(size_t)lightShown[i]];
+        const bool on = l.character.cls == LightClass::Unknown || lightIsOn(l.character, t);
+        lv_obj_set_style_bg_opa(lightDot[i], on ? LV_OPA_COVER : 40, 0);
+    }
+}
+
+// Luz a menos de 20 px del punto (la mas cercana), o -1
+static int nearLight(LatLon p) {
+    if (lightList.empty()) return -1;
+    double mpp = metersPerPixel(p.lat, chZoom);
+    int best = -1;
+    double bestPx = 20;
+    for (int i = 0; i < lightShownN; i++) {
+        const LightRecord& l = lightList[(size_t)lightShown[i]];
+        const double px = gcDistanceNm(p, {l.lat, l.lon}) * kMetersPerNm / mpp;
+        if (px < bestPx) { bestPx = px; best = lightShown[i]; }
+    }
+    return best;
+}
+
 static void addWaypoint(LatLon p) {
     if (wpN >= kWps) return;
     int num = 1;                                          // primer numero libre: WPT 01, WPT 02...
@@ -1465,6 +1531,12 @@ static void selectPoint(LatLon p) {
     if (measOn) { addMeasurePoint(p); return; }
     selPos = p;
     selOn = true;
+    selLight = -1;
+    if (!nearWaypoint(p)) {                               // un waypoint manda sobre una luz
+        selPos = p;
+        selLight = nearLight(p);
+        if (selLight >= 0) selPos = {lightList[(size_t)selLight].lat, lightList[(size_t)selLight].lon};
+    }
 }
 
 static const char* nearWaypoint(LatLon p) {
@@ -1536,6 +1608,7 @@ static void onPanelBtn(lv_event_t* e) {
     } else if (selOn) {                                   // Ir a / Marcar / Medir / Cerrar
         if (b == 0) {
             const char* n = nearWaypoint(selPos);
+            if (!n && selLight >= 0) n = lightList[(size_t)selLight].name;
             startGoTo(selPos, n ? n : "Punto", false);
         } else if (b == 1) {
             if (!nearWaypoint(selPos)) addWaypoint(selPos);
@@ -1628,6 +1701,21 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_set_style_line_width(navLine, 3, 0);
     lv_obj_set_style_line_dash_width(navLine, 10, 0);
     lv_obj_set_style_line_dash_gap(navLine, 6, 0);
+    for (int i = 0; i < kLightMarks; i++) {                // luces: debajo de los waypoints
+        lightDot[i] = box(chart, 0xFFF6C8, LV_RADIUS_CIRCLE);
+        lv_obj_set_size(lightDot[i], 10, 10);
+        lv_obj_set_style_border_color(lightDot[i], lv_color_hex(C_INK), 0);
+        lv_obj_set_style_border_width(lightDot[i], 1, 0);
+        lv_obj_set_style_border_opa(lightDot[i], LV_OPA_COVER, 0);
+        lightLbl[i] = label(chart, "", &dejavu_12, 0xFFF6C8);
+        lv_obj_set_style_bg_color(lightLbl[i], lv_color_hex(C_BAR), 0);
+        lv_obj_set_style_bg_opa(lightLbl[i], 170, 0);
+        lv_obj_set_style_pad_hor(lightLbl[i], 3, 0);
+        lv_obj_set_style_radius(lightLbl[i], 3, 0);
+        lv_obj_set_hidden(lightDot[i], true);
+        lv_obj_set_hidden(lightLbl[i], true);
+    }
+    lv_timer_create(lightBlink, 100, nullptr);
     for (int i = 0; i < kWpMarks; i++) {
         wpDot[i] = box(chart, 0xFF9F43, 3);
         lv_obj_set_size(wpDot[i], 12, 12);
@@ -1824,6 +1912,49 @@ static void updateChart() {
         if (!vis) lv_obj_set_hidden(d.vec, true);
     }
 
+    // Luces de la lista: las principales (alcance >= 15 mn) desde el zoom 8, el resto desde el 11; nombres desde el 13 (las
+    // principales desde el 10). Si no caben todas, primero las de mas alcance.
+    lightShownN = 0;
+    if (!lightList.empty() && chZoom >= 8) {
+        struct Cand { int i; double x, y; double rng; };
+        static Cand cand[kLightMarks];
+        int nc = 0;
+        const LatLon nw = worldPxToLonLat(cx - CH_W / 2.0 - 10, cy - CH_H / 2.0 - 10, chZoom);   // recuadro a la vista: lo de fuera
+        const LatLon se = worldPxToLonLat(cx + CH_W / 2.0 + 10, cy + CH_H / 2.0 + 10, chZoom);   // ni se proyecta
+        for (size_t i = 0; i < lightList.size(); i++) {
+            const LightRecord& l = lightList[i];
+            if (l.lat > nw.lat || l.lat < se.lat || l.lon < nw.lon || l.lon > se.lon) continue;
+            const bool major = l.nominalNm >= 15;
+            if (!major && chZoom < 11) continue;
+            double x, y;
+            toScreen({l.lat, l.lon}, x, y);
+            if (x < -6 || y < -6 || x > CH_W + 6 || y > CH_H + 6) continue;
+            if (nc < kLightMarks) { cand[nc++] = {(int)i, x, y, l.nominalNm}; continue; }
+            int worst = 0;
+            for (int k = 1; k < nc; k++) if (cand[k].rng < cand[worst].rng) worst = k;
+            if (l.nominalNm > cand[worst].rng) cand[worst] = {(int)i, x, y, l.nominalNm};
+        }
+        for (int k = 0; k < nc; k++) {
+            const LightRecord& l = lightList[(size_t)cand[k].i];
+            const int x = (int)lround(cand[k].x), y = (int)lround(cand[k].y);
+            const bool major = l.nominalNm >= 15;
+            const int sz = major ? 12 : 9;
+            lv_obj_set_size(lightDot[k], sz, sz);
+            lv_obj_set_pos(lightDot[k], x - sz / 2, y - sz / 2);
+            lv_obj_set_style_bg_color(lightDot[k], lv_color_hex(lightColor(l.character)), 0);
+            lv_obj_set_hidden(lightDot[k], false);
+            const bool named = chZoom >= 13 || (major && chZoom >= 10) || cand[k].i == selLight;
+            if (named) {
+                lv_label_set_text(lightLbl[k], l.name);
+                lv_obj_set_pos(lightLbl[k], x + 8, y + 2);
+            }
+            lv_obj_set_hidden(lightLbl[k], !named);
+            lightShown[k] = cand[k].i;
+        }
+        lightShownN = nc;
+    }
+    for (int i = lightShownN; i < kLightMarks; i++) { lv_obj_set_hidden(lightDot[i], true); lv_obj_set_hidden(lightLbl[i], true); }
+
     // Waypoints a la vista
     int wm = 0;
     for (int i = 0; i < wpN && wm < kWpMarks; i++) {
@@ -2005,7 +2136,25 @@ static void updateChart() {
             wn = nearWaypoint(selPos);
             if (!wn) selPos = keep;
         }
-        if (own) {
+        const LightRecord* sl = (!wn && selLight >= 0 && selLight < (int)lightList.size()) ? &lightList[(size_t)selLight] : nullptr;
+        if (sl) {                                         // ficha de la luz: caracteristica, altura, alcance y a que distancia se vera
+            double vis = 10;
+            if (!store->get(Key::Visibility, now, vis) || vis <= 0) vis = 10;
+            const double eye = settings::get().astroEye10 / 10.0;
+            const double see = lightSightingRangeNm(*sl, vis, eye);
+            char l2[160] = "", d[24] = "", sv[24] = "";
+            if (see > 0) { fmtDist(sv, sizeof(sv), see, 1); }
+            int n2 = snprintf(l2, sizeof(l2), "%s", sl->characterText);
+            if (sl->heightM > 0) n2 += snprintf(l2 + n2, sizeof(l2) - (size_t)n2, " \xC2\xB7 %d m", (int)lround(sl->heightM));
+            if (sl->nominalNm > 0) n2 += snprintf(l2 + n2, sizeof(l2) - (size_t)n2, " \xC2\xB7 %d M", (int)lround(sl->nominalNm));
+            if (sv[0]) n2 += snprintf(l2 + n2, sizeof(l2) - (size_t)n2, " \xC2\xB7 se ver\xC3\xA1 a %s", sv);
+            if (own) {
+                Measure m = measure({la, lo}, selPos, true, sog);
+                fmtDist(d, sizeof(d), m.distanceNm, 1);
+                snprintf(l2 + n2, sizeof(l2) - (size_t)n2, " \xC2\xB7 a %s, %03d\xC2\xB0", d, (int)lround(m.bearing) % 360);
+            }
+            snprintf(pt, sizeof(pt), "%s\n%s", sl->name, l2);
+        } else if (own) {
             Measure m = measure({la, lo}, selPos, true, sog);
             char d[24], t[24] = "";
             fmtDist(d, sizeof(d), m.distanceNm, 2);
@@ -2976,6 +3125,19 @@ void testNavtex(bool list) {
     };
     for (const char* l : lines) links::injectLine(l);
     if (list) { closeModal(); nvShown.push_back("XD12@518"); openNavtexList(); }
+}
+
+// Para las pruebas en el PC: vuelve a leer la lista de luces, centra la carta en ella y elige la luz "pick" (-1 = ninguna)
+void testLights(int zoom, int pick) {
+    loadLights();
+    if (lightList.empty()) return;
+    closeModal();
+    chFollow = false;
+    chCenter = {lightList[0].lat, lightList[0].lon};
+    chZoom = zoom;
+    showTab(1);
+    update();
+    if (pick >= 0 && pick < (int)lightList.size()) { selectPoint({lightList[(size_t)pick].lat + 0.00002, lightList[(size_t)pick].lon}); update(); }
 }
 
 // Para las pruebas en el PC: llamadas LSD de ejemplo (una alerta de socorro abre la ventana) y la lista
@@ -4325,6 +4487,7 @@ void begin(DataStore* s) {
     makeAbout();
     makeModal();
     loadWaypoints();
+    loadLights();
     applyUnits();
     setBaseMap(settings::get().baseMap);
     {                                                     // fondeo que estaba vigilado antes de apagar o reiniciar

@@ -99,12 +99,17 @@ Por el puerto UART, a 115200 baudios:
 | `/charts/ign/<zoom>/<x>/<y>.jpeg` | Mapa base del IGN |
 | `/charts/pnoa/<zoom>/<x>/<y>.jpeg` | Ortofoto PNOA |
 | `/waypoints.gpx` | Waypoints y la ruta; lo escribe el plotter |
+| `/luces.txt` | Lista de luces: `nombre;latitud;longitud;característica;altura m;alcance mn` (opcional) |
 
 Las teselas llevan la numeración habitual de OpenStreetMap (XYZ, 256 × 256). Hay que copiarlas a mano: el plotter aún
 no las descarga. Para navegar por una zona bastan los zooms 10 a 15. Respeta las condiciones de cada proveedor: no
 hagas descargas masivas de los servidores de OpenStreetMap. Más detalle en `CARTAS.md`.
 
 `waypoints.gpx` es GPX estándar: se puede abrir y editar con OpenCPN u otros programas.
+
+`luces.txt` se puede escribir a mano o sacar del PDF del Libro de Faros del IHM con `tools/faros/libro_faros.py` (ver su
+`README.md`): `python3 tools/faros/libro_faros.py parte_I.pdf parte_II.pdf -o luces.txt`. Esa lista es solo para tu uso: los
+datos son del Instituto Hidrográfico de la Marina. Las dos partes dan unas 4900 luces; el plotter lee hasta 20 000.
 
 ## 5. Conexiones de datos
 

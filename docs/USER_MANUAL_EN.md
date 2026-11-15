@@ -89,6 +89,18 @@ The panel offers:
 
 If you tap on a waypoint, the waypoint is selected.
 
+### Lights
+
+If the card has a light list (`/luces.txt`, see the installation guide), the chart draws each light in its colour and
+with its rhythm (it goes on and off like the real one): lights of 15 miles' range or more from zoom 8 and the rest from
+11, with names from zoom 13 (the main ones from 10). If they do not all fit, the longest-range ones are shown.
+
+Tapping a light opens its details in the panel: name, characteristic, height, nominal range, **the distance at which it
+will be seen** («se verá a», with the current visibility, 10 miles if there is none, and the eye height set in Astro),
+and distance and bearing from the boat. **Ir a** (Go to) navigates to it.
+
+![Lights on the chart](img/carta_luces.png)
+
 ### Navigating to a destination
 
 With an active destination the chart draws the line to it and the panel says «A WPT 01 · 1,2 mn · 251° · 12 min» (to

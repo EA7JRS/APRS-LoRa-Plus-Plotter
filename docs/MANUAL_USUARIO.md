@@ -87,6 +87,18 @@ El panel ofrece:
 
 Si tocas sobre un waypoint, se elige el waypoint.
 
+### Luces
+
+Si la tarjeta tiene una lista de luces (`/luces.txt`, ver la instalación), la carta dibuja cada luz con su color y su
+ritmo (se enciende y se apaga como la real): las de alcance de 15 millas o más desde el zoom 8 y el resto desde el 11,
+con el nombre desde el zoom 13 (las principales desde el 10). Si no caben todas, se ven las de más alcance.
+
+Tocar una luz abre su ficha en el panel: nombre, característica, altura, alcance nominal, **a qué distancia se verá**
+con la visibilidad que haya (10 millas si no llega ese dato) y la altura del ojo de Astro, y distancia y demora desde el
+barco. **Ir a** navega hasta ella.
+
+![Luces en la carta](img/carta_luces.png)
+
 ### Navegar a un destino
 
 Con un destino activo, la carta dibuja la línea hasta él y el panel dice «A WPT 01 · 1,2 mn · 251° · 12 min» y el

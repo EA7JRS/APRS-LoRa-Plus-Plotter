@@ -24,6 +24,7 @@ void testAstro(const char* star, double errArcmin);   // abre Carta > Astro y tr
 void closeAstro();
 void testCt(const char* star, double dev, int step);   // Astro > Desvio (Ct) con un compas simulado; step > 0 llena la tablilla
 void testCtCard();
+void testLights(int zoom, int pick);                   // vuelve a leer S:/luces.txt, centra y elige una luz
 void testDsc(bool list);                               // llamadas LSD de ejemplo; list abre la lista
 void testNavtex(bool list);                            // mensajes NAVTEX de ejemplo; list abre la lista                                     // abre la tablilla
 void testVessel();                  // abre Ajustes > Embarcacion

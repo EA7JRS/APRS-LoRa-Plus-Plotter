@@ -78,6 +78,20 @@ int main(int argc, char** argv) {
             else if (a == "tablilla") ui::testCtCard();
             else if (a == "navtex") ui::testNavtex(false);
             else if (a == "navtexlista") ui::testNavtex(true);
+            else if (sscanf(a.c_str(), "luces:%d:%d", &x, &y) == 2) {   // luces:<zoom>:<luz elegida, -1 ninguna>; lista inventada
+                FILE* lf = fopen("/tmp/plotter_sd/luces.txt", "w");
+                if (lf) {
+                    fputs("# Lista de prueba con luces inventadas\n"
+                          "Faro de ejemplo;36.5400;-6.3000;Fl(2) W 10s;40;18\n"
+                          "Dique de ejemplo. Extremo;36.5270;-6.2780;Fl R 5s;9;4\n"
+                          "Contradique. Extremo;36.5255;-6.2745;Fl G 5s;8;3\n"
+                          "Bajo de ejemplo. Cardinal N;36.5390;-6.2600;Q W;6;5\n"
+                          "Boya especial;36.5200;-6.3200;Fl(4) Y 11s;;3\n"
+                          "Faro lejano;36.6200;-6.4500;Oc(3) W 12s;60;22\n", lf);
+                    fclose(lf);
+                }
+                ui::testLights(x, y);
+            }
             else if (a == "dsc") ui::testDsc(false);
             else if (a == "dsclista") ui::testDsc(true);
             else if (a == "rs485") ui::testRs485();

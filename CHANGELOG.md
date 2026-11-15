@@ -2,6 +2,7 @@
 
 ## Sin publicar
 
+- **Luces en la Carta**: la lista `/luces.txt` de la tarjeta se dibuja con el color y el ritmo de cada luz (las principales desde el zoom 8, el resto desde el 11); tocar una abre su ficha con característica, altura, alcance, «se verá a» y distancia y demora, e **Ir a**.
 - **Libro de Faros → lista de luces**: `tools/faros/libro_faros.py` convierte el PDF del Libro de Faros del IHM en la lista de luces del plotter, para uso personal (los datos del IHM no van en el repositorio).
 - **LSD / DSC**: sentencia DSC de NMEA 0183 de una emisora con LSD o de la app APRS LoRa+ (que decodifica el canal 70 y MF / HF), por el RS485, la red o Bluetooth; Meteo > **LSD** con la lista (repeticiones en 10 min, tocar una con posición pone rumbo a ella) y ventana **DSC DISTRESS** para alertas, retransmisiones y acuses de socorro (IR A). Núcleo `dsc` (18 comprobaciones; 1894 en total).
 - **NAVTEX**: sentencias NRX (forma de Furuno y de IEC 61162-1) de un receptor NAVTEX o de la app APRS LoRa+, por el RS485, la red o Bluetooth; Meteo > **NAVTEX** con la lista (tocar uno con posición pone rumbo a ella) y ventana **NAVTEX SAR / DISTRESS** para el asunto D. Las posiciones de los avisos aceptan también la forma compacta «3607.5N 00521.2W». Núcleo `navtex` (16 comprobaciones; 1876 en total).

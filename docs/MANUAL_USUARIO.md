@@ -125,10 +125,10 @@ Si pasa un minuto sin posición, **ANCHOR WATCH · NO GPS FIX**. El fondeo se gu
 
 El botón **Astro** de la carta abre *Recta de altura*, para situarse con el sextante sin tablas ni almanaque:
 
-1. Elige el astro: el botón *Astro* alterna **Sol (limbo inferior)**, **Sol (limbo superior)** y **Estrella**; con `<` y `>` se recorren las 57 estrellas de navegación y la Polar. De cada estrella se dice la altura y el azimut que tiene ahora, para reconocerla.
+1. Elige el astro: el botón *Astro* pasa por **Sol** y **Luna** (limbo inferior o superior), **Venus**, **Marte**, **Júpiter**, **Saturno** y **Estrella**; con `<` y `>` se recorren las 57 estrellas de navegación y la Polar. De la Luna, los planetas y cada estrella se dice la altura y el azimut que tiene ahora, para reconocerla.
 2. En el instante de la medida pulsa **Ahora** (o escribe la hora UTC como `hhmmss`).
 3. Escribe la altura del sextante (grados y minutos), el error de índice en minutos (positivo si el sextante marca de más) y la elevación del ojo en metros.
-4. **Calcular y trazar**: se aplican la depresión del horizonte, la refracción, el semidiámetro y el paralaje del Sol, y sale la altura observada, la calculada, el azimut y el **determinante** (millas hacia el astro o en contra). La recta queda dibujada en la carta, en amarillo, con el astro y la hora.
+4. **Calcular y trazar**: se aplican la depresión del horizonte, la refracción, el semidiámetro y el paralaje (del Sol, de la Luna —hasta 1° — y de los planetas), y sale la altura observada, la calculada, el azimut y el **determinante** (millas hacia el astro o en contra). La recta queda dibujada en la carta, en amarillo, con el astro y la hora.
 
 ![Recta de altura](img/astro_recta.png)
 
@@ -136,7 +136,9 @@ La estima es la posición del barco en la carta en ese momento. Se guardan hasta
 
 ![Rectas en la carta](img/carta_rectas.png)
 
-El Sol, Aries y las estrellas se calculan a bordo con precisión de almanaque (0,1′), contrastados con un almanaque náutico de 2026. No hay Luna ni planetas. Hace falta que el reloj tenga fecha y hora (GPS o internet): un segundo de error son hasta 0,25 millas.
+![Recta de un planeta](img/astro_planeta.png)
+
+El Sol, Aries y las estrellas se calculan a bordo con precisión de almanaque (0,1′), contrastados con un almanaque náutico de 2026. Los planetas, a 0,1′ (contra PyEphem); la **Luna**, a unos 0,3′ (contra las efemérides DE421 del JPL): su recta vale, pero con algo menos de precisión que las del Sol o las estrellas. Hace falta que el reloj tenga fecha y hora (GPS o internet): un segundo de error son hasta 0,25 millas.
 
 ## 4. Rutas
 

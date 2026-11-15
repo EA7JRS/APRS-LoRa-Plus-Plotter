@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- **Astro: Luna y planetas.** Luna (limbo inferior o superior, con su paralaje y semidiámetro; Meeus cap. 47 completo, 0,25′ frente al JPL DE421) y Venus, Marte, Júpiter y Saturno (VSOP87 recortada con tiempo de luz y aberración, 0,06′ frente a PyEphem) en `celnav` y en Carta > Astro. La posición de la Luna de Meteo usa la misma serie.
 - **Astro: traslado de rectas** (las anteriores se llevan al instante de la última por lo navegado, «(trasl.)») y **crepúsculo náutico** en la línea del Sol de Meteo.
 - **Carta > Astro: recta de altura con el sextante.** Sol (limbo inferior o superior) y las 57 estrellas de navegación más la Polar; correcciones de error de índice, depresión, refracción, semidiámetro y paralaje; altura calculada, azimut y determinante; hasta cuatro rectas dibujadas en la carta y situación por dos o más. Núcleo `celnav` (`observedAltitude`, `reduceSight`, `fixFromSights`). Sin Luna ni planetas; sin traslado de rectas.
 - **Navegación astronómica en el núcleo** (`celnav`): AHG y declinación del Sol, AHG de Aries, AHS y declinación de las 57 estrellas de navegación y la Polar, semidiámetro y ecuación del tiempo, con precisión de almanaque (0,1′; contrastado con un almanaque náutico de 2026 y con PyEphem). El Sol de todo el plotter (orto, ocaso, Meteo) usa ya ese cálculo (antes 0,2′–0,4′ de error).

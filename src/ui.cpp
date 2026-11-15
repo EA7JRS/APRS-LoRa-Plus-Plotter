@@ -214,7 +214,7 @@ static lv_obj_t* astroKb = nullptr;
 static lv_obj_t* astroBodyLbl = nullptr;
 static lv_obj_t* astroStarLbl = nullptr;
 static lv_obj_t* astroOut = nullptr;
-static int astroBody = 0;                               // 0 Sol limbo inferior, 1 Sol limbo superior, 2 estrella
+static int astroBody = 0;                               // 0 / 1 Sol limbo inferior / superior, 2 / 3 Luna, 4 a 7 Venus, Marte, Jupiter y Saturno, 8 estrella
 static int astroStar = 0;
 static void openAstro();
 static void onAstroOpen(lv_event_t*) { openAstro(); }
@@ -1977,12 +1977,33 @@ static void onAboutClose(lv_event_t*) { lv_obj_set_hidden(aboutScr, true); }
 static lv_obj_t* vesField(int idx, int x, int y, int w, const char* hint, int maxLen, const char* chars);
 static void onVesField(lv_event_t* e);
 static const char* astroBodyName() {
-    return astroBody == 0 ? "Sol (limbo inferior)" : (astroBody == 1 ? "Sol (limbo superior)" : "Estrella");
+    static const char* n[] = {"Sol (limbo inferior)", "Sol (limbo superior)", "Luna (limbo inferior)", "Luna (limbo superior)",
+                              "Venus", "Marte", "J\xC3\xBApiter", "Saturno", "Estrella"};
+    return n[astroBody];
+}
+static const int kAstroStar = 8;
+static const char* astroShortName() {
+    static const char* n[] = {"Sol", "Sol", "Luna", "Luna", "Venus", "Marte", "J\xC3\xBApiter", "Saturno"};
+    return astroBody < kAstroStar ? n[astroBody] : plotter::navStar(astroStar).name;
 }
 
 // AHG y declinacion del astro elegido en el instante jd
-static void astroGhaDec(double jd, double& gha, double& dec) {
-    if (astroBody < 2) { plotter::sunGhaDec(jd, gha, dec); return; }
+// sd y hp: semidiametro y paralaje horizontal en minutos de arco
+static void astroGhaDec(double jd, double& gha, double& dec, double& sd, double& hp) {
+    sd = 0; hp = 0;
+    if (astroBody < 2) { plotter::sunGhaDec(jd, gha, dec); sd = plotter::sunSemiDiameterArcmin(jd); hp = 0.15; return; }
+    if (astroBody < 4) {
+        double km;
+        plotter::moonGhaDec(jd, gha, dec, km);
+        sd = plotter::moonSdArcmin(km); hp = plotter::moonHpArcmin(km);
+        return;
+    }
+    if (astroBody < kAstroStar) {
+        double au;
+        plotter::planetGhaDec(plotter::Planet(astroBody - 4), jd, gha, dec, au);
+        hp = plotter::planetHpArcmin(au);
+        return;
+    }
     double sha;
     plotter::starShaDec(plotter::navStar(astroStar), jd, sha, dec);
     gha = norm360(plotter::ariesGha(jd) + sha);
@@ -1993,17 +2014,19 @@ static void astroRefresh() {
     snprintf(b, sizeof(b), "Astro: %s", astroBodyName());
     lv_label_set_text(astroBodyLbl, b);
     if (astroBody < 2) { lv_label_set_text(astroStarLbl, ""); return; }
-    const plotter::NavStar& st = plotter::navStar(astroStar);
+    char nm[40];
+    if (astroBody == kAstroStar) snprintf(nm, sizeof(nm), "%s (mag %.1f)", plotter::navStar(astroStar).name, (double)plotter::navStar(astroStar).mag);
+    else snprintf(nm, sizeof(nm), "%s", astroShortName());
     double la, lo;
     const uint32_t now = millis();
     const int64_t t = tsync::now();
     if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo) && t > 1600000000) {   // ahora mismo, para reconocerla
-        double gha, dec, alt, az;
-        astroGhaDec(t / 86400.0 + 2440587.5, gha, dec);
+        double gha, dec, alt, az, sd, hp;
+        astroGhaDec(t / 86400.0 + 2440587.5, gha, dec, sd, hp);
         plotter::bodyAltAz(gha, dec, la, lo, alt, az);
-        if (alt > 0) snprintf(b, sizeof(b), "%s (mag %.1f) \xC2\xB7 ahora: altura %.0f\xC2\xB0, azimut %03.0f\xC2\xB0", st.name, (double)st.mag, alt, az);
-        else snprintf(b, sizeof(b), "%s (mag %.1f) \xC2\xB7 ahora bajo el horizonte", st.name, (double)st.mag);
-    } else snprintf(b, sizeof(b), "%s (mag %.1f)", st.name, (double)st.mag);
+        if (alt > 0) snprintf(b, sizeof(b), "%s \xC2\xB7 ahora: altura %.0f\xC2\xB0, azimut %03.0f\xC2\xB0", nm, alt, az);
+        else snprintf(b, sizeof(b), "%s \xC2\xB7 ahora bajo el horizonte", nm);
+    } else snprintf(b, sizeof(b), "%s", nm);
     for (char* p = b; *p; p++) if (*p == '.' && p > b && isdigit((unsigned char)p[-1]) && isdigit((unsigned char)p[1])) *p = ',';
     lv_label_set_text(astroStarLbl, b);
 }
@@ -2041,22 +2064,21 @@ static void astroCompute() {
     const double jd = t / 86400.0 + 2440587.5;
     const double sext = astroNum(0) + astroNum(1) / 60.0;
     if (sext <= 0 || sext >= 90) { lv_label_set_text(astroOut, "Altura de sextante entre 0 y 90 grados."); return; }
-    double gha, dec;
-    astroGhaDec(jd, gha, dec);
-    const bool sun = astroBody < 2;
-    const double ho = plotter::observedAltitude(sext, astroNum(2), astroNum(3),
-                                                sun ? (astroBody == 0 ? plotter::Limb::Lower : plotter::Limb::Upper) : plotter::Limb::Center,
-                                                sun ? plotter::sunSemiDiameterArcmin(jd) : 0.0, sun ? 0.15 : 0.0);
+    double gha, dec, sd, hp;
+    astroGhaDec(jd, gha, dec, sd, hp);
+    if (astroBody == 2 || astroBody == 3) sd *= 1.0 + sin(deg2rad(sext)) * sin(deg2rad(hp / 60.0));   // la Luna, mas cerca en alto
+    const plotter::Limb limb = astroBody >= 4 ? plotter::Limb::Center : (astroBody % 2 == 0 ? plotter::Limb::Lower : plotter::Limb::Upper);
+    const double ho = plotter::observedAltitude(sext, astroNum(2), astroNum(3), limb, sd, hp);
     AstroLop L;
     L.s = plotter::reduceSight(la, lo, gha, dec, ho);
     if (L.s.hcDeg < 0 || fabs(L.s.interceptNm) > 120) {     // astro, hora o altura equivocados: no se traza
         char w[200];
-        snprintf(w, sizeof(w), "No cuadra: a esa hora el astro estar\xC3\xADa a %.0f\xC2\xB0 de altura y la medida da %.0f\xC2\xB0 (%.0f mn de diferencia).\nRevisa el astro, la hora UTC y la altura.",
+        snprintf(w, sizeof(w), "No cuadra: a esa hora el astro estar\xC3\xAD" "a a %.0f\xC2\xB0 de altura y la medida da %.0f\xC2\xB0 (%.0f mn de diferencia).\nRevisa el astro, la hora UTC y la altura.",
                  L.s.hcDeg, ho, fabs(L.s.interceptNm));
         lv_label_set_text(astroOut, w);
         return;
     }
-    snprintf(L.name, sizeof(L.name), "%s", sun ? "Sol" : plotter::navStar(astroStar).name);
+    snprintf(L.name, sizeof(L.name), "%s", astroShortName());
     snprintf(L.hhmm, sizeof(L.hhmm), "%02d:%02d", hh, mm);
     L.at = {la, lo};
     if (lopN == kLops) { for (int i = 1; i < kLops; i++) lops[i - 1] = lops[i]; lopN--; }
@@ -2088,9 +2110,9 @@ static void astroCompute() {
 
 static void onAstroBtn(lv_event_t* e) {
     const int a = (int)(intptr_t)lv_event_get_user_data(e);
-    if (a == 0) astroBody = (astroBody + 1) % 3;
-    else if (a == 1) { astroBody = 2; astroStar = (astroStar + plotter::navStarCount() - 1) % plotter::navStarCount(); }
-    else if (a == 2) { astroBody = 2; astroStar = (astroStar + 1) % plotter::navStarCount(); }
+    if (a == 0) astroBody = (astroBody + 1) % 9;
+    else if (a == 1) { astroBody = kAstroStar; astroStar = (astroStar + plotter::navStarCount() - 1) % plotter::navStarCount(); }
+    else if (a == 2) { astroBody = kAstroStar; astroStar = (astroStar + 1) % plotter::navStarCount(); }
     else if (a == 3) astroNow();
     else if (a == 4) astroCompute();
     else if (a == 5) { lopN = 0; astroFixOn = false; lv_label_set_text(astroOut, "Rectas borradas."); }
@@ -2178,14 +2200,17 @@ static void makeAstro() {
 void testAstro(const char* star, double errArcmin) {
     openAstro();
     const int i = plotter::navStarFind(star);
-    astroBody = i >= 0 ? 2 : 0;
+    static const char* bodies[] = {"luna", "venus", "marte", "jupiter", "saturno"};
+    astroBody = i >= 0 ? kAstroStar : 0;
+    for (int k = 0; k < 5; k++) if (!strcmp(star, bodies[k])) astroBody = k == 0 ? 2 : 3 + k;
     if (i >= 0) astroStar = i;
     astroNow();
-    double la, lo, gha, dec, alt, az;
+    double la, lo, gha, dec, alt, az, sd, hp;
     if (store->get(Key::Lat, millis(), la) && store->get(Key::Lon, millis(), lo)) {
-        astroGhaDec(tsync::now() / 86400.0 + 2440587.5, gha, dec);
+        astroGhaDec(tsync::now() / 86400.0 + 2440587.5, gha, dec, sd, hp);
         plotter::bodyAltAz(gha, dec, la, lo, alt, az);
-        const double hs = alt + errArcmin / 60.0 + plotter::refractionArcmin(alt) / 60.0 + plotter::dipArcmin(2) / 60.0 - (i >= 0 ? 0 : plotter::sunSemiDiameterArcmin(tsync::now() / 86400.0 + 2440587.5) / 60.0);
+        const double hs = alt + errArcmin / 60.0 + plotter::refractionArcmin(alt) / 60.0 + plotter::dipArcmin(2) / 60.0 -
+                          (astroBody < 4 ? sd / 60.0 : 0) - hp * cos(deg2rad(alt)) / 60.0;
         char b[12];
         snprintf(b, sizeof(b), "%d", (int)hs);
         lv_textarea_set_text(astroTa[0], b);

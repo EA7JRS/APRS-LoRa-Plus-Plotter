@@ -78,7 +78,7 @@ pio run -e waveshare_lcd7b -t upload
    ![Welcome](img/bienvenida.png)
 
 2. Then the **Instrumentos** tab shows data: that is the **simulator**, on by default (tapping the tab again shows the **Motor** (engine) page, with a dummy engine; real data arrives over NMEA 2000 — PGNs 127488 / 127489 / 127505 / 127508 — or from a J1939 engine on the same bus).
-3. Go through the tabs. In **Carta** you will see the boat moving and five AIS targets with made-up names. The chart's **Astro** button works out sextant lines of position (it needs GPS or internet time).
+3. Go through the tabs. In **Carta** you will see the boat moving and five AIS targets with made-up names. The chart's **Astro** button works out sextant lines of position: Sun, Moon, planets and stars (it needs GPS or internet time).
 4. Without a card the chart says «sin cartas en la tarjeta para esta zona» (no charts on the card for this area): that is normal.
 4. When you connect a real source, **turn the simulator off** (Ajustes > Simulador). While it is on, its data takes
    priority over everything else.

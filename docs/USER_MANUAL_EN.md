@@ -140,7 +140,7 @@ The assumed position is the boat's position on the chart at that moment. Up to f
 
 ![Lines on the chart](img/carta_rectas.png)
 
-The Sun, Aries and the stars are computed on board to almanac precision (0.1′), checked against a 2026 nautical almanac. No Moon or planets. The clock must have date and time (GPS or internet): one second of error is up to 0.25 miles.
+The Sun, Aries and the stars are computed on board to almanac precision (0.1′), checked against a 2026 nautical almanac. The *Astro* button also offers the **Moon** (lower or upper limb; about 0.3′ against JPL DE421, so slightly less precise) and **Venus, Mars, Jupiter and Saturn** (0.1′ against PyEphem), with their parallax applied. The clock must have date and time (GPS or internet): one second of error is up to 0.25 miles.
 
 ## 4. Rutas (Routes)
 

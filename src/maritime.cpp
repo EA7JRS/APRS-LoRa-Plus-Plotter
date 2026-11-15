@@ -37,7 +37,12 @@ bool checkMarineTraffic() {
     const settings::Values& v = settings::get();
     if (pending) return false;
     if (!v.vesselMCall[0] || v.vesselMmsi < 200000000UL) { snprintf(msg, sizeof(msg), "Escribe el MMSI y el distintivo mar\xC3\xADtimo y guarda"); return false; }
-    if (!mtcheck::validKey(v.mtKey)) { snprintf(msg, sizeof(msg), "Escribe la clave de la API de MarineTraffic (40 caracteres)"); return false; }
+    if (!mtcheck::validKey(v.mtKey)) {                          // sin clave: confirmado a mano en la ficha publica (webUrl)
+        const bool on = !(v.vesselMcOk == mtcheck::MARINETRAFFIC && verified());
+        msg[0] = 0;
+        setOk(on ? mtcheck::MARINETRAFFIC : mtcheck::NONE);
+        return false;
+    }
     if (!net::requestGet(mtcheck::searchUrl(v.mtKey, v.vesselMmsi).c_str())) { snprintf(msg, sizeof(msg), "No se puede consultar ahora"); return false; }
     pending = true;
     snprintf(msg, sizeof(msg), "Consultando MarineTraffic...");
@@ -69,7 +74,8 @@ void text(char* out, size_t size) {
     if (msg[0]) { snprintf(out, size, "%s", msg); return; }
     if (!v.vesselMCall[0]) { snprintf(out, size, "Sin distintivo mar\xC3\xADtimo: AIS lleva el CALLSIGN"); return; }
     if (verified()) { snprintf(out, size, "%s del MMSI %09lu comprobado en %s", v.vesselMCall, (unsigned long)v.vesselMmsi, mtcheck::sourceName((uint8_t)v.vesselMcOk)); return; }
-    snprintf(out, size, "Distintivo sin comprobar: MarineTraffic (clave) o MARS de la UIT, itu.int/mmsapp/ShipStation/list");
+    std::string web = mtcheck::webUrl(v.vesselMmsi, 0);
+    snprintf(out, size, "Sin comprobar. Sin clave: mira %s y pulsa MarineTraffic; o el MARS de la UIT", web.c_str() + 12);   // sin "https://www."
 }
 
 }

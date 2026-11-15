@@ -252,6 +252,7 @@ static lv_obj_t* vesScr = nullptr;                      // Ajustes > Embarcacion
 static lv_obj_t* vesTa[9] = {};                         // nombre, MMSI, CALLSIGN, eslora, manga, calado, DMR ID / CCS7, distintivo maritimo, clave MarineTraffic
 static lv_obj_t* vesMar = nullptr;                      // distintivo maritimo comprobado
 static lv_obj_t* vesMarsLbl = nullptr;
+static lv_obj_t* vesMtLbl = nullptr;
 static lv_obj_t* vesLic = nullptr;                      // licencia (RadioID)
 static lv_obj_t* vesKb = nullptr;
 static lv_obj_t* vesTypeLbl = nullptr;
@@ -2585,6 +2586,7 @@ static void makeVessel() {
     vesField(8, 16, 242, 300, "Clave API MarineTraffic", 40, "0123456789abcdefABCDEF");
     b = textButton(vesScr, "MarineTraffic", 180, 48, onVesBtn, 4);
     lv_obj_set_pos(b, 328, 242);
+    vesMtLbl = lv_obj_get_child(b, 0);
     b = textButton(vesScr, "MARS UIT", 140, 48, onVesBtn, 5);
     lv_obj_set_pos(b, 520, 242);
     vesMarsLbl = lv_obj_get_child(b, 0);
@@ -2640,6 +2642,7 @@ static void updateVessel() {
     lv_label_set_text(vesMar, l);
     lv_obj_set_style_text_color(vesMar, lv_color_hex(maritime::verified() ? 0x3CE68Au : C_WARN), 0);
     lv_label_set_text(vesMarsLbl, settings::get().vesselMcOk == plotter::mtcheck::MARS && maritime::verified() ? "MARS: OK" : "MARS UIT");
+    lv_label_set_text(vesMtLbl, settings::get().vesselMcOk == plotter::mtcheck::MARINETRAFFIC && maritime::verified() ? "MarineTraffic: OK" : "MarineTraffic");
 }
 
 static void updateNet() {

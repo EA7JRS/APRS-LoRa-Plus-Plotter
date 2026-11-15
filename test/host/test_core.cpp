@@ -1991,6 +1991,10 @@ static void testMtCheck() {
     using namespace plotter::mtcheck;
     CHECK(validKey("0123456789abcdef0123456789ABCDEF01234567") && !validKey("123") && !validKey("0123456789abcdef0123456789ABCDEF0123456g"));
     CHECK(searchUrl("abc", 224123456) == "https://services.marinetraffic.com/api/shipsearch/abc?mmsi=224123456&protocol=jsono");
+    CHECK(webUrl(224123456, 0) == "https://www.marinetraffic.com/es/ais/details/ships/mmsi:224123456");
+    CHECK(webUrl(224123456, 715183) == "https://www.marinetraffic.com/es/ais/details/ships/shipid:715183");
+    CHECK(shipIdFrom("https://www.marinetraffic.com/es/ais/details/ships/shipid:715183/mmsi:224123456/imo:0/vessel:SEA_BREEZE") == 715183);
+    CHECK(shipIdFrom(" 715183 ") == 715183 && shipIdFrom("") == 0 && shipIdFrom("mmsi:224123456") == 0 && shipIdFrom(nullptr) == 0);
     char c[8];
     const std::string two = "[{\"SHIPNAME\":\"SEA BREEZE\",\"MMSI\":\"224123456\",\"IMO\":\"0\",\"CALLSIGN\":\"EBXY\"},{\"SHIPNAME\":\"X\",\"MMSI\":\"224123456\",\"CALLSIGN\":\"EA1234\"}]";
     CHECK(parse(200, two, "ebxy", c, sizeof(c)) == MATCH && std::string(c) == "EBXY");

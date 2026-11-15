@@ -28,7 +28,7 @@ Al encender sale un par de segundos la bienvenida de APRS LoRa+ (logo y versión
 | Radar AIS | Blancos alrededor del barco, con riesgo de abordaje |
 | Viento | Esfera de viento aparente y real, e historial de 10 minutos |
 | Piloto | Rumbo a gobernar, desvío de la ruta y datos para el piloto automático (Raymarine ST2000+ o genérico) |
-| Meteo | Presión, temperatura (con sensación térmica), humedad (con punto de rocío), viento, racha, visibilidad, sol y luna; botón **NAVTEX** con los mensajes recibidos (NRX) |
+| Meteo | Presión, temperatura (con sensación térmica), humedad (con punto de rocío), viento, racha, visibilidad, sol y luna; botón **NAVTEX** con los mensajes recibidos (NRX) y botón **LSD** con las llamadas DSC |
 | Ajustes | Simulador, puerto serie, brillo, unidades, mapa base, NMEA 2000, red, Bluetooth y «Acerca de» (versión, licencia, créditos y QR del donativo) |
 
 ## 3. Lo más usado
@@ -61,6 +61,7 @@ Salen en una ventana sobre cualquier pantalla:
 | SIGNAL K ALARM / EMERGENCY | Aviso del servidor Signal K |
 | RS485 COMPARTIDO | La salida al piloto usa el mismo puerto por el que entran datos |
 | NAVTEX SAR / DISTRESS | Mensaje NAVTEX de asunto D (salvamento, socorro, piratería) |
+| DSC DISTRESS | Llamada LSD de socorro: alerta, retransmisión o acuse (IR A pone rumbo a la posición) |
 | Avisos oficiales (RED / ORANGE / YELLOW WARNING, EARTHQUAKE, TSUNAMI, SPACE WEATHER) | Aviso nuevo de AEMET, MeteoAlarm, NWS, tsunami.gov, USGS / EMSC o SWPC por la WiFi (*Ajustes > Red*: zonas y país) |
 
 **En esta versión las alertas no suenan**: falta el zumbador.

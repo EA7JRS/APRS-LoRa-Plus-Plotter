@@ -12,6 +12,7 @@
 #include "aistargets.h"
 #include "deviation.h"
 #include "navtex.h"
+#include "dsc.h"
 #include "nmea.h"
 #include "store.h"
 
@@ -70,5 +71,7 @@ plotter::DeviationCard& deviationCard();
 void saveDeviationCard();               // la guarda en los ajustes
 // Mensajes NAVTEX que llegan en sentencias NRX (receptor NAVTEX de a bordo o la app APRS LoRa+ por su servidor NMEA)
 plotter::NavtexLog& navtex();
+// Llamadas LSD / DSC (sentencia DSC de una emisora con LSD o de la app APRS LoRa+)
+plotter::DscLog& dsc();
 void injectLine(const char* line);      // pruebas: una sentencia como si llegara por la red
 }

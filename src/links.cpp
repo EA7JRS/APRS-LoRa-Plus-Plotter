@@ -143,12 +143,20 @@ static plotter::DeviationCard devCard;
 static plotter::NrxAssembler nrx;
 static plotter::NavtexLog navtexLog;
 
+static plotter::DscLog dscLog;
+
 plotter::NavtexLog& navtex() { return navtexLog; }
+plotter::DscLog& dsc() { return dscLog; }
 static void extraLine(const char* line);
 void injectLine(const char* line) { extraLine(line); }
 
-// Sentencias que no van a la tabla de datos: NRX (NAVTEX)
+// Sentencias que no van a la tabla de datos: NRX (NAVTEX) y DSC (llamadas LSD)
 static void extraLine(const char* line) {
+    if (strstr(line, "DSC,")) {
+        plotter::DscCall c;
+        if (plotter::parseDscSentence(line, c)) { c.utc = tsync::now(); dscLog.add(c); }
+        return;
+    }
     if (!strstr(line, "NRX,")) return;
     if (nrx.feed(line)) {
         plotter::NavtexMessage m;

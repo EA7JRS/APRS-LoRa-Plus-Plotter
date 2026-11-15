@@ -30,7 +30,7 @@ On power-up the APRS LoRa+ welcome screen (logo and version) shows for a couple 
 | Radar AIS | Targets around the boat, with collision risk |
 | Viento (Wind) | Apparent and true wind dial, and a 10-minute history |
 | Piloto (Pilot) | Course to steer, cross-track error and data for the autopilot (Raymarine ST2000+ or generic) |
-| Meteo (Weather) | Pressure, temperature (with feels-like), humidity (with dew point), wind, gust, visibility, sun and moon; **NAVTEX** button with the messages received (NRX) |
+| Meteo (Weather) | Pressure, temperature (with feels-like), humidity (with dew point), wind, gust, visibility, sun and moon; **NAVTEX** button with the messages received (NRX) and **LSD** button with the DSC calls |
 | Ajustes (Settings) | Simulator, serial port, brightness, units, base map, NMEA 2000, network, Bluetooth and «Acerca de» (About: version, licence, credits and donation QR) |
 
 ## 3. Everyday tasks
@@ -64,6 +64,7 @@ They appear in a window over any screen:
 | SIGNAL K ALARM / EMERGENCY | Notification from the Signal K server |
 | RS485 COMPARTIDO (shared RS485) | The pilot output uses the same port data is coming in on |
 | NAVTEX SAR / DISTRESS | NAVTEX message of subject D (search and rescue, distress, piracy) |
+| DSC DISTRESS | DSC distress call: alert, relay or acknowledgement (IR A, "go to", steers to the position) |
 | Official alerts (RED / ORANGE / YELLOW WARNING, EARTHQUAKE, TSUNAMI, SPACE WEATHER) | New alert from AEMET, MeteoAlarm, NWS, tsunami.gov, USGS / EMSC or SWPC over Wi-Fi (*Ajustes > Red*: zones and country) |
 
 **In this version alerts make no sound**: the buzzer is not implemented yet.

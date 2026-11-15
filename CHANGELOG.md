@@ -2,6 +2,7 @@
 
 ## Sin publicar
 
+- **LSD / DSC**: sentencia DSC de NMEA 0183 de una emisora con LSD o de la app APRS LoRa+ (que decodifica el canal 70 y MF / HF), por el RS485, la red o Bluetooth; Meteo > **LSD** con la lista (repeticiones en 10 min, tocar una con posición pone rumbo a ella) y ventana **DSC DISTRESS** para alertas, retransmisiones y acuses de socorro (IR A). Núcleo `dsc` (18 comprobaciones; 1894 en total).
 - **NAVTEX**: sentencias NRX (forma de Furuno y de IEC 61162-1) de un receptor NAVTEX o de la app APRS LoRa+, por el RS485, la red o Bluetooth; Meteo > **NAVTEX** con la lista (tocar uno con posición pone rumbo a ella) y ventana **NAVTEX SAR / DISTRESS** para el asunto D. Las posiciones de los avisos aceptan también la forma compacta «3607.5N 00521.2W». Núcleo `navtex` (16 comprobaciones; 1876 en total).
 
 - **Astro > Desvío (Ct): corrección total y tablilla de desvíos.** Demora de aguja de un astro (Sol, Luna, planetas, estrellas, botón *Polar*) + hora UTC → azimut verdadero, corrección total, declinación del WMM y desvío al rumbo de aguja (*Proa* toma el del compás). *A la tablilla* guarda la observación (24 como mucho, una por proa); la tablilla ajusta los coeficientes A–E por mínimos cuadrados y da el desvío cada 30°. *Aplicar al rumbo* (apagado de serie) suma el desvío al rumbo magnético del compás antes de la declinación. Núcleo `deviation` (13 comprobaciones; 1860 en total); NVS `devCard`, `devOn`.

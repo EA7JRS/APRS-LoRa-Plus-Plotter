@@ -163,6 +163,7 @@ remembers its address and from then on only connects to that one. Turning it off
 |---|---|
 | APRS LoRa+ tracker (T-Beam Supreme) | Enter its **control PIN** in Ajustes > Red («PIN del tracker»). Factory default 123456. Gives position, weather and the APRS stations heard as AIS targets |
 | NAVTEX receiver with NMEA 0183 output (or the APRS LoRa+ app with its NMEA server) | Its NRX sentences reach Meteo > NAVTEX over RS485, the network or Bluetooth |
+| DSC radio with NMEA 0183 output (or the APRS LoRa+ app) | Its DSC sentence reaches Meteo > LSD over RS485 (at the port speed: 4800 baud needs the gateway), the network or Bluetooth |
 | APRS LoRa+ MAPRS transponder (LilyGO T3 v1.6.1) | Same as the tracker (control PIN). Gives the own vessel (`!AIVDO`) and the APRS LoRa AIS vessels heard, and receives the data of Ajustes > **Embarcación** (Vessel) |
 | XIAO gateway | Protocol in `BLE_NMEA.md` (Spanish). The gateway has not been adapted yet |
 | APRS LoRa+ Wind instrument | Sends the wind; the plotter sends it boat heading and speed once a second so it can compute true wind (section 5.6) |

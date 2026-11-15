@@ -286,6 +286,26 @@ texto; *LIST* lleva a la lista y *CLOSE* la cierra (ese mensaje no vuelve a abri
 
 El NAVTEX del plotter no sustituye al receptor oficial de a bordo.
 
+### LSD / DSC
+
+El botón **LSD** de la nota abre la lista de llamadas de llamada selectiva digital (DSC) recibidas, la más nueva arriba:
+formato (alerta de socorro, todos los buques, individual, grupo, zona), categoría, quién llama (MMSI y si es buque, estación
+costera, grupo, SART...), hora y, en las de socorro, la naturaleza, la posición con su hora, la distancia y la demora. La
+misma llamada repetida en 10 minutos solo suma una repetición («×3»). Llegan en la sentencia **DSC** de NMEA 0183 por el
+RS485, la red o Bluetooth: de una emisora con LSD (Icom IC-M423GE / IC-M330GE, Standard Horizon, Garmin...) o de la **app
+APRS LoRa+**, que las decodifica del canal 70 o de MF / HF (Modos > DSC VHF / DSC HF) y las manda por su servidor NMEA. Tocar
+una con posición pone rumbo a ella en la Carta.
+
+![LSD](img/dsc_lista.png)
+
+Una alerta de socorro, o la retransmisión o el acuse de una, abre la ventana **DSC DISTRESS** con el MMSI del buque en
+peligro, la naturaleza, la posición y quién la envía; **IR A** pone rumbo a la posición (o abre la lista si no la trae) y
+**CLOSE** la cierra.
+
+![DSC DISTRESS](img/dsc_alerta.png)
+
+El plotter solo muestra lo que recibe la emisora: no transmite ni contesta llamadas LSD.
+
 ## 9. Ajustes
 
 ![Ajustes](img/ajustes.png)

@@ -37,6 +37,7 @@ Versión 5.4.4, preliminar. El núcleo de cálculo (`lib/plotter_core`) no depen
 | `astro` | Orto, ocaso, crepúsculos, posición del sol y de la luna, fase |
 | `celnav` | Navegación astronómica: Sol, Luna, Venus, Marte, Júpiter, Saturno y 157 estrellas con precisión de almanaque; correcciones de altura, recta de altura, traslado, situación, astros visibles y las tres estrellas que mejor se cortan |
 | `navtex` | Mensajes NAVTEX por NRX (Furuno e IEC 61162-1), asuntos, horario de cada estación y lista |
+| `dsc` | Llamadas LSD / DSC por la sentencia DSC: posición, naturaleza, tipo de MMSI y lista con repeticiones |
 | `deviation` | Corrección total (Ct = Zv − Za), desvío (Ct − dm) y tablilla de desvíos con los coeficientes A–E por mínimos cuadrados |
 | `store` | Tabla única de datos con fuente, hora y prioridad |
 | `nmea` | NMEA 0183: RMC, GLL, VTG, DPT, DBT, MWV, HDT, VHW, MTW, VDM, VDO |

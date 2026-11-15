@@ -21,6 +21,7 @@
 #include "celnav.h"
 #include "deviation.h"
 #include "navtex.h"
+#include "dsc.h"
 #include "chartui.h"
 #include "geo.h"
 #include "gpx.h"
@@ -2244,6 +2245,40 @@ static void testDeviation() {
     CHECK(full.n == DeviationCard::kMax && near(full.p[0].compassHdg, 72.0, 1e-6));
 }
 
+static void testDsc() {
+    // la sentencia que manda la app APRS LoRa+ (y una emisora con LSD) con una alerta de socorro: 36 07 N 005 21 W a las 14:23
+    DscCall c;
+    char line[120];
+    snprintf(line, sizeof line, "$CDDSC,12,2241234500,12,05,00,1360700521,1423,,,S,");
+    char full[140];
+    snprintf(full, sizeof full, "%s*%02X", line, nmeaChecksum(line + 1));
+    CHECK(parseDscSentence(full, c));
+    CHECK(c.format == 12 && c.mmsi == "224123450" && c.category == 12 && c.nature() == 5 && c.f5 == 0 && c.time == "1423" && c.ack == 'S');
+    CHECK(c.distress() && c.ship() == "224123450" && c.hasPos);
+    NEAR(c.pos.lat, 36 + 7 / 60.0, 1e-9); NEAR(c.pos.lon, -(5 + 21 / 60.0), 1e-9);
+    full[strlen(full) - 1] = full[strlen(full) - 1] == '0' ? '1' : '0';
+    CHECK(!parseDscSentence(full, c));                               // suma mal
+    // retransmision de una costera a todos los buques: el buque en peligro va en el campo 8
+    CHECK(parseDscSentence("$CDDSC,16,0022410260,12,12,00,1280601524,,2241234500,01,S,", c));
+    CHECK(c.format == 16 && c.mmsi == "002241026" && c.distress() && c.ship() == "224123450" && c.nature() == 1 && c.time.empty() && c.hasPos);
+    NEAR(c.pos.lat, 28 + 6 / 60.0, 1e-9); NEAR(c.pos.lon, -(15 + 24 / 60.0), 1e-9);
+    CHECK(std::string(dscMmsiKindEs(c.mmsi)) == "estaci\xC3\xB3n costera" && std::string(dscTelecommandEs(c.f4)) == "Retransmisi\xC3\xB3n de socorro");
+    // llamada individual de rutina con canal: sin posicion
+    CHECK(parseDscSentence("CDDSC,20,2240001110,00,00,26,900072,,,,R,", c));
+    CHECK(c.format == 20 && !c.distress() && !c.hasPos && c.field6 == "900072" && c.ack == 'R');
+    LatLon p;
+    CHECK(!dscPosition("9999999999", p) && !dscPosition("0369900521", p) && dscPosition("3123401054", p) && p.lat < 0 && p.lon < 0);
+    CHECK(!parseDscSentence("$GPRMC,1,2,3", c));
+    // la lista: una repeticion en 10 min solo cuenta
+    DscLog log;
+    DscCall a; parseDscSentence("$CDDSC,12,2241234500,12,05,00,1360700521,1423,,,S,", a); a.utc = 1000;
+    CHECK(log.add(a));
+    a.utc = 1100;
+    CHECK(!log.add(a) && log.items().size() == 1 && log.items()[0].repeats == 2);
+    a.utc = 1100 + 700;
+    CHECK(log.add(a) && log.items().size() == 2);
+}
+
 static void testNavtex() {
     std::vector<LatLon> p;
     CHECK(navWarningPositions("WRECK 3607.5N 00521.2W AND 3631N 00617W, NOT 2026 12345N", p) == 2);
@@ -2291,6 +2326,7 @@ int main() {
     testCelnav();
     testDeviation();
     testNavtex();
+    testDsc();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

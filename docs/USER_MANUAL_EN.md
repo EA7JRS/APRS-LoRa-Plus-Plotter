@@ -287,6 +287,26 @@ A message of subject **D** (search and rescue, distress, piracy) opens the **NAV
 
 The plotter's NAVTEX is no substitute for the official receiver on board.
 
+### LSD / DSC
+
+The **LSD** button (*llamada selectiva digital*, digital selective calling) in the note opens the list of DSC calls received,
+newest first: format (*Alerta de socorro* distress alert, *Todos los buques* all ships, *Llamada individual*, *a grupo*,
+*a zona*), category, who calls (MMSI and whether it is a ship, *estación costera* coast station, group, SART...), time and,
+for distress calls, the nature, the position with its time, distance and bearing. The same call repeated within 10 minutes
+only adds a repeat ("×3"). They arrive in the NMEA 0183 **DSC** sentence over RS485, the network or Bluetooth: from a DSC
+radio (Icom IC-M423GE / IC-M330GE, Standard Horizon, Garmin...) or from the **APRS LoRa+ app**, which decodes channel 70 or
+MF / HF (Modes > DSC VHF / DSC HF) and sends them through its NMEA server. Tapping one with a position steers to it on the Chart.
+
+![LSD](img/dsc_lista.png)
+
+A distress alert, or its relay or acknowledgement, opens the **DSC DISTRESS** window with the MMSI of the ship in distress,
+the nature, the position and who sent it; **IR A** ("go to") steers to the position (or opens the list if there is none) and
+**CLOSE** closes it.
+
+![DSC DISTRESS](img/dsc_alerta.png)
+
+The plotter only shows what the radio receives: it never transmits or answers DSC calls.
+
 ## 9. Ajustes (Settings)
 
 ![Settings](img/ajustes.png)

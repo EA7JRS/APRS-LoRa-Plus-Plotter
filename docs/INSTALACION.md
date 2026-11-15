@@ -159,6 +159,7 @@ dirección y desde entonces solo se conecta a ese. Apagar y encender lo olvida.
 |---|---|
 | Tracker APRS LoRa+ (T-Beam Supreme) | Hay que poner su **PIN de control** en Ajustes > Red («PIN del tracker»). De fábrica, 123456. Da posición, meteorología y las estaciones APRS oídas como blancos AIS |
 | Receptor NAVTEX con salida NMEA 0183 (o la app APRS LoRa+ con su servidor NMEA) | Sus sentencias NRX llegan a Meteo > NAVTEX por el RS485, la red o Bluetooth |
+| Emisora con LSD y salida NMEA 0183 (o la app APRS LoRa+) | Su sentencia DSC llega a Meteo > LSD por el RS485 (a la velocidad del puerto: 4800 baudios necesita la pasarela), la red o Bluetooth |
 | APRS LoRa+ MAPRS transponder (LilyGO T3 v1.6.1) | Igual que el tracker (PIN de control). Da el barco propio (`!AIVDO`) y los barcos APRS LoRa AIS oídos, y recibe los datos de Ajustes > **Embarcación** |
 | Pasarela XIAO | Protocolo en `BLE_NMEA.md`. La pasarela todavía no está adaptada |
 | Instrumento de viento APRS LoRa+ Wind | Manda el viento; el plotter le manda rumbo y velocidad del barco una vez por segundo para que calcule el viento real (apartado 5.6) |

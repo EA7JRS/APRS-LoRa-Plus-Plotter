@@ -102,7 +102,7 @@ static lv_obj_t* lblAisBadge = nullptr;
 static uint32_t rowMmsi[kRows] = {};
 
 // Ventana centrada sobre cualquier pantalla: ficha de un blanco o alerta de abordaje (la misma que las emergencias de la app)
-enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK, M_OFFICIAL, M_NAVTEX };
+enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK, M_OFFICIAL, M_NAVTEX, M_DSC };
 static lv_obj_t* modalBack = nullptr;
 static lv_obj_t* modalHead = nullptr;
 static lv_obj_t* modalTitle = nullptr;
@@ -576,10 +576,13 @@ static void closeOfficial();
 static void closeNavtexModal();
 static void openNavtexList();
 static void updateNavtexModal();
+static void closeDscModal(bool goTo);
+static void updateDscModal();
 static void startGoTo(LatLon dest, const char* name, bool mob);
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
     if (modalMode == M_OFFICIAL) { closeOfficial(); showTab(kMeteoTab); return; }   // LIST: la pestana Meteo
     if (modalMode == M_NAVTEX) { closeNavtexModal(); openNavtexList(); return; }    // LIST: los mensajes NAVTEX
+    if (modalMode == M_DSC) { closeDscModal(true); return; }                         // IR A la posicion (o LISTA)
     if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta
     if (modalMode == M_SIGNALK) { closeModal(); return; }  // el aviso sigue en el servidor; aqui solo se cierra
     if (modalMode == M_RS485) {                            // apagar la salida al piloto
@@ -603,6 +606,7 @@ static void onModalA(lv_event_t*) {                       // silenciar la alarma
 static void onModalB(lv_event_t*) {                       // cerrar
     if (modalMode == M_OFFICIAL) { closeOfficial(); return; }
     if (modalMode == M_NAVTEX) { closeNavtexModal(); return; }
+    if (modalMode == M_DSC) { closeDscModal(false); return; }
     if (modalMode == M_ANCHOR) {                           // cerrar: si sigue garreando vuelve en 2 min
         anchorQuiet = true;
         anchorQuietMs = millis() + 2 * 60000u;
@@ -849,6 +853,7 @@ static void updateModal() {
     if (modalMode == M_SIGNALK) { updateSkModal(); return; }
     if (modalMode == M_OFFICIAL) { updateOfficialModal(); return; }
     if (modalMode == M_NAVTEX) { updateNavtexModal(); return; }
+    if (modalMode == M_DSC) { updateDscModal(); return; }
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i < 0) { closeModal(); return; }
@@ -1060,6 +1065,183 @@ static void openNavtexList() {
     lv_obj_set_hidden(nvScr, false);
 }
 static void onNavtexOpen(lv_event_t*) { openNavtexList(); }
+
+
+// ---- LSD / DSC: llamadas por la sentencia DSC (emisora con LSD o la app); las de socorro abren la ventana ----
+static uint32_t dscSeq = 0;
+static std::vector<std::string> dscShown;                // llamadas ya vistas en la ventana
+static std::string dscModalKey;
+static lv_obj_t* dscScr = nullptr;
+static lv_obj_t* dscBox = nullptr;
+static lv_obj_t* dscNote = nullptr;
+static void openDscList();
+
+static const plotter::DscCall* dscFind(const std::string& k) {
+    for (const plotter::DscCall& c : links::dsc().items()) if (c.key() == k) return &c;
+    return nullptr;
+}
+
+static void dscWhere(char* o, size_t n, const plotter::DscCall& c) {
+    if (!c.hasPos) { snprintf(o, n, "Posici\xC3\xB3n: no la da"); return; }
+    char pos[48];
+    formatLatLon(pos, sizeof pos, c.pos, 1, true);
+    std::string ps(pos);
+    for (size_t i; (i = ps.find("\xE2\x80\xB2")) != std::string::npos;) ps.replace(i, 3, "'");
+    char dist[48] = "";
+    double la, lo;
+    const uint32_t now = millis();
+    if (store && store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) {
+        Measure m = measure({la, lo}, c.pos, false);
+        char d[20];
+        fmtDist(d, sizeof d, m.distanceNm, 1);
+        snprintf(dist, sizeof dist, " \xC2\xB7 %s \xC2\xB7 %03d\xC2\xB0", d, (int)lround(m.bearing) % 360);
+    }
+    if (c.time.size() == 4) snprintf(o, n, "%s a las %c%c:%c%c UTC%s", ps.c_str(), c.time[0], c.time[1], c.time[2], c.time[3], dist);
+    else snprintf(o, n, "%s%s", ps.c_str(), dist);
+}
+
+static void updateDscModal() {
+    const plotter::DscCall* c = dscFind(dscModalKey);
+    if (!c) { closeModal(); return; }
+    char sub[160], name[48], body[420], where[160];
+    lv_obj_set_style_bg_color(modalHead, lv_color_hex(C_RED), 0);
+    lv_label_set_text(modalTitle, "DSC DISTRESS");
+    const char* what = c->format == 12 ? "Alerta de socorro" : c->f4 == 10 ? "Acuse de socorro" : c->f4 == 12 ? "Retransmisi\xC3\xB3n de socorro" : "Llamada de socorro";
+    snprintf(sub, sizeof sub, "LSD \xC2\xB7 %s \xC2\xB7 %s", what, plotter::dscNatureEs(c->nature()));
+    lv_label_set_text(modalSub, sub);
+    snprintf(name, sizeof name, "MMSI %s", c->ship().c_str());
+    lv_label_set_text(modalName, name);
+    dscWhere(where, sizeof where, *c);
+    int n = snprintf(body, sizeof body, "%s", where);
+    if (c->format != 12) n += snprintf(body + n, sizeof body - (size_t)n, "\nLa env\xC3\xAD" "a %s (%s)", c->mmsi.c_str(), plotter::dscMmsiKindEs(c->mmsi));
+    if (c->format == 12 && c->f5 >= 0) n += snprintf(body + n, sizeof body - (size_t)n, "\nDespu\xC3\xA9s: %s", plotter::dscTelecommandEs(c->f5));
+    if (c->repeats > 1) snprintf(body + n, sizeof body - (size_t)n, "\nRecibida %d veces", c->repeats);
+    lv_label_set_text(modalBody, body);
+    lv_label_set_text(modalBtnALbl, c->hasPos ? "IR A" : "LIST");
+    lv_label_set_text(modalBtnBLbl, "CLOSE");
+}
+
+static void closeDscModal(bool goTo) {
+    const plotter::DscCall* c = dscFind(dscModalKey);
+    const bool hasPos = c && c->hasPos;
+    const LatLon p = c ? c->pos : LatLon{0, 0};
+    char name[24] = "";
+    if (c) snprintf(name, sizeof name, "LSD %s", c->ship().c_str());
+    dscShown.push_back(dscModalKey);
+    if (dscShown.size() > 40) dscShown.erase(dscShown.begin());
+    dscModalKey.clear();
+    closeModal();
+    if (!goTo) return;
+    if (hasPos) { startGoTo(p, name, false); showTab(1); } else openDscList();
+}
+
+static void refreshDscList();
+static void checkDsc() {
+    const plotter::DscLog& log = links::dsc();
+    if (log.seq() == dscSeq) return;
+    dscSeq = log.seq();
+    if (dscScr && !lv_obj_has_flag(dscScr, LV_OBJ_FLAG_HIDDEN)) refreshDscList();
+    if (modalMode == M_DSC) { updateDscModal(); return; }
+    if (modalMode != M_NONE) { dscSeq--; return; }
+    for (const plotter::DscCall& c : log.items()) {
+        if (!c.distress()) continue;
+        const std::string k = c.key();
+        bool seen = false;
+        for (const std::string& x : dscShown) if (x == k) seen = true;
+        if (seen) continue;
+        dscModalKey = k;
+        openModal(M_DSC, 0);
+        return;
+    }
+}
+
+static void onDscPick(lv_event_t* e) {
+    const int i = (int)(intptr_t)lv_event_get_user_data(e);
+    if (i < 0) { lv_obj_set_hidden(dscScr, true); return; }
+    const std::vector<plotter::DscCall>& v = links::dsc().items();
+    if (i >= (int)v.size() || !v[(size_t)i].hasPos) return;
+    char name[24];
+    snprintf(name, sizeof name, "LSD %s", v[(size_t)i].ship().c_str());
+    lv_obj_set_hidden(dscScr, true);
+    startGoTo(v[(size_t)i].pos, name, false);
+    showTab(1);
+}
+
+static void refreshDscList() {
+    lv_obj_clean(dscBox);
+    const std::vector<plotter::DscCall>& v = links::dsc().items();
+    char note[200];
+    snprintf(note, sizeof note, "%u llamadas (sentencia DSC de una emisora con LSD o de la app APRS LoRa+).%s", (unsigned)v.size(),
+             v.empty() ? "" : " Toca una con posici\xC3\xB3n para ir a ella.");
+    lv_label_set_text(dscNote, note);
+    for (size_t i = 0; i < v.size(); i++) {
+        const plotter::DscCall& c = v[i];
+        lv_obj_t* b = lv_button_create(dscBox);
+        lv_obj_remove_style_all(b);
+        lv_obj_set_width(b, 980);
+        lv_obj_set_height(b, LV_SIZE_CONTENT);
+        lv_obj_set_style_bg_color(b, lv_color_hex(C_PANEL), 0);
+        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(b, 8, 0);
+        lv_obj_set_style_pad_all(b, 10, 0);
+        lv_obj_set_style_border_color(b, lv_color_hex(c.distress() ? C_RED : C_LINE), 0);
+        lv_obj_set_style_border_width(b, c.distress() ? 2 : 1, 0);
+        lv_obj_set_flex_flow(b, LV_FLEX_FLOW_COLUMN);
+        lv_obj_add_event_cb(b, onDscPick, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+        char h[200], when[24] = "", rep[16] = "";
+        if (c.utc > 0) { const int sod = (int)(c.utc % 86400); snprintf(when, sizeof when, " \xC2\xB7 %02d:%02d UTC", sod / 3600, sod / 60 % 60); }
+        if (c.repeats > 1) snprintf(rep, sizeof rep, " \xC2\xB7 \xC3\x97%d", c.repeats);
+        snprintf(h, sizeof h, "%s%s%s \xC2\xB7 de %s (%s)%s%s", plotter::dscFormatEs(c.format), c.format == 12 ? "" : " \xC2\xB7 ",
+                 c.format == 12 ? "" : plotter::dscCategoryEs(c.category), c.mmsi.c_str(), plotter::dscMmsiKindEs(c.mmsi), when, rep);
+        lv_obj_t* l = label(b, h, &dejavu_bold_16, c.distress() ? C_RED : C_TEXT);
+        lv_obj_set_width(l, 958);
+        char t[300], where[160];
+        if (c.distress()) {
+            dscWhere(where, sizeof where, c);
+            snprintf(t, sizeof t, "%s%s%s \xC2\xB7 %s", c.format == 12 ? "" : plotter::dscTelecommandEs(c.f4), c.format == 12 ? "" : " \xC2\xB7 buque ",
+                     c.format == 12 ? plotter::dscNatureEs(c.nature()) : (c.ship() + " \xC2\xB7 " + plotter::dscNatureEs(c.nature())).c_str(), where);
+        } else {
+            char ch[16] = "";
+            if (c.field6.size() == 6 && c.field6[0] == '9') snprintf(ch, sizeof ch, " \xC2\xB7 canal %d", atoi(c.field6.c_str() + 2));
+            snprintf(t, sizeof t, "%s \xC2\xB7 %s%s", plotter::dscTelecommandEs(c.f4), plotter::dscTelecommandEs(c.f5), ch);
+        }
+        l = label(b, t, &dejavu_14, C_SOFT);
+        lv_obj_set_width(l, 958);
+    }
+}
+
+static void makeDscList() {
+    dscScr = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(dscScr);
+    lv_obj_set_size(dscScr, board::W, board::H);
+    lv_obj_set_style_bg_color(dscScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(dscScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(dscScr, false);
+    lv_obj_set_clickable(dscScr, true);
+    lv_obj_t* t = label(dscScr, "LSD / DSC", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    lv_obj_t* b = textButton(dscScr, "Cerrar", 124, 48, onDscPick, -1);
+    lv_obj_set_pos(b, 884, 8);
+    dscNote = label(dscScr, "", &dejavu_14, C_SOFT);
+    lv_obj_set_pos(dscNote, 16, 64);
+    lv_obj_set_width(dscNote, 860);
+    dscBox = lv_obj_create(dscScr);
+    lv_obj_remove_style_all(dscBox);
+    lv_obj_set_pos(dscBox, 16, 116);
+    lv_obj_set_size(dscBox, 992, board::H - 126);
+    lv_obj_set_flex_flow(dscBox, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_gap(dscBox, 8, 0);
+    lv_obj_set_scroll_dir(dscBox, LV_DIR_VER);
+    lv_obj_set_hidden(dscScr, true);
+}
+
+static void openDscList() {
+    if (!dscScr) makeDscList();
+    refreshDscList();
+    lv_obj_scroll_to_y(dscBox, 0, LV_ANIM_OFF);
+    lv_obj_set_hidden(dscScr, false);
+}
+static void onDscOpen(lv_event_t*) { openDscList(); }
 
 // Aviso oficial nuevo: la ventana, si no hay otra de mas prioridad abierta
 static void checkOfficial() {
@@ -2796,6 +2978,18 @@ void testNavtex(bool list) {
     if (list) { closeModal(); nvShown.push_back("XD12@518"); openNavtexList(); }
 }
 
+// Para las pruebas en el PC: llamadas LSD de ejemplo (una alerta de socorro abre la ventana) y la lista
+void testDsc(bool list) {
+    static const char* const lines[] = {
+        "$CDDSC,20,2240001110,00,00,26,900072,,,,R,",
+        "$CDDSC,16,0022410240,08,18,26,,,,,S,",
+        "$CDDSC,12,2241234500,12,05,00,0383000016,1402,,,S,",
+        "$CDDSC,16,0022410240,12,12,00,0383000016,1402,2241234500,05,S,",
+    };
+    for (const char* l : lines) links::injectLine(l);
+    if (list) { closeModal(); dscShown.push_back(links::dsc().items().back().key()); for (const plotter::DscCall& c : links::dsc().items()) dscShown.push_back(c.key()); openDscList(); }
+}
+
 void closeAstro() { if (astroScr) lv_obj_set_hidden(astroScr, true); if (ctScr) lv_obj_set_hidden(ctScr, true); }
 void testAstroList() { if (!astroScr) return; lv_obj_set_hidden(astroScr, false); openAstroList(); }
 
@@ -3653,7 +3847,9 @@ static void makeMeteo(lv_obj_t* page) {
     lv_obj_align(mNote, LV_ALIGN_TOP_LEFT, 14, 12);
     lv_obj_set_width(mNote, 836);
     mNavtexBtn = textButton(nbox, "NAVTEX", 130, 44, onNavtexOpen, 0);
-    lv_obj_align(mNavtexBtn, LV_ALIGN_TOP_RIGHT, -10, 10);
+    lv_obj_align(mNavtexBtn, LV_ALIGN_TOP_RIGHT, -10, 4);
+    lv_obj_t* dscBtn = textButton(nbox, "LSD", 130, 44, onDscOpen, 0);
+    lv_obj_align(dscBtn, LV_ALIGN_BOTTOM_RIGHT, -10, -4);
     lv_obj_set_style_text_line_space(mNote, 6, 0);
 }
 
@@ -4220,6 +4416,7 @@ void update() {
     checkCollision();
     checkOfficial();
     checkNavtex();
+    checkDsc();
     updateModal();
     showEngine(T_RPM, Key::Rpm, 0, 1.0, false);
     showEngine(T_COOL, Key::CoolantTemp, 0, 1.0, true);

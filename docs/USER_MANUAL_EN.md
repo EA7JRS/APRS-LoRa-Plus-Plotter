@@ -158,6 +158,26 @@ The chart's **Corriente** button opens a screen with three things:
 
 ![Current from dead reckoning](img/corriente_estima.png)
 
+### Demoras (bearings)
+
+The chart's **Demoras** button gives a fix from two bearings of known points: the lights of the card's list within 40
+miles and the waypoints, nearest first (`<` `>` to pick each one).
+
+- **Simultaneous bearings**: two different points, both bearings at the same time.
+- **Running fix** (*demora trasladada*): the same point or two different ones, with some time in between. Press **Ahora**
+  (now) as you take each bearing; with the **course made good** and **speed made good** (**GPS** copies them) the first
+  line is advanced for the run.
+- **Total correction** (*Corrección total*, + E): for compass bearings the plotter adds Ct (**Ct** fills it with the WMM
+  variation and, if there is a deviation card, the deviation on the present compass heading). With 0 the bearings are true.
+
+**Calcular y trazar** (compute and plot) gives the fix, the distance to the second point, the angle of cut (warns below
+30°; below 10° there is no fix) and the difference from the GPS, and draws both lines in orange (the advanced one
+fainter) and the fix on the chart. **Borrar** clears them.
+
+![Running fix](img/demoras_trasladada.png)
+
+![Fix from bearings on the chart](img/carta_demoras.png)
+
 ### Astro: line of position
 
 The **Astro** button on the chart opens *Recta de altura* (line of position), to fix your position with a sextant, with no tables or almanac:

@@ -68,6 +68,8 @@ int main(int argc, char** argv) {
             else if (a == "barco") ui::testVessel();
             else if (a.rfind("astro:", 0) == 0) { size_t c = a.find(':', 6); ui::testAstro(a.substr(6, c == std::string::npos ? c : c - 6).c_str(), c == std::string::npos ? 0.0 : atof(a.c_str() + c + 1)); }
             else if (a.rfind("astrolat:", 0) == 0) { size_t c = a.find(':', 9); ui::testAstro(a.substr(9, c == std::string::npos ? c : c - 9).c_str(), c == std::string::npos ? 0.0 : atof(a.c_str() + c + 1), true); }
+            else if (a == "demorascerrar") ui::closeBearings();
+            else if (a.rfind("demoras:", 0) == 0) { int m = 0; sscanf(a.c_str(), "demoras:%d", &m); ui::testBearings(m); }
             else if (a.rfind("corriente", 0) == 0) { int m = 0, mi = 90; sscanf(a.c_str(), "corriente:%d:%d", &m, &mi); ui::testCurrent(m, mi); }
             else if (a == "astrocerrar") ui::closeAstro();
             else if (a == "astrolista") ui::testAstroList();

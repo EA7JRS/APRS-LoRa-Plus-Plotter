@@ -154,6 +154,26 @@ El botón **Corriente** de la carta abre una pantalla con tres cosas:
 
 ![Corriente por la estima](img/corriente_estima.png)
 
+### Demoras
+
+El botón **Demoras** de la carta da la situación por dos demoras a puntos conocidos: las luces de la lista de la tarjeta a
+menos de 40 millas y los waypoints, del más cercano al más lejano (`<` `>` para elegir cada uno).
+
+- **Demoras simultáneas**: dos puntos distintos, las dos demoras a la vez.
+- **Demora trasladada** (no simultáneas): el mismo punto o dos distintos, con un rato entre medias. Pulsa **Ahora** al tomar
+  cada demora; con el **rumbo efectivo** y la **velocidad efectiva** (**GPS** los copia) la primera línea se traslada por el
+  camino hecho.
+- **Corrección total** (+ E): si las demoras son de aguja, el plotter les suma la Ct (**Ct** la pone con la declinación del
+  WMM y, si hay tablilla, el desvío al rumbo de aguja de ahora). Con 0 las demoras son verdaderas.
+
+**Calcular y trazar** da la situación, la distancia al segundo punto, el ángulo de corte (avisa por debajo de 30°; por
+debajo de 10° no hay situación) y la diferencia con el GPS, y dibuja las dos líneas en naranja (la trasladada, más
+tenue) y la situación en la carta. **Borrar** las quita.
+
+![Demora trasladada](img/demoras_trasladada.png)
+
+![Situación por demoras en la carta](img/carta_demoras.png)
+
 ### Astro: recta de altura
 
 El botón **Astro** de la carta abre *Recta de altura*, para situarse con el sextante sin tablas ni almanaque:

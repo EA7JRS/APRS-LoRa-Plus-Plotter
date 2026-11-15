@@ -10,6 +10,7 @@
 #include <cctype>
 #include <cmath>
 #include <ctime>
+#include <algorithm>
 #include <vector>
 
 #include "board.h"
@@ -39,6 +40,7 @@
 #include "astro.h"
 #include "celnav.h"
 #include "current.h"
+#include "bearingfix.h"
 #include "wmm.h"
 #include "wxcalc.h"
 
@@ -220,6 +222,11 @@ static lv_obj_t* lopLine[kLops] = {};
 static lv_point_precise_t lopPts[kLops][2];
 static lv_obj_t* lopLbl[kLops] = {};
 static lv_obj_t* astroFixMark = nullptr;
+static bool brgOn = false;                               // situacion por demoras: lineas y marca en la carta
+static LatLon brgFix{0, 0}, brgFirst{0, 0}, brgMark2{0, 0};   // brgFirst: punto 1 trasladado por el camino
+static lv_obj_t* brgLine[2] = {};
+static lv_point_precise_t brgPts[2][2];
+static lv_obj_t* brgFixMark = nullptr;
 static lv_obj_t* astroScr = nullptr;
 static lv_obj_t* astroTa[5] = {};                       // grados, minutos, error de indice, elevacion del ojo, hora UTC
 static lv_obj_t* astroKb = nullptr;
@@ -235,6 +242,8 @@ static void openAstro();
 static void onAstroOpen(lv_event_t*) { openAstro(); }
 static void openCurrent();                               // Carta > Corriente
 static void onCurrentOpen(lv_event_t*) { openCurrent(); }
+static void openBearings();                              // Carta > Demoras
+static void onBearingsOpen(lv_event_t*) { openBearings(); }
 static void openCt();                                    // Astro > Desvio (Ct): correccion total y tablilla de desvios
 static lv_obj_t* ctScr = nullptr;
 static lv_obj_t* ctTa[3] = {};                           // demora de aguja, rumbo de aguja, hora UTC
@@ -1790,6 +1799,21 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_align(asb, LV_ALIGN_TOP_RIGHT, -68, 128);
     lv_obj_t* cub = textButton(chart, "Corriente", 110, 46, onCurrentOpen, 0);
     lv_obj_align(cub, LV_ALIGN_TOP_RIGHT, -68, 188);
+    lv_obj_t* dmb = textButton(chart, "Demoras", 110, 46, onBearingsOpen, 0);
+    lv_obj_align(dmb, LV_ALIGN_TOP_RIGHT, -68, 248);
+    for (int i = 0; i < 2; i++) {                         // lineas de la situacion por demoras
+        brgLine[i] = lv_line_create(chart);
+        lv_obj_set_style_line_color(brgLine[i], lv_color_hex(0xFF9F43), 0);
+        lv_obj_set_style_line_width(brgLine[i], 3, 0);
+        if (i == 0) lv_obj_set_style_line_opa(brgLine[i], 150, 0);   // la primera (trasladada), mas tenue
+        lv_obj_set_hidden(brgLine[i], true);
+    }
+    brgFixMark = box(chart, C_INK, 9);
+    lv_obj_set_size(brgFixMark, 18, 18);
+    lv_obj_set_style_border_color(brgFixMark, lv_color_hex(0xFF9F43), 0);
+    lv_obj_set_style_border_width(brgFixMark, 3, 0);
+    lv_obj_set_clickable(brgFixMark, false);
+    lv_obj_set_hidden(brgFixMark, true);
     chCenterBtn = textButton(chart, "Centrar barco", 170, 46, onCenter, 0);
     lv_obj_align(chCenterBtn, LV_ALIGN_TOP_RIGHT, -68, 8);
     chScaleBar = box(chart, C_TEXT);
@@ -2004,6 +2028,29 @@ static void updateChart() {
         lv_obj_set_pos(astroFixMark, (int)lround(x) - 9, (int)lround(y) - 9);
         lv_obj_set_hidden(astroFixMark, !inside(x, y));
     } else lv_obj_set_hidden(astroFixMark, true);
+    if (brgOn) {                                          // demoras: del punto (el 1, trasladado) a la situacion y una milla mas
+        double fx, fy;
+        toScreen(brgFix, fx, fy);
+        const LatLon from[2] = {brgFirst, brgMark2};
+        for (int i = 0; i < 2; i++) {
+            double px, py;
+            toScreen(from[i], px, py);
+            const double dx = fx - px, dy = fy - py, len = hypot(dx, dy);
+            double ex = fx, ey = fy;
+            if (len > 1e-6) { double x1, y1; toScreen(gcDestination(brgFix, rhumbBearing(from[i], brgFix), 1.0), x1, y1); ex = x1; ey = y1; }
+            if (fabs(px) > 6000 || fabs(py) > 6000 || fabs(ex) > 6000 || fabs(ey) > 6000) { lv_obj_set_hidden(brgLine[i], true); continue; }
+            brgPts[i][0] = {(lv_value_precise_t)px, (lv_value_precise_t)py};
+            brgPts[i][1] = {(lv_value_precise_t)ex, (lv_value_precise_t)ey};
+            lv_line_set_points(brgLine[i], brgPts[i], 2);
+            lv_obj_set_hidden(brgLine[i], false);
+        }
+        lv_obj_set_pos(brgFixMark, (int)lround(fx) - 9, (int)lround(fy) - 9);
+        lv_obj_set_hidden(brgFixMark, !inside(fx, fy));
+    } else {
+        lv_obj_set_hidden(brgLine[0], true);
+        lv_obj_set_hidden(brgLine[1], true);
+        lv_obj_set_hidden(brgFixMark, true);
+    }
 
     // Destino y linea desde el barco
     if (navOn) {
@@ -4893,6 +4940,257 @@ void testCurrent(int mode, int mins) {
     } else curSteer();
     curLiveText();
 }
+
+// ---- Carta > Demoras: situacion por dos demoras, simultaneas o no (demora trasladada) ----
+struct BrgPoint { LatLon p; char name[40]; };
+static std::vector<BrgPoint> brgPoints;
+static int brgSel[2] = {0, 0};
+static int64_t brgT[2] = {0, 0};
+static lv_obj_t* brgScr = nullptr;
+static lv_obj_t* brgTa[5] = {};      // demora 1, demora 2, rumbo, velocidad, correccion total
+static lv_obj_t* brgKb = nullptr;
+static lv_obj_t* brgPtLbl[2] = {};
+static lv_obj_t* brgTimeLbl[2] = {};
+static lv_obj_t* brgOut = nullptr;
+
+static double brgNum(int i, bool& ok) {
+    char d[16];
+    snprintf(d, sizeof(d), "%s", lv_textarea_get_text(brgTa[i]));
+    for (char* c = d; *c; c++) if (*c == ',') *c = '.';
+    ok = d[0] != 0 && !(d[0] == '-' && d[1] == 0);
+    return atof(d);
+}
+
+static void brgSet(int i, double v, int dec) {
+    char b[16];
+    snprintf(b, sizeof(b), "%.*f", dec, v);
+    decimalComma(b);
+    lv_textarea_set_text(brgTa[i], b);
+}
+
+// Puntos conocidos: luces de la tarjeta a menos de 40 millas y waypoints, del mas cercano al mas lejano
+static void brgCollect() {
+    brgPoints.clear();
+    const uint32_t now = millis();
+    double la, lo;
+    const bool own = store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo);
+    std::vector<std::pair<double, BrgPoint>> v;
+    for (const LightRecord& l : lightList) {
+        const double d = own ? gcDistanceNm({la, lo}, {l.lat, l.lon}) : 0;
+        if (own && d > 40) continue;
+        BrgPoint b;
+        b.p = {l.lat, l.lon};
+        snprintf(b.name, sizeof(b.name), "%s", l.name);
+        v.push_back({d, b});
+    }
+    for (int i = 0; i < wpN; i++) {
+        BrgPoint b;
+        b.p = wps[i].p;
+        snprintf(b.name, sizeof(b.name), "%s", wps[i].name);
+        v.push_back({own ? gcDistanceNm({la, lo}, wps[i].p) : 0, b});
+    }
+    std::sort(v.begin(), v.end(), [](const std::pair<double, BrgPoint>& a, const std::pair<double, BrgPoint>& b) { return a.first < b.first; });
+    for (size_t i = 0; i < v.size() && i < 60; i++) brgPoints.push_back(v[i].second);
+    for (int k = 0; k < 2; k++) if (brgSel[k] >= (int)brgPoints.size()) brgSel[k] = 0;
+}
+
+static void brgRefresh() {
+    for (int k = 0; k < 2; k++) {
+        char b[80];
+        if (brgPoints.empty()) snprintf(b, sizeof(b), "Punto %d: sin luces ni waypoints cerca", k + 1);
+        else snprintf(b, sizeof(b), "Punto %d: %s", k + 1, brgPoints[brgSel[k]].name);
+        lv_label_set_text(brgPtLbl[k], b);
+        if (brgT[k]) {
+            const int sod = (int)(((brgT[k] % 86400) + 86400) % 86400);
+            snprintf(b, sizeof(b), "%02d:%02d:%02d UTC", sod / 3600, sod / 60 % 60, sod % 60);
+        } else snprintf(b, sizeof(b), "%s", k == 0 ? "sin hora" : "ahora");
+        lv_label_set_text(brgTimeLbl[k], b);
+    }
+}
+
+static void brgCompute() {
+    if (brgPoints.empty()) { lv_label_set_text(brgOut, "Hacen falta puntos conocidos: la lista de luces de la tarjeta o waypoints."); return; }
+    bool ok[5];
+    const double d1 = brgNum(0, ok[0]), d2 = brgNum(1, ok[1]), rc = brgNum(2, ok[2]), sp = brgNum(3, ok[3]), ct = brgNum(4, ok[4]);
+    if (!ok[0] || !ok[1] || d1 < 0 || d1 >= 360 || d2 < 0 || d2 >= 360) { lv_label_set_text(brgOut, "Escribe las dos demoras (0 a 359\xC2\xB0)."); return; }
+    const int64_t t2 = brgT[1] ? brgT[1] : tsync::now();
+    double runNm = 0;
+    if (brgT[0] && t2 > brgT[0]) {
+        if (!ok[2] || !ok[3]) { lv_label_set_text(brgOut, "Demoras a horas distintas: escribe el rumbo efectivo y la velocidad (o pulsa GPS)."); return; }
+        runNm = sp * (t2 - brgT[0]) / 3600.0;
+    }
+    const double c = ok[4] ? ct : 0;
+    const BrgPoint& a = brgPoints[brgSel[0]];
+    const BrgPoint& b = brgPoints[brgSel[1]];
+    plotter::BearingFix f;
+    if (!plotter::fixFromBearings(a.p, norm360(d1 + c), b.p, norm360(d2 + c), ok[2] ? rc : 0, runNm, f)) {
+        char w[200];
+        snprintf(w, sizeof(w), f.cutDeg < 10 ? "Las dos l\xC3\xADneas son casi paralelas (corte de %.0f\xC2\xB0): elige puntos m\xC3\xA1s separados o espera a que cambie la demora."
+                                             : "Las l\xC3\xADneas se cortan detr\xC3\xA1s de los puntos: revisa las demoras y la correcci\xC3\xB3n total.", f.cutDeg);
+        decimalComma(w);
+        lv_label_set_text(brgOut, w);
+        brgOn = false;
+        return;
+    }
+    brgOn = true;
+    brgFix = f.fix;
+    brgFirst = {a.p.lat + (f.fix.lat - f.first.lat), a.p.lon + (f.fix.lon - f.first.lon)};   // el punto 1 trasladado
+    brgMark2 = b.p;
+    char p[48], o[420];
+    formatLatLon(p, sizeof(p), f.fix, 1, true);
+    for (char* q = p; *q; q++) if ((unsigned char)q[0] == 0xE2 && (unsigned char)q[1] == 0x80 && (unsigned char)q[2] == 0xB2) { q[0] = '\''; memmove(q + 1, q + 3, strlen(q + 3) + 1); }
+    int n = snprintf(o, sizeof(o), "Situaci\xC3\xB3n: %s \xC2\xB7 a %.1f mn de %s \xC2\xB7 corte %.0f\xC2\xB0%s", p, f.dist2Nm, b.name, f.cutDeg,
+                     f.cutDeg < 30 ? " (corte malo: poco fiable)" : "");
+    if (runNm > 0 && n > 0 && n < (int)sizeof(o))
+        n += snprintf(o + n, sizeof(o) - (size_t)n, "\nCamino entre las dos demoras: %.1f mn al %03.0f\xC2\xB0 (primera l\xC3\xADnea trasladada).", runNm, rc);
+    const uint32_t now = millis();
+    double la, lo;
+    if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo) && n > 0 && n < (int)sizeof(o))
+        snprintf(o + n, sizeof(o) - (size_t)n, "\nEl GPS est\xC3\xA1 a %.2f mn al %03.0f\xC2\xB0 de esa situaci\xC3\xB3n. Dibujada en la carta.", gcDistanceNm(f.fix, {la, lo}), rhumbBearing(f.fix, {la, lo}));
+    decimalComma(o);
+    lv_label_set_text(brgOut, o);
+}
+
+static void onBrgBtn(lv_event_t* e) {
+    const int a = (int)(intptr_t)lv_event_get_user_data(e);
+    const uint32_t now = millis();
+    const int np = (int)brgPoints.size();
+    double v, w;
+    if (a == 1) brgCompute();
+    else if (a == 2) { brgOn = false; brgT[0] = brgT[1] = 0; lv_label_set_text(brgOut, "Borrado."); }
+    else if (a >= 10 && a < 14 && np) { const int k = (a - 10) / 2; brgSel[k] = (brgSel[k] + ((a % 2) ? 1 : np - 1)) % np; }
+    else if (a == 14 || a == 15) brgT[a - 14] = tsync::now();
+    else if (a == 16) {                                   // rumbo y velocidad del GPS
+        if (store->get(Key::Cog, now, v) && store->get(Key::Sog, now, w)) { brgSet(2, v, 0); brgSet(3, w, 1); }
+        else lv_label_set_text(brgOut, "No llegan rumbo y velocidad del GPS.");
+    } else if (a == 17) {                                 // correccion total = declinacion + desvio al rumbo de aguja
+        const links::Status& ls = links::status();
+        double hm;
+        if (!ls.hasDeclination) lv_label_set_text(brgOut, "Sin declinaci\xC3\xB3n: hace falta la posici\xC3\xB3n.");
+        else {
+            const plotter::DeviationCard& card = links::deviationCard();
+            const double dev = card.terms && store->get(Key::HeadingMag, now, hm) ? card.at(hm) : 0;
+            brgSet(4, ls.declination + dev, 1);
+        }
+    } else if (a == 0) { lv_obj_set_hidden(brgScr, true); return; }
+    brgRefresh();
+}
+
+static void onBrgField(lv_event_t* e) { lv_keyboard_set_textarea(brgKb, (lv_obj_t*)lv_event_get_target(e)); }
+
+static void makeBearings() {
+    brgScr = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(brgScr);
+    lv_obj_set_size(brgScr, board::W, board::H);
+    lv_obj_set_style_bg_color(brgScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(brgScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(brgScr, false);
+    lv_obj_set_clickable(brgScr, true);
+    lv_obj_t* t = label(brgScr, "Demoras", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    static const struct { const char* txt; int x, y, w, a; } B[] = {
+        {"Calcular y trazar", 470, 8, 220, 1}, {"Borrar", 698, 8, 124, 2}, {"Cerrar", 884, 8, 124, 0},
+        {"<", 16, 64, 52, 10}, {">", 76, 64, 52, 11}, {"Ahora", 772, 64, 100, 14},
+        {"<", 16, 122, 52, 12}, {">", 76, 122, 52, 13}, {"Ahora", 772, 122, 100, 15},
+        {"GPS", 442, 200, 90, 16}, {"Ct", 772, 200, 90, 17}};
+    for (const auto& d : B) {
+        lv_obj_t* b = textButton(brgScr, d.txt, d.w, 48, onBrgBtn, d.a);
+        lv_obj_set_pos(b, d.x, d.y);
+    }
+    for (int k = 0; k < 2; k++) {
+        brgPtLbl[k] = label(brgScr, "", &dejavu_16, C_TEXT);
+        lv_obj_set_pos(brgPtLbl[k], 140, 78 + 58 * k);
+        lv_obj_set_width(brgPtLbl[k], 400);
+        lv_label_set_long_mode(brgPtLbl[k], LV_LABEL_LONG_DOT);
+        brgTimeLbl[k] = label(brgScr, "", &dejavu_16, C_SOFT);
+        lv_obj_set_pos(brgTimeLbl[k], 884, 78 + 58 * k);
+    }
+    static const struct { int x, y, w, max; const char* hint; const char* chars; } F[5] = {
+        {556, 64, 200, 5, "Demora 1, \xC2\xB0", "0123456789.,"}, {556, 122, 200, 5, "Demora 2, \xC2\xB0", "0123456789.,"},
+        {16, 200, 200, 5, "Rumbo, \xC2\xB0", "0123456789.,"}, {226, 200, 200, 4, "Velocidad, kn", "0123456789.,"},
+        {556, 200, 200, 5, "Ct, \xC2\xB0 (+E)", "-0123456789.,"}};
+    static const char* const cap[5] = {"", "", "Rumbo efectivo (\xC2\xB0)", "Velocidad efectiva (kn)", "Correcci\xC3\xB3n total (\xC2\xB0, + E)"};
+    lv_obj_t* keep = vesScr;                              // vesField crea sus campos en vesScr: se le presta esta pantalla
+    lv_obj_t* keepTa[5];
+    for (int i = 0; i < 5; i++) keepTa[i] = vesTa[i];
+    vesScr = brgScr;
+    for (int i = 0; i < 5; i++) {
+        lv_obj_t* ta = vesField(i, F[i].x, F[i].y, F[i].w, F[i].hint, F[i].max, F[i].chars);
+        lv_obj_remove_event_cb(ta, onVesField);
+        lv_obj_add_event_cb(ta, onBrgField, LV_EVENT_FOCUSED, nullptr);
+        lv_obj_add_event_cb(ta, onBrgField, LV_EVENT_CLICKED, nullptr);
+        brgTa[i] = ta;
+        vesTa[i] = keepTa[i];
+        if (cap[i][0]) { lv_obj_t* l = label(brgScr, cap[i], &dejavu_14, C_SOFT); lv_obj_set_pos(l, F[i].x + 2, F[i].y - 20); }
+    }
+    vesScr = keep;
+    lv_textarea_set_text(brgTa[4], "0");
+    brgOut = label(brgScr, "Elige los dos puntos (pueden ser el mismo), escribe cada demora y pulsa Ahora al tomarla. Con demoras a horas distintas, el rumbo y la velocidad efectivos trasladan la primera.", &dejavu_16, C_SOFT);
+    lv_obj_set_pos(brgOut, 16, 258);
+    lv_obj_set_width(brgOut, 992);
+    brgKb = lv_keyboard_create(brgScr);
+    lv_keyboard_set_mode(brgKb, LV_KEYBOARD_MODE_NUMBER);
+    lv_obj_set_size(brgKb, board::W, 220);
+    lv_obj_align(brgKb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(brgKb, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(brgKb, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(brgKb, 6, 0);
+    lv_obj_set_style_pad_gap(brgKb, 6, 0);
+    lv_obj_set_style_border_width(brgKb, 0, 0);
+    lv_obj_set_style_bg_color(brgKb, lv_color_hex(C_PANEL), LV_PART_ITEMS);
+    lv_obj_set_style_bg_opa(brgKb, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(brgKb, lv_color_hex(C_ACC), LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(brgKb, lv_color_hex(C_TEXT), LV_PART_ITEMS);
+    lv_obj_set_style_radius(brgKb, 8, LV_PART_ITEMS);
+    lv_obj_set_style_border_width(brgKb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_width(brgKb, 0, LV_PART_ITEMS);
+    lv_obj_set_hidden(brgScr, true);
+}
+
+static void openBearings() {
+    if (!brgScr) makeBearings();
+    brgCollect();
+    brgRefresh();
+    lv_keyboard_set_textarea(brgKb, brgTa[0]);
+    lv_obj_set_hidden(brgScr, false);
+}
+
+// Para las pruebas en el PC: mode 0 = dos demoras simultaneas a las dos luces mas cercanas; 1 = demora trasladada a la
+// mas cercana (el barco ha hecho 3 millas al 090 en 30 min); las demoras salen de la posicion del simulador
+void testBearings(int mode) {
+    openBearings();
+    double la, lo;
+    if (brgPoints.size() < 2 || !store->get(Key::Lat, millis(), la) || !store->get(Key::Lon, millis(), lo)) return;
+    const LatLon here{la, lo};
+    brgSel[0] = 0;
+    brgSel[1] = 0;
+    if (mode == 0) {                                      // la segunda, la que mejor corta con la primera entre las cercanas
+        double best = -1;
+        for (int i = 1; i < (int)brgPoints.size() && i < 8; i++) {
+            double c = fabs(fmod(rhumbBearing(here, brgPoints[i].p) - rhumbBearing(here, brgPoints[0].p), 180.0));
+            if (c > 90) c = 180 - c;
+            if (c > best) { best = c; brgSel[1] = i; }
+        }
+    }
+    lv_textarea_set_text(brgTa[4], "0");
+    if (mode == 0) {
+        brgT[0] = brgT[1] = tsync::now();
+        brgSet(0, rhumbBearing(here, brgPoints[0].p), 1);
+        brgSet(1, rhumbBearing(here, brgPoints[brgSel[1]].p), 1);
+    } else {
+        const LatLon p1 = plotter::rhumbDestination(here, 270, 3);
+        brgT[1] = tsync::now();
+        brgT[0] = brgT[1] - 1800;
+        brgSet(0, rhumbBearing(p1, brgPoints[0].p), 1);
+        brgSet(1, rhumbBearing(here, brgPoints[0].p), 1);
+        lv_textarea_set_text(brgTa[2], "90");
+        lv_textarea_set_text(brgTa[3], "6");
+    }
+    brgRefresh();
+    brgCompute();
+}
+
+void closeBearings() { if (brgScr) lv_obj_set_hidden(brgScr, true); }
 
 void update() {
     if (!store) return;

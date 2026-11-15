@@ -20,6 +20,7 @@
 #include "astro.h"
 #include "celnav.h"
 #include "current.h"
+#include "bearingfix.h"
 #include "deviation.h"
 #include "navtex.h"
 #include "dsc.h"
@@ -2022,6 +2023,31 @@ static void testMtCheck() {
 
 // Navegacion astronomica. Valores de referencia: PyEphem 4.2.1 (lugar aparente geocentrico) y las paginas del 1 de enero
 // y del 16 de junio de un almanaque nautico de 2026 (precision 0,1').
+static void testBearingFix() {
+    using namespace plotter;
+    const LatLon faro{36.50, -6.30}, faro2{36.45, -6.10};
+    BearingFix f;
+    // simultaneas a dos faros: el barco en (36.40, -6.20)
+    LatLon boat{36.40, -6.20};
+    CHECK(fixFromBearings(faro, rhumbBearing(boat, faro), faro2, rhumbBearing(boat, faro2), 0, 0, f));
+    CHECK(gcDistanceNm(f.fix, boat) < 0.02);
+    NEAR(f.dist2Nm, rhumbDistanceNm(boat, faro2), 0.02);
+    // demora trasladada al mismo faro: 090 a 6 kn durante 30 min
+    const LatLon p1{36.40, -6.40};
+    const LatLon p2 = rhumbDestination(p1, 90, 3);
+    CHECK(fixFromBearings(faro, rhumbBearing(p1, faro), faro, rhumbBearing(p2, faro), 90, 3, f));
+    CHECK(gcDistanceNm(f.fix, p2) < 0.02);
+    CHECK(gcDistanceNm(f.first, p1) < 0.02);
+    CHECK(f.cutDeg > 10);
+    // dos faros distintos con camino
+    CHECK(fixFromBearings(faro, rhumbBearing(p1, faro), faro2, rhumbBearing(p2, faro2), 90, 3, f));
+    CHECK(gcDistanceNm(f.fix, p2) < 0.02);
+    // casi paralelas: sin situacion
+    CHECK(!fixFromBearings(faro, 0, faro2, 5, 0, 0, f));
+    // la demora al reves (el barco tendria que estar al otro lado del faro)
+    CHECK(!fixFromBearings(faro, norm360(rhumbBearing(boat, faro) + 180), faro2, rhumbBearing(boat, faro2), 0, 0, f));
+}
+
 static void testCurrent() {
     using namespace plotter;
     // loxodromica de ida y vuelta
@@ -2419,6 +2445,7 @@ int main() {
     testCelnav();
     testLatitude();
     testCurrent();
+    testBearingFix();
     testDeviation();
     testNavtex();
     testDsc();

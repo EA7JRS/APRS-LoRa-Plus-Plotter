@@ -102,7 +102,7 @@ static lv_obj_t* lblAisBadge = nullptr;
 static uint32_t rowMmsi[kRows] = {};
 
 // Ventana centrada sobre cualquier pantalla: ficha de un blanco o alerta de abordaje (la misma que las emergencias de la app)
-enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK, M_OFFICIAL };
+enum ModalMode { M_NONE, M_DETAIL, M_COLLISION, M_MOB, M_ANCHOR, M_RS485, M_SIGNALK, M_OFFICIAL, M_NAVTEX };
 static lv_obj_t* modalBack = nullptr;
 static lv_obj_t* modalHead = nullptr;
 static lv_obj_t* modalTitle = nullptr;
@@ -573,8 +573,13 @@ static void closeModal() {
 static void showTab(int i);
 static const int kMeteoTab = 6;
 static void closeOfficial();
+static void closeNavtexModal();
+static void openNavtexList();
+static void updateNavtexModal();
+static void startGoTo(LatLon dest, const char* name, bool mob);
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
     if (modalMode == M_OFFICIAL) { closeOfficial(); showTab(kMeteoTab); return; }   // LIST: la pestana Meteo
+    if (modalMode == M_NAVTEX) { closeNavtexModal(); openNavtexList(); return; }    // LIST: los mensajes NAVTEX
     if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta
     if (modalMode == M_SIGNALK) { closeModal(); return; }  // el aviso sigue en el servidor; aqui solo se cierra
     if (modalMode == M_RS485) {                            // apagar la salida al piloto
@@ -597,6 +602,7 @@ static void onModalA(lv_event_t*) {                       // silenciar la alarma
 
 static void onModalB(lv_event_t*) {                       // cerrar
     if (modalMode == M_OFFICIAL) { closeOfficial(); return; }
+    if (modalMode == M_NAVTEX) { closeNavtexModal(); return; }
     if (modalMode == M_ANCHOR) {                           // cerrar: si sigue garreando vuelve en 2 min
         anchorQuiet = true;
         anchorQuietMs = millis() + 2 * 60000u;
@@ -842,6 +848,7 @@ static void updateModal() {
     if (modalMode == M_RS485) { updateRs485Modal(); return; }
     if (modalMode == M_SIGNALK) { updateSkModal(); return; }
     if (modalMode == M_OFFICIAL) { updateOfficialModal(); return; }
+    if (modalMode == M_NAVTEX) { updateNavtexModal(); return; }
     AisTargets& tg = links::targets();
     int i = tg.find(modalMmsi);
     if (i < 0) { closeModal(); return; }
@@ -912,6 +919,147 @@ static void checkCollision() {
         return;
     }
 }
+
+
+// ---- NAVTEX: mensajes por NRX (receptor de a bordo o la app); los de asunto D (salvamento) abren la ventana ----
+static uint32_t nvSeq = 0;
+static std::vector<std::string> nvShown;                 // "B1B2B3B4@kHz" ya vistos en la ventana
+static std::string nvModalKey;
+static lv_obj_t* nvScr = nullptr;
+static lv_obj_t* nvBox = nullptr;
+static lv_obj_t* nvNote = nullptr;
+
+static std::string nvKey(const plotter::NavtexMessage& m) { return m.id() + "@" + std::to_string((int)m.khz); }
+static const plotter::NavtexMessage* nvFind(const std::string& k) {
+    for (const plotter::NavtexMessage& m : links::navtex().items()) if (nvKey(m) == k) return &m;
+    return nullptr;
+}
+static void nvFreq(char* o, size_t n, double khz) {
+    if (khz <= 0) snprintf(o, n, "?");
+    else if (khz > 4000) snprintf(o, n, "4209,5 kHz");
+    else snprintf(o, n, "%d kHz", (int)khz);
+}
+
+static void updateNavtexModal() {
+    const plotter::NavtexMessage* m = nvFind(nvModalKey);
+    if (!m) { closeModal(); return; }
+    char sub[96], f[16];
+    nvFreq(f, sizeof f, m->khz);
+    lv_obj_set_style_bg_color(modalHead, lv_color_hex(C_RED), 0);
+    lv_label_set_text(modalTitle, "NAVTEX SAR / DISTRESS");
+    snprintf(sub, sizeof sub, "NAVTEX \xC2\xB7 %s \xC2\xB7 %s", f, plotter::navtexSubjectEs(m->subject));
+    lv_label_set_text(modalSub, sub);
+    lv_label_set_text(modalName, m->id().c_str());
+    std::string t = m->text.size() > 380 ? m->text.substr(0, 380) + "..." : m->text;
+    lv_label_set_text(modalBody, t.c_str());
+    lv_label_set_text(modalBtnALbl, "LIST");
+    lv_label_set_text(modalBtnBLbl, "CLOSE");
+}
+
+static void closeNavtexModal() {
+    nvShown.push_back(nvModalKey);
+    if (nvShown.size() > 40) nvShown.erase(nvShown.begin());
+    nvModalKey.clear();
+    closeModal();
+}
+
+static void refreshNavtexList();
+static void checkNavtex() {
+    const plotter::NavtexLog& log = links::navtex();
+    if (log.seq() == nvSeq) return;
+    nvSeq = log.seq();
+    if (nvScr && !lv_obj_has_flag(nvScr, LV_OBJ_FLAG_HIDDEN)) refreshNavtexList();
+    if (modalMode != M_NONE) { nvSeq--; return; }        // otra ventana abierta: se vuelve a mirar luego
+    for (const plotter::NavtexMessage& m : log.items()) {
+        if (!m.urgent()) continue;
+        const std::string k = nvKey(m);
+        bool seen = false;
+        for (const std::string& x : nvShown) if (x == k) seen = true;
+        if (seen) continue;
+        nvModalKey = k;
+        openModal(M_NAVTEX, 0);
+        return;
+    }
+}
+
+static void onNavtexPick(lv_event_t* e) {
+    const int i = (int)(intptr_t)lv_event_get_user_data(e);
+    if (i < 0) { lv_obj_set_hidden(nvScr, true); return; }
+    const std::vector<plotter::NavtexMessage>& v = links::navtex().items();
+    if (i >= (int)v.size() || v[(size_t)i].positions.empty()) return;
+    char name[16];
+    snprintf(name, sizeof name, "NAVTEX %s", v[(size_t)i].id().c_str());
+    lv_obj_set_hidden(nvScr, true);
+    startGoTo(v[(size_t)i].positions[0], name, false);
+    showTab(1);
+}
+
+static void refreshNavtexList() {
+    lv_obj_clean(nvBox);
+    const std::vector<plotter::NavtexMessage>& v = links::navtex().items();
+    char note[200];
+    snprintf(note, sizeof note, "%u mensajes (NRX de un receptor NAVTEX o de la app APRS LoRa+).%s",
+             (unsigned)v.size(), v.empty() ? "" : " Toca uno con posici\xC3\xB3n para ir a la primera.");
+    lv_label_set_text(nvNote, note);
+    for (size_t i = 0; i < v.size(); i++) {
+        const plotter::NavtexMessage& m = v[i];
+        lv_obj_t* b = lv_button_create(nvBox);
+        lv_obj_remove_style_all(b);
+        lv_obj_set_width(b, 980);
+        lv_obj_set_height(b, LV_SIZE_CONTENT);
+        lv_obj_set_style_bg_color(b, lv_color_hex(C_PANEL), 0);
+        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(b, 8, 0);
+        lv_obj_set_style_pad_all(b, 10, 0);
+        lv_obj_set_style_border_color(b, lv_color_hex(m.urgent() ? C_RED : C_LINE), 0);
+        lv_obj_set_style_border_width(b, m.urgent() ? 2 : 1, 0);
+        lv_obj_set_flex_flow(b, LV_FLEX_FLOW_COLUMN);
+        lv_obj_add_event_cb(b, onNavtexPick, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+        char h[160], f[16], when[24] = "";
+        nvFreq(f, sizeof f, m.khz);
+        if (m.utc > 0) { int y, mo, d; double hh; plotter::unixToUtc((long long)m.utc, y, mo, d, hh); const int sod = (int)(m.utc % 86400); snprintf(when, sizeof when, " \xC2\xB7 %02d %02d:%02d UTC", d, sod / 3600, sod / 60 % 60); }
+        snprintf(h, sizeof h, "%s \xC2\xB7 %s \xC2\xB7 %s%s%s%s", m.id().c_str(), f, plotter::navtexSubjectEs(m.subject), when, m.complete ? "" : " \xC2\xB7 incompleto",
+                 m.positions.empty() ? "" : " \xC2\xB7 con posici\xC3\xB3n");
+        lv_obj_t* l = label(b, h, &dejavu_bold_16, m.urgent() ? C_RED : C_TEXT);
+        lv_obj_set_width(l, 958);
+        std::string t = m.text.size() > 600 ? m.text.substr(0, 600) + "..." : m.text;
+        l = label(b, t.c_str(), &dejavu_14, C_SOFT);
+        lv_obj_set_width(l, 958);
+    }
+}
+
+static void makeNavtexList() {
+    nvScr = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(nvScr);
+    lv_obj_set_size(nvScr, board::W, board::H);
+    lv_obj_set_style_bg_color(nvScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(nvScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(nvScr, false);
+    lv_obj_set_clickable(nvScr, true);
+    lv_obj_t* t = label(nvScr, "NAVTEX", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    lv_obj_t* b = textButton(nvScr, "Cerrar", 124, 48, onNavtexPick, -1);
+    lv_obj_set_pos(b, 884, 8);
+    nvNote = label(nvScr, "", &dejavu_14, C_SOFT);
+    lv_obj_set_pos(nvNote, 16, 64);
+    lv_obj_set_width(nvNote, 860);
+    nvBox = lv_obj_create(nvScr);
+    lv_obj_remove_style_all(nvBox);
+    lv_obj_set_pos(nvBox, 16, 116);
+    lv_obj_set_size(nvBox, 992, board::H - 126);
+    lv_obj_set_flex_flow(nvBox, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_gap(nvBox, 8, 0);
+    lv_obj_set_scroll_dir(nvBox, LV_DIR_VER);
+    lv_obj_set_hidden(nvScr, true);
+}
+
+static void openNavtexList() {
+    if (!nvScr) makeNavtexList();
+    refreshNavtexList();
+    lv_obj_scroll_to_y(nvBox, 0, LV_ANIM_OFF);
+    lv_obj_set_hidden(nvScr, false);
+}
+static void onNavtexOpen(lv_event_t*) { openNavtexList(); }
 
 // Aviso oficial nuevo: la ventana, si no hay otra de mas prioridad abierta
 static void checkOfficial() {
@@ -2633,6 +2781,21 @@ void testCt(const char* star, double dev, int step) {
 }
 void testCtCard() { if (ctScr) ctCardOpen(); }
 
+// Para las pruebas en el PC: mensajes NAVTEX de ejemplo por NRX (uno de salvamento abre la ventana) y la lista
+void testNavtex(bool list) {
+    static const char* const lines[] = {
+        "$CRNRX,GA05,1,3,518,15,11,2026,120500,0.8,TARIFA NAVTEX NAV WARNING 123/26",
+        "$CRNRX,GA05,2,3,518,15,11,2026,120500,0.8,WRECK IN 36-07.5N 005-21.2W.",
+        "$CRNRX,GA05,3,3,518,15,11,2026,120500,0.8,VESSELS KEEP CLEAR 1 MILE.",
+        "$CRNRX,XE41,1,2,518,15,11,2026,135000,0.0,FORECAST CABO DE GATA TO CABO DE LA NAO",
+        "$CRNRX,XE41,2,2,518,15,11,2026,135000,0.0,EAST 4 TO 5, LOCALLY 6. MODERATE SEA.",
+        "$CRNRX,XD12,1,2,518,15,11,2026,140200,1.2,MAYDAY RELAY. YACHT TAKING WATER IN 3810N 00012W",
+        "$CRNRX,XD12,2,2,518,15,11,2026,140200,1.2,VESSELS IN VICINITY KEEP SHARP LOOKOUT AND REPORT TO MRCC VALENCIA",
+    };
+    for (const char* l : lines) links::injectLine(l);
+    if (list) { closeModal(); nvShown.push_back("XD12@518"); openNavtexList(); }
+}
+
 void closeAstro() { if (astroScr) lv_obj_set_hidden(astroScr, true); if (ctScr) lv_obj_set_hidden(ctScr, true); }
 void testAstroList() { if (!astroScr) return; lv_obj_set_hidden(astroScr, false); openAstroList(); }
 
@@ -3465,6 +3628,7 @@ static void updatePilot() {
 // Cada dato dice de donde sale: del sensor de a bordo o, si este falta, de internet (estimado).
 static WTile mTile[6];
 static lv_obj_t* mNote = nullptr;
+static lv_obj_t* mNavtexBtn = nullptr;
 
 static void makeMeteo(lv_obj_t* page) {
     static const char* const names[6] = {"PRESI\xC3\x93N", "TEMPERATURA", "HUMEDAD", "VIENTO REAL", "RACHA", "VISIBILIDAD"};
@@ -3487,7 +3651,9 @@ static void makeMeteo(lv_obj_t* page) {
     lv_obj_set_pos(nbox, 0, 372);
     mNote = label(nbox, "", &dejavu_14, C_SOFT);
     lv_obj_align(mNote, LV_ALIGN_TOP_LEFT, 14, 12);
-    lv_obj_set_width(mNote, 976);
+    lv_obj_set_width(mNote, 836);
+    mNavtexBtn = textButton(nbox, "NAVTEX", 130, 44, onNavtexOpen, 0);
+    lv_obj_align(mNavtexBtn, LV_ALIGN_TOP_RIGHT, -10, 10);
     lv_obj_set_style_text_line_space(mNote, 6, 0);
 }
 
@@ -4053,6 +4219,7 @@ void update() {
     if (active == 3) updateRadar();
     checkCollision();
     checkOfficial();
+    checkNavtex();
     updateModal();
     showEngine(T_RPM, Key::Rpm, 0, 1.0, false);
     showEngine(T_COOL, Key::CoolantTemp, 0, 1.0, true);

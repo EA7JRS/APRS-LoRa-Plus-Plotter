@@ -2,6 +2,8 @@
 
 ## Sin publicar
 
+- **NAVTEX**: sentencias NRX (forma de Furuno y de IEC 61162-1) de un receptor NAVTEX o de la app APRS LoRa+, por el RS485, la red o Bluetooth; Meteo > **NAVTEX** con la lista (tocar uno con posición pone rumbo a ella) y ventana **NAVTEX SAR / DISTRESS** para el asunto D. Las posiciones de los avisos aceptan también la forma compacta «3607.5N 00521.2W». Núcleo `navtex` (16 comprobaciones; 1876 en total).
+
 - **Astro > Desvío (Ct): corrección total y tablilla de desvíos.** Demora de aguja de un astro (Sol, Luna, planetas, estrellas, botón *Polar*) + hora UTC → azimut verdadero, corrección total, declinación del WMM y desvío al rumbo de aguja (*Proa* toma el del compás). *A la tablilla* guarda la observación (24 como mucho, una por proa); la tablilla ajusta los coeficientes A–E por mínimos cuadrados y da el desvío cada 30°. *Aplicar al rumbo* (apagado de serie) suma el desvío al rumbo magnético del compás antes de la declinación. Núcleo `deviation` (13 comprobaciones; 1860 en total); NVS `devCard`, `devOn`.
 
 - **Avisos de AEMET por su polígono**: con posición, el plotter baja el paquete público con todos los CAP en vigor (el .tar.gz que enlaza el RSS de Meteoalerta), lo descomprime (`gunzip` propio en el núcleo, ventana de 32 KB, CRC-32) y se queda con los avisos cuyo polígono tiene dentro el barco; solo lo vuelve a bajar si cambia o si el barco se mueve más de 5 km. Sin posición o si el paquete falla, el RSS con el filtro por zonas, como antes. Núcleo: `gunzip`, `TarStream`, `aemetCapBundle`, `aemetRssBundle` (12 comprobaciones; 1841 en total). Sustituye a la rama `avisos-meteo`, que duplicaba los avisos oficiales.

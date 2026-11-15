@@ -11,6 +11,7 @@
 #include "ais.h"
 #include "aistargets.h"
 #include "deviation.h"
+#include "navtex.h"
 #include "nmea.h"
 #include "store.h"
 
@@ -67,4 +68,7 @@ plotter::AisTargets& targets();
 // Tablilla de desvios del compas (Carta > Astro > Ct). Con settings.devOn se aplica al rumbo magnetico (HDM / HDG)
 plotter::DeviationCard& deviationCard();
 void saveDeviationCard();               // la guarda en los ajustes
+// Mensajes NAVTEX que llegan en sentencias NRX (receptor NAVTEX de a bordo o la app APRS LoRa+ por su servidor NMEA)
+plotter::NavtexLog& navtex();
+void injectLine(const char* line);      // pruebas: una sentencia como si llegara por la red
 }

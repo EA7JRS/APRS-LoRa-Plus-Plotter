@@ -268,6 +268,24 @@ Cálculos a bordo: la casilla de temperatura da la **sensación térmica** (enfr
 (fórmula de Magnus). Arriba de la nota, el **sol** (salida y puesta, crepúsculo civil y náutico) y la **luna** (fase, iluminada y
 horas de salida y puesta) del día en la posición del barco, en hora UTC.
 
+
+### NAVTEX
+
+El botón **NAVTEX** de la nota abre la lista de mensajes NAVTEX recibidos, el más nuevo arriba: identificador (estación,
+asunto y número, «GA05»), frecuencia, asunto, hora UTC y texto. Llegan en sentencias **NRX** de NMEA 0183, por el RS485,
+la red o Bluetooth: de un receptor NAVTEX de a bordo (Furuno, ICS, Nasa...) o de la **app APRS LoRa+**, que los decodifica
+(Modos > NAVTEX) y los manda por su servidor NMEA. Una repetición del mismo mensaje sustituye a la anterior. Tocar uno con
+posiciones en el texto («36-07.5N 005-21.2W», «3810N 00012W») pone rumbo a la primera en la carta.
+
+![NAVTEX](img/navtex_lista.png)
+
+Un mensaje de asunto **D** (búsqueda y salvamento, socorro, piratería) abre la ventana **NAVTEX SAR / DISTRESS** con el
+texto; *LIST* lleva a la lista y *CLOSE* la cierra (ese mensaje no vuelve a abrirla).
+
+![NAVTEX SAR](img/navtex_alerta.png)
+
+El NAVTEX del plotter no sustituye al receptor oficial de a bordo.
+
 ## 9. Ajustes
 
 ![Ajustes](img/ajustes.png)

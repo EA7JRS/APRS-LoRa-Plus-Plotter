@@ -267,6 +267,26 @@ cold, heat index when hot and humid) when it differs from the air by half a degr
 point** (Magnus formula). Above the note, the **sun** (rise and set, civil and nautical twilight) and the **moon** (phase, lit
 fraction, rise and set) for the day at the boat's position, in UTC.
 
+
+### NAVTEX
+
+The **NAVTEX** button in the note opens the list of NAVTEX messages received, newest first: identifier (station, subject
+and number, «GA05»), frequency, subject (in Spanish: *Aviso a la navegación* navigational warning, *Previsión
+meteorológica* forecast, *Salvamento, socorro, piratería* search and rescue...), UTC time and text. They arrive as NMEA 0183
+**NRX** sentences over RS485, the network or Bluetooth: from an on-board NAVTEX receiver (Furuno, ICS, Nasa...) or from the
+**APRS LoRa+ app**, which decodes them (Modes > NAVTEX) and sends them through its NMEA server. A repeat of the same message
+replaces the earlier copy. Tapping one with positions in the text («36-07.5N 005-21.2W», «3810N 00012W») sets course to the
+first one on the chart.
+
+![NAVTEX](img/navtex_lista.png)
+
+A message of subject **D** (search and rescue, distress, piracy) opens the **NAVTEX SAR / DISTRESS** window with the text;
+*LIST* opens the list and *CLOSE* closes it (that message does not open it again).
+
+![NAVTEX SAR](img/navtex_alerta.png)
+
+The plotter's NAVTEX is no substitute for the official receiver on board.
+
 ## 9. Ajustes (Settings)
 
 ![Settings](img/ajustes.png)

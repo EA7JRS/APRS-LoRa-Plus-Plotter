@@ -20,6 +20,7 @@
 #include "astro.h"
 #include "celnav.h"
 #include "deviation.h"
+#include "navtex.h"
 #include "chartui.h"
 #include "geo.h"
 #include "gpx.h"
@@ -2243,6 +2244,39 @@ static void testDeviation() {
     CHECK(full.n == DeviationCard::kMax && near(full.p[0].compassHdg, 72.0, 1e-6));
 }
 
+static void testNavtex() {
+    std::vector<LatLon> p;
+    CHECK(navWarningPositions("WRECK 3607.5N 00521.2W AND 3631N 00617W, NOT 2026 12345N", p) == 2);
+    NEAR(p[0].lat, 36 + 7.5 / 60, 1e-9); NEAR(p[0].lon, -(5 + 21.2 / 60), 1e-9);
+    CHECK(navtexFirstSlotMin('A') == 0 && navtexFirstSlotMin('X') == 230 && navtexFirstSlotMin('Y') == -1);
+    const int64_t t12 = 1794744000;                         // 2026-11-15 12:00 UTC
+    CHECK(navtexNextSlot('G', t12) == t12 + 3600 && navtexNextSlot('A', t12) == t12);
+    CHECK(std::string(navtexSubjectEn('D')).find("rescue") != std::string::npos);
+    // Furuno: una linea de mensaje por sentencia, con suma
+    auto withSum = [](const std::string& body) {
+        unsigned x = 0; for (char c : body) x ^= (unsigned char)c;
+        char b[8]; snprintf(b, sizeof b, "*%02X", x);
+        return "$" + body + b;
+    };
+    NrxAssembler a;
+    NavtexMessage m;
+    CHECK(!a.feed(withSum("CRNRX,GA05,1,3,518,15,11,2026,120500,1.5,TARIFA NAVTEX").c_str()));
+    CHECK(!a.feed(withSum("CRNRX,GA05,2,3,518,15,11,2026,120500,1.5,WRECK IN 36-07.5N 005-21.2W").c_str()));
+    CHECK(!a.feed("$CRNRX,GA05,3,3,518,15,11,2026,120500,1.5,KEEP CLEAR*00"));   // suma mala: fuera
+    CHECK(a.feed(withSum("CRNRX,GA05,3,3,518,15,11,2026,120500,1.5,KEEP CLEAR").c_str()) && a.take(m));
+    CHECK(m.id() == "GA05" && m.khz == 518 && m.complete && m.text == "TARIFA NAVTEX\nWRECK IN 36-07.5N 005-21.2W\nKEEP CLEAR");
+    CHECK(m.positions.size() == 1 && m.utc == t12 + 300 && std::fabs(m.errorPct - 1.5) < 1e-9);
+    // IEC 61162-1: cuerpo con ^0D^0A, sentencias siguientes con campos vacios
+    CHECK(!a.feed("CRNRX,2,1,7,XD12,2,083000.00,15,11,2026,40,0,A,MAYDAY RELAY^0D^0AYACHT SINKING"));
+    CHECK(a.feed("CRNRX,2,2,7,,,,,,,,,, 3810N 00012W^0D^0ANNNN") && a.take(m));
+    CHECK(m.id() == "XD12" && m.urgent() && m.khz == 518 && m.text == "MAYDAY RELAY\nYACHT SINKING 3810N 00012W\nNNNN" && m.positions.size() == 1);
+    // lista: la repeticion sustituye a la anterior
+    NavtexLog log;
+    NavtexMessage x; x.station = 'G'; x.subject = 'A'; x.number = 5; x.khz = 518; x.text = "1";
+    log.add(x); x.text = "2"; log.add(x); x.number = 6; log.add(x);
+    CHECK(log.items().size() == 2 && log.items()[0].number == 6 && log.items()[1].text == "2");
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
@@ -2256,6 +2290,7 @@ int main() {
     testMtCheck();
     testCelnav();
     testDeviation();
+    testNavtex();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

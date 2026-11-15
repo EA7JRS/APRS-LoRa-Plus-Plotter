@@ -140,6 +140,21 @@ static void canLoop(uint32_t now) {
 }
 
 static plotter::DeviationCard devCard;
+static plotter::NrxAssembler nrx;
+static plotter::NavtexLog navtexLog;
+
+plotter::NavtexLog& navtex() { return navtexLog; }
+static void extraLine(const char* line);
+void injectLine(const char* line) { extraLine(line); }
+
+// Sentencias que no van a la tabla de datos: NRX (NAVTEX)
+static void extraLine(const char* line) {
+    if (!strstr(line, "NRX,")) return;
+    if (nrx.feed(line)) {
+        plotter::NavtexMessage m;
+        while (nrx.take(m)) navtexLog.add(m);
+    }
+}
 
 plotter::DeviationCard& deviationCard() { return devCard; }
 
@@ -273,6 +288,7 @@ static void bleLoop(uint32_t now) {
             if (!bleLine.push((char)buf[i])) continue;
             st.bleLines++;
             tsync::offerNmea(bleLine.line());                     // hora del GPS del tracker o de la pasarela
+            extraLine(bleLine.line());
             if (bleNmea.feed(bleLine.line(), Source::Ble, now, *store) == NmeaResult::Ais) {
                 tgs.update(bleNmea.ais(), now);
                 st.aisMessages++;
@@ -392,6 +408,7 @@ static void netLoop(uint32_t now) {
                 lines++;
                 st.netLastMs = now;
                 tsync::offerNmea(lb.line());                       // gpsd, el movil, un multiplexor...
+                extraLine(lb.line());
                 if (rd.feed(lb.line(), Source::Tcp, now, *store) == NmeaResult::Ais) {
                     tgs.update(rd.ais(), now);
                     st.aisMessages++;
@@ -441,6 +458,7 @@ void loop() {
         st.serialLines++;
         st.serialLastMs = now;
         tsync::offerNmea(serialLine.line());                       // el Comar y las emisoras sacan RMC
+        extraLine(serialLine.line());
         if (serialNmea.feed(serialLine.line(), Source::Uart, now, *store) == NmeaResult::Ais) {
             tgs.update(serialNmea.ais(), now);
             st.aisMessages++;

@@ -76,6 +76,8 @@ int main(int argc, char** argv) {
                 ui::testCt(st, dv, stp);
             }
             else if (a == "tablilla") ui::testCtCard();
+            else if (a == "navtex") ui::testNavtex(false);
+            else if (a == "navtexlista") ui::testNavtex(true);
             else if (a == "rs485") ui::testRs485();
             else if (sscanf(a.c_str(), "piloto:%d", &x) == 1) settings::get().pilotOut = x;   // 1 RS485, 2 red, 3 Bluetooth
             else if (a == "internet") ui::testInternet();

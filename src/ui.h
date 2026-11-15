@@ -23,7 +23,8 @@ void testAstroList();                                  // Astro > Visibles (dibu
 void testAstro(const char* star, double errArcmin);   // abre Carta > Astro y traza una recta ("" = el Sol)
 void closeAstro();
 void testCt(const char* star, double dev, int step);   // Astro > Desvio (Ct) con un compas simulado; step > 0 llena la tablilla
-void testCtCard();                                     // abre la tablilla
+void testCtCard();
+void testNavtex(bool list);                            // mensajes NAVTEX de ejemplo; list abre la lista                                     // abre la tablilla
 void testVessel();                  // abre Ajustes > Embarcacion
 void testSetting(int what);         // 4 cambia de unidades, 5 de mapa base
 void testAnchor();                  // boton Fondeo de la carta

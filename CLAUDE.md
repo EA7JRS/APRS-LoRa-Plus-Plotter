@@ -112,10 +112,11 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   el zumbador es seleccionable (amarillo / naranja / rojo / nunca); España con AEMET y otros países con Meteoalarm (canales CAP
   por país en `feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-<pais>`, listados en el registro de la OMM
   `alertingauthority.wmo.int`; condiciones de uso sin leer; EE. UU. tiene `api.weather.gov/alerts`). País según la posición.
-  **Rama `avisos-meteo` (2026-11-12/15) sin unir** (Manuel, 2026-11-15, release 5.4.6): `main` ya tiene los avisos oficiales
-  de `lib/aprs_links/alerts_net` (AEMET por RSS, MeteoAlarm, NWS…; ventana `M_OFFICIAL`), así que la rama, que hacía lo
-  mismo con el CAP de AEMET (con polígono, clave de OpenData, `.tar.gz` y `gunzip` propio) y `M_WXWARN`, se queda aparte.
-  Si hiciera falta el polígono del CAP, `wxwarn` y `gunzip` de esa rama sirven de base.
+  **Rama `avisos-meteo` sustituida** (Manuel, 2026-11-15: «la mejor solución»): no se unió (duplicaba los avisos oficiales
+  de `lib/aprs_links/alerts_net`); de ella se trajo a `main` (c354aff) solo el polígono de AEMET: `gunzip` en el núcleo,
+  `TarStream`, `aemetCapBundle` y `aemetRssBundle` en `alerts`; `alerts_net` baja el `.tar.gz` público que enlaza el RSS (sin
+  clave), con posición, y se queda con los avisos con el barco dentro; si no, el RSS por zonas. Rama sin borrar en GitHub (el
+  proxy de la sesión no deja borrar ramas; último commit 5aa042a). Falta volver a copiar `lib/` a la Display y al rotor.
 
 - NAVGUIDE de la IALA (edición 5, 2006, en español, de puertos.es; estudiado el 2026-11-11; es antigua: contrastar con la
   vigente). Hecho en el núcleo (`lights`): alcance geográfico 2,03·(√ojo + √luz), alcance luminoso con la visibilidad real (ley

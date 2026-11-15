@@ -1283,6 +1283,24 @@ static void testN2k() {
     CHECK(n2kMsg(r, st, 127488, "00,20,1c,ff,ff,7f,ff,ff") == N2kResult::Data);
     CHECK(st.get(Key::Rpm, 1000, v) && near(v, 1800, 0.01));
     CHECK(n2kMsg(r, st, 127488, "01,20,1c,ff,ff,7f,ff,ff") == N2kResult::None);        // segundo motor: no se usa
+    // Motor: 127488 con sobrealimentacion, 127489 y 127505 (tramas del codificador de APRS LoRa+ OBD-II, contrastado con CANboat)
+    CHECK(n2kMsg(r, st, 127488, "00,49,26,37,03,7f,ff,ff") == N2kResult::Data);
+    CHECK(st.get(Key::Rpm, 1000, v) && near(v, 2450.25, 0.01) && st.get(Key::Boost, 1000, v) && near(v, 82.3, 0.01));
+    CHECK(n2kIsFastPacket(127489));
+    CHECK(n2kMsg(r, st, 127489, "00,18,10,84,0e,1f,8b,68,05,49,00,87,d6,12,00,c0,03,30,01,ff,00,00,00,00,3f,7f") == N2kResult::Data);
+    CHECK(st.get(Key::OilPress, 1000, v) && near(v, 412.0, 0.01) && st.get(Key::OilTemp, 1000, v) && near(v, 98.45, 0.01));
+    CHECK(st.get(Key::CoolantTemp, 1000, v) && near(v, 83.0, 0.01) && st.get(Key::FuelRate, 1000, v) && near(v, 7.3, 0.01));
+    CHECK(st.get(Key::EngineHours, 1000, v) && near(v, 1234567 / 3600.0, 0.001) && st.get(Key::EngineLoad, 1000, v) && near(v, 63, 1e-9));
+    CHECK(n2kMsg(r, st, 127489, "01,18,10,84,0e,1f,8b,68,05,49,00,87,d6,12,00,c0,03,30,01,ff,00,00,00,00,3f,7f") == N2kResult::None);   // segundo motor
+    CHECK(n2kMsg(r, st, 127505, "00,27,38,1c,0c,00,00,ff") == N2kResult::Data && st.get(Key::FuelLevel, 1000, v) && near(v, 57.5, 0.01));
+    CHECK(n2kMsg(r, st, 127505, "10,27,38,1c,0c,00,00,ff") == N2kResult::None);         // agua dulce: no es el combustible
+    // J1939 en el mismo bus: EEC1 621 rpm; temperaturas 83 C y 97 C; todo "sin dato" no cuenta
+    { DataStore s2; N2kReader r2;
+      CHECK(n2kMsg(r2, s2, 61444, "ff,ff,ff,68,13,ff,ff,ff") == N2kResult::Data && s2.get(Key::Rpm, 1000, v) && near(v, 621, 1e-9));
+      CHECK(n2kMsg(r2, s2, 65262, "7b,ff,40,2e,ff,ff,ff,ff") == N2kResult::Data && s2.get(Key::CoolantTemp, 1000, v) && near(v, 83, 1e-9));
+      CHECK(s2.get(Key::OilTemp, 1000, v) && near(v, 97, 1e-9));
+      CHECK(n2kMsg(r2, s2, 65262, "ff,ff,ff,ff,ff,ff,ff,ff") == N2kResult::None);
+      CHECK(n2kParseId(0x0CF00400).pgn == 61444 && n2kParseId(0x18FEEE00).pgn == 65262); }
     // 127508: 12,50 V
     CHECK(n2kMsg(r, st, 127508, "00,e2,04,00,80,ff,ff,ff") == N2kResult::Data);
     CHECK(st.get(Key::BatteryV, 1000, v) && near(v, 12.5, 1e-9));

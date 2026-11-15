@@ -74,7 +74,7 @@ pio run -e waveshare_lcd7b -t upload
 
    ![Bienvenida](img/bienvenida.png)
 
-2. Luego sale la pestaña **Instrumentos** con datos: es el **simulador**, encendido de fábrica.
+2. Luego sale la pestaña **Instrumentos** con datos: es el **simulador**, encendido de fábrica (tocando otra vez la pestaña sale la página **Motor**, con un motor de pega; los datos reales llegan por NMEA 2000 —PGN 127488 / 127489 / 127505 / 127508— o de un motor J1939 en el mismo bus).
 3. Recorre las pestañas. En **Carta** verás el barco moviéndose y cinco blancos AIS con nombres inventados.
 4. Sin tarjeta, la carta dice «sin cartas en la tarjeta para esta zona»: es normal.
 4. Cuando conectes una fuente real, **apaga el simulador** (Ajustes > Simulador). Mientras está encendido sus datos

@@ -63,8 +63,12 @@ struct Tile {
     lv_obj_t* value = nullptr;
     lv_obj_t* sub = nullptr;
 };
-static lv_obj_t* tileUnit[8] = {};
-enum { T_SOG, T_COG, T_HDG, T_DEPTH, T_AWS, T_AWA, T_TWS, T_WATER, T_COUNT };
+enum { T_SOG, T_COG, T_HDG, T_DEPTH, T_AWS, T_AWA, T_TWS, T_WATER,
+       T_RPM, T_COOL, T_OILP, T_FUEL, T_BATT, T_RATE, T_OILT, T_HOURS, T_COUNT };     // la segunda fila: pagina Motor
+static lv_obj_t* tileUnit[T_COUNT] = {};
+static lv_obj_t* gridNav = nullptr;
+static lv_obj_t* gridEngine = nullptr;
+static bool instEngine = false;                          // Instrumentos: navegacion (false) o motor (true)
 
 static DataStore* store = nullptr;
 static Tile tiles[T_COUNT];
@@ -256,9 +260,11 @@ static lv_obj_t* label(lv_obj_t* parent, const char* text, const lv_font_t* font
 }
 
 static void showTab(int i) {
+    if (i == 0 && active == 0 && gridEngine) instEngine = !instEngine;   // tocar otra vez la pestana: navegacion <-> motor
     active = i;
+    if (gridEngine) { lv_obj_set_hidden(gridNav, instEngine); lv_obj_set_hidden(gridEngine, !instEngine); }
     if (lblTitle) {
-        lv_label_set_text(lblTitle, kTabs[i]);
+        lv_label_set_text(lblTitle, i == 0 && instEngine ? "Instrumentos \xC2\xB7 Motor" : kTabs[i]);
         lv_obj_update_layout(lblTitle);
         lv_obj_align_to(badgeBox, lblTitle, LV_ALIGN_OUT_RIGHT_MID, 12, 0);
     }
@@ -3170,6 +3176,25 @@ void begin(DataStore* s) {
     makeTile(grid, T_AWA, 1, 1, "\xC3\x81NGULO AP.", "\xC2\xB0");
     makeTile(grid, T_TWS, 2, 1, "VIENTO REAL", "kn");
     makeTile(grid, T_WATER, 3, 1, "TEMP. AGUA", "\xC2\xB0" "C");
+    gridNav = grid;
+    // Motor (NMEA 2000 127488 / 127489 / 127505 / 127508 o J1939): se ve tocando otra vez la pestana Instrumentos
+    grid = lv_obj_create(pages[0]);
+    lv_obj_remove_style_all(grid);
+    lv_obj_set_size(grid, lv_pct(100), lv_pct(100));
+    lv_obj_set_layout(grid, LV_LAYOUT_GRID);
+    lv_obj_set_grid_dsc_array(grid, cols, rows);
+    lv_obj_set_style_pad_gap(grid, PAD, 0);
+    lv_obj_set_scrollable(grid, false);
+    makeTile(grid, T_RPM, 0, 0, "R\xC3\x89GIMEN", "rpm", C_ACC);
+    makeTile(grid, T_COOL, 1, 0, "REFRIGERANTE", "\xC2\xB0" "C");
+    makeTile(grid, T_OILP, 2, 0, "PRESI\xC3\x93N ACEITE", "bar");
+    makeTile(grid, T_FUEL, 3, 0, "COMBUSTIBLE", "%");
+    makeTile(grid, T_BATT, 0, 1, "BATER\xC3\x8D" "A", "V");
+    makeTile(grid, T_RATE, 1, 1, "CONSUMO", "L/h");
+    makeTile(grid, T_OILT, 2, 1, "TEMP. ACEITE", "\xC2\xB0" "C");
+    makeTile(grid, T_HOURS, 3, 1, "HORAS MOTOR", "h");
+    gridEngine = grid;
+    lv_obj_set_hidden(gridEngine, true);
 
     // Pestanas
     lv_obj_t* nav = box(scr, C_BAR);
@@ -3248,6 +3273,26 @@ static void show(int idx, Key k, int decimals, bool degrees = false) {
     lv_label_set_text(tiles[idx].sub, s);
 }
 
+// Casilla de la pagina Motor: valor x escala; las temperaturas, en la unidad elegida en Ajustes
+static void showEngine(int idx, Key k, int decimals, double scale, bool temp) {
+    uint32_t now = millis();
+    double v;
+    if (temp) lv_label_set_text(tileUnit[idx], plotter::label(U.temp));
+    if (!store->get(k, now, v)) {
+        lv_label_set_text(tiles[idx].value, "--");
+        lv_label_set_text(tiles[idx].sub, "Sin datos");
+        return;
+    }
+    v = temp ? tempFromC(v, U.temp) : v * scale;
+    char b[24];
+    snprintf(b, sizeof(b), "%.*f", decimals, v);
+    for (char* p = b; *p; p++) if (*p == '.') *p = ',';
+    lv_label_set_text(tiles[idx].value, b);
+    char t[48];
+    snprintf(t, sizeof(t), "%s \xC2\xB7 hace %u s", sourceName(store->source(k, now)), (unsigned)(store->ageMs(k, now) / 1000));
+    lv_label_set_text(tiles[idx].sub, t);
+}
+
 void update() {
     if (!store) return;
     uint32_t now = millis();
@@ -3267,6 +3312,14 @@ void update() {
     checkCollision();
     checkOfficial();
     updateModal();
+    showEngine(T_RPM, Key::Rpm, 0, 1.0, false);
+    showEngine(T_COOL, Key::CoolantTemp, 0, 1.0, true);
+    showEngine(T_OILP, Key::OilPress, 1, 0.01, false);       // kPa -> bar
+    showEngine(T_FUEL, Key::FuelLevel, 0, 1.0, false);
+    showEngine(T_BATT, Key::BatteryV, 1, 1.0, false);
+    showEngine(T_RATE, Key::FuelRate, 1, 1.0, false);
+    showEngine(T_OILT, Key::OilTemp, 0, 1.0, true);
+    showEngine(T_HOURS, Key::EngineHours, 0, 1.0, false);
     show(T_SOG, Key::Sog, 1);
     show(T_COG, Key::Cog, 0, true);
     show(T_HDG, Key::Heading, 0, true);

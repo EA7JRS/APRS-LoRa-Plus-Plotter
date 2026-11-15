@@ -432,6 +432,17 @@ void loop() {
         char line[100];
         for (int i = 0; i < NmeaSimulator::count(); i++)
             if (sim.sentence(i, line, sizeof(line))) simNmea.feed(line, Source::Sensor, now, *store);
+        {                                                   // motor de pega, para ver la pagina Motor sin bus
+            const double w = std::sin(now / 9000.0);
+            store->set(Key::Rpm, 1850 + 120 * w, Source::Sensor, now);
+            store->set(Key::CoolantTemp, 82 + 2 * w, Source::Sensor, now);
+            store->set(Key::OilPress, 410 + 25 * w, Source::Sensor, now);
+            store->set(Key::OilTemp, 96 + 3 * w, Source::Sensor, now);
+            store->set(Key::FuelLevel, 64, Source::Sensor, now);
+            store->set(Key::FuelRate, 4.2 + 0.6 * w, Source::Sensor, now);
+            store->set(Key::BatteryV, 13.8, Source::Sensor, now);
+            store->set(Key::EngineHours, 1520.4, Source::Sensor, now);
+        }
         static uint8_t tick = 0;
         tick++;
         for (int i = 0; i < NmeaSimulator::aisCount(); i++) {

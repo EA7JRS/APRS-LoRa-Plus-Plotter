@@ -75,3 +75,7 @@ GPL-3.0-or-later. APRS LoRa+ · © 2026 Manuel - EA7JRS
 Si el proyecto te resulta útil:
 
 [![Donar con PayPal](https://img.shields.io/badge/Donar-PayPal-00457C?logo=paypal&logoColor=white)](https://paypal.me/ea7jrs)
+
+## Referencia de formatos: CANboat
+
+Los formatos de los PGN (NMEA 2000 y J1939) se contrastan con la base de datos de **[CANboat](https://canboat.github.io/canboat/)** (Apache-2.0), release fijada **v9.2.0**: `tools/canboat/run.sh` baja `canboat.json` y `canboat-j1939.json` y comprueba los codificadores (130306, 129283, 129284) y el lector de motor (127488 / 127489 / 127505 / 127508 y J1939). La CI lo ejecuta en cada subida.

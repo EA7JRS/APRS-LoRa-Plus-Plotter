@@ -24,7 +24,7 @@ On power-up the APRS LoRa+ welcome screen (logo and version) shows for a couple 
 
 | Tab | What it is for |
 |---|---|
-| Instrumentos (Instruments) | Speed, course, depth, wind and temperature, with the source of each value |
+| Instrumentos (Instruments) | Speed, course, depth, wind and temperature, with the source of each value. Tap the tab again: **Motor** (engine) page (rpm, temperatures, oil, fuel, battery, fuel rate, hours; over NMEA 2000 or J1939) |
 | Carta (Chart) | Map, boat, track, AIS targets, waypoints, routes, measuring and anchoring |
 | Rutas (Routes) | Waypoint list and the route |
 | Radar AIS | Targets around the boat, with collision risk |

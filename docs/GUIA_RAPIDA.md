@@ -22,7 +22,7 @@ Al encender sale un par de segundos la bienvenida de APRS LoRa+ (logo y versión
 
 | Pestaña | Para qué |
 |---|---|
-| Instrumentos | Velocidad, rumbo, profundidad, viento y temperatura, con la fuente de cada dato |
+| Instrumentos | Velocidad, rumbo, profundidad, viento y temperatura, con la fuente de cada dato. Tocando otra vez la pestaña: página **Motor** (régimen, temperaturas, aceite, combustible, batería, consumo, horas; por NMEA 2000 o J1939) |
 | Carta | Mapa, barco, derrota, blancos AIS, waypoints, rutas, medir y fondeo |
 | Rutas | Lista de waypoints y la ruta |
 | Radar AIS | Blancos alrededor del barco, con riesgo de abordaje |

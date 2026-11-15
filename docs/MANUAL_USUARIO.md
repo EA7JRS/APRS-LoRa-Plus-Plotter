@@ -51,6 +51,14 @@ llegó**. Si un dato no llega, la casilla dice «Sin datos».
 El **viento real** se calcula a bordo con el viento aparente, la velocidad y el rumbo. Si falta el sensor de viento,
 se usa el que llegue de otra fuente; el de internet sale en ámbar y con «estimado».
 
+### Motor
+
+Tocando **otra vez** la pestaña Instrumentos (estando ya en ella) las casillas pasan a las del **motor**: régimen, refrigerante, presión de aceite, combustible, batería, consumo, temperatura de aceite y horas de motor. Otro toque vuelve a la navegación.
+
+![Instrumentos, página Motor](img/instrumentos_motor.png)
+
+Los datos entran por el bus NMEA 2000 (PGN 127488, 127489, 127505 y 127508, primer motor y primer depósito de combustible) —por ejemplo desde la pasarela **APRS LoRa+ OBD-II**— o directamente de un motor **J1939** que comparta el bus de 250 kbit/s (régimen, carga, temperaturas, presión de aceite, consumo, sobrealimentación, tensión, nivel y horas). Con el simulador encendido se ve un motor de pega. Formatos contrastados con la base de datos de CANboat v9.2.0.
+
 ## 3. Carta
 
 ![Carta](img/carta.png)

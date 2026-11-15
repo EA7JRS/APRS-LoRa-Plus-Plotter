@@ -53,6 +53,14 @@ Under each value you can see **where it comes from** (NMEA 2000, serial port, lo
 **True wind** is computed on board from apparent wind, speed and heading. If the wind sensor is missing, the one
 arriving from another source is used; the internet one is shown in amber and labelled «estimado» (estimated).
 
+### Motor (Engine)
+
+Tapping the Instrumentos tab **again** (while already on it) switches the tiles to the **engine**: RÉGIMEN (rpm), REFRIGERANTE (coolant), PRESIÓN ACEITE (oil pressure), COMBUSTIBLE (fuel), BATERÍA (battery), CONSUMO (fuel rate), TEMP. ACEITE (oil temperature) and HORAS MOTOR (engine hours). Another tap goes back to navigation.
+
+![Instrumentos, Motor page](img/instrumentos_motor.png)
+
+Data comes from the NMEA 2000 bus (PGNs 127488, 127489, 127505 and 127508, first engine and first fuel tank) — for instance from the **APRS LoRa+ OBD-II** gateway — or straight from a **J1939** engine sharing the 250 kbit/s bus (speed, load, temperatures, oil pressure, fuel rate, boost, voltage, level and hours). With the simulator on, a dummy engine is shown. Formats checked against the CANboat database v9.2.0.
+
 ## 3. Carta (Chart)
 
 ![Chart](img/carta.png)

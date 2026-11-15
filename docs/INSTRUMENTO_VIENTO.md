@@ -27,7 +27,7 @@ Pantalla de viento propia para la bañera o la mesa de cartas. Lee la veleta y e
 
 ## 2. Grabar el firmware
 
-Con el instalador web: abre **https://ea7jrs.github.io/APRS-LoRa-Plus/#nautica** en Chrome o Edge, elige el grupo
+Con el instalador web: abre **https://ea7jrs.github.io/APRS-LoRa-Plus/install/#nautica** en Chrome o Edge, elige el grupo
 **Náutica** y la placa **waveshare_lcd4_wind**, conecta la pantalla por USB y pulsa *Instalar*. Se conservan los ajustes.
 
 Con esptool, la imagen completa de la release (borra los ajustes):

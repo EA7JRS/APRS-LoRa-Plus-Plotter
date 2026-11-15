@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Prepara los ficheros del plotter y de su instrumento de viento para el instalador web de APRS LoRa+
-# (https://ea7jrs.github.io/APRS-LoRa-Plus/, grupo "Nautica"): el contrato esta en docs/WEB_INSTALLER.md del tracker.
+# (https://ea7jrs.github.io/APRS-LoRa-Plus/install/, grupo "Nautica"): el contrato esta en docs/WEB_INSTALLER.md del tracker.
 # Se llama una vez por placa con la misma carpeta de salida: latest.json va juntando las placas (el instrumento,
 # waveshare_lcd4_wind, sale en el instalador como otra placa del grupo Nautica).
 #

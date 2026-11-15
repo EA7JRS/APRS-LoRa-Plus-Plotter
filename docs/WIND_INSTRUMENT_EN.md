@@ -29,7 +29,7 @@ with NMEA)** vane and anemometer, shows apparent and true wind, and passes it to
 
 ## 2. Flashing the firmware
 
-Web installer: open **https://ea7jrs.github.io/APRS-LoRa-Plus/#nautica** in Chrome or Edge, choose the **Náutica**
+Web installer: open **https://ea7jrs.github.io/APRS-LoRa-Plus/install/#nautica** in Chrome or Edge, choose the **Náutica**
 (Nautical) group and the **waveshare_lcd4_wind** board, connect the screen by USB and press *Install*. Settings are kept.
 
 esptool, the full image from the release (erases the settings):

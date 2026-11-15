@@ -29,7 +29,7 @@ through it. The other one, the native USB, shares pins with CAN and stops workin
 
 ### With the web installer (recommended)
 
-1. Open **https://ea7jrs.github.io/APRS-LoRa-Plus/#nautica** in Chrome or Edge (computer, or Android with an OTG cable).
+1. Open **https://ea7jrs.github.io/APRS-LoRa-Plus/install/#nautica** in Chrome or Edge (computer, or Android with an OTG cable).
 2. Choose the **Náutica** (Nautical) group.
 3. Connect the board through the UART port and press **Detect board**, or pick `waveshare_lcd7b` by hand.
 4. Press install. **The settings stored in the board are kept.**

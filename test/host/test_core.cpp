@@ -32,6 +32,7 @@
 #include "wind.h"
 #include "wxstation.h"
 #include "wxwarn.h"
+#include "wxwarn_tgz.h"
 
 using namespace plotter;
 
@@ -1421,6 +1422,20 @@ static void testWxWarn() {
         }
         CHECK(got == 2 && sc.blocks() == 2 && !sc.gzip());
         wxw::Scanner gz; const uint8_t g[] = {0x1F, 0x8B, 8, 0}; CHECK(!gz.feed(g, 4, blk) && gz.gzip());
+        CHECK(gz.finish([&](const std::string&) {}) == -2);                     // cortado: lo dice
+        // el .tar.gz de AEMET: se guarda comprimido mientras llega y finish lo descomprime y corta los avisos
+        wxw::Scanner tg; int ok = 0, seen = 0;
+        for (size_t i = 0; i < sizeof(WXWARN_TGZ); i += 500) {
+            size_t n = sizeof(WXWARN_TGZ) - i < 500 ? sizeof(WXWARN_TGZ) - i : 500;
+            CHECK(!tg.feed(WXWARN_TGZ + i, n, blk));
+        }
+        CHECK(tg.gzip());
+        CHECK(tg.finish([&](const std::string& b) { seen++; wxw::Warning x; if (wxw::parse(b, x, false, 0, 0) && x.level == wxw::ORANGE) ok++; }) == 0);
+        CHECK(seen == 2 && ok == 2 && tg.blocks() == 2);
+        std::string bad((const char*)WXWARN_TGZ, sizeof(WXWARN_TGZ));
+        bad[bad.size() / 2] ^= 0x5A;
+        wxw::Scanner tb; tb.feed((const uint8_t*)bad.data(), bad.size(), blk);
+        CHECK(tb.finish([&](const std::string&) {}) < 0);
     }
 }
 

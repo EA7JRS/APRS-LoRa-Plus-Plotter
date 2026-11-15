@@ -4,6 +4,8 @@
  */
 #include "net.h"
 
+#include "gunzip.h"
+
 #ifdef ESP32
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -115,7 +117,15 @@ static bool fetchWarnings(const Config& c, bool havePos, double lat, double lon)
     if (code == 200 && http.writeToStream(&sink) < 0) code = -1;
     http.end();
     if (code != 200) { warnSay("Avisos: la descarga ha fallado."); return false; }
-    if (sink.sc.gzip()) { warnSay("Avisos: el archivo viene comprimido (a\xC3\xBAn no se lee)."); return false; }
+    if (sink.sc.gzip()) {                                // AEMET: un .tar.gz con todos los CAP en vigor (se guardo en la PSRAM)
+        const int rc = sink.sc.finish([](const std::string& blk) { sink.take(blk); });
+        if (rc) {
+            char t[96];
+            snprintf(t, sizeof t, "Avisos: archivo comprimido %s.", rc == -6 ? "demasiado grande" : gz::errorText(rc));
+            warnSay(t);
+            return false;
+        }
+    }
     for (int i = 1; i < sink.n; i++)                                // pocos: ordenacion por insercion
         for (int j = i; j > 0 && wxw::before(sink.keep[j], sink.keep[j - 1]); j--) { wxw::Warning x = sink.keep[j]; sink.keep[j] = sink.keep[j - 1]; sink.keep[j - 1] = x; }
     xSemaphoreTake(cfgLock, portMAX_DELAY);

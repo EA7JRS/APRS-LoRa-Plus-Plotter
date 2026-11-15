@@ -112,6 +112,10 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   el zumbador es seleccionable (amarillo / naranja / rojo / nunca); España con AEMET y otros países con Meteoalarm (canales CAP
   por país en `feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom-<pais>`, listados en el registro de la OMM
   `alertingauthority.wmo.int`; condiciones de uso sin leer; EE. UU. tiene `api.weather.gov/alerts`). País según la posición.
+  **Rama `avisos-meteo` (2026-11-12/15) sin unir** (Manuel, 2026-11-15, release 5.4.6): `main` ya tiene los avisos oficiales
+  de `lib/aprs_links/alerts_net` (AEMET por RSS, MeteoAlarm, NWS…; ventana `M_OFFICIAL`), así que la rama, que hacía lo
+  mismo con el CAP de AEMET (con polígono, clave de OpenData, `.tar.gz` y `gunzip` propio) y `M_WXWARN`, se queda aparte.
+  Si hiciera falta el polígono del CAP, `wxwarn` y `gunzip` de esa rama sirven de base.
 
 - NAVGUIDE de la IALA (edición 5, 2006, en español, de puertos.es; estudiado el 2026-11-11; es antigua: contrastar con la
   vigente). Hecho en el núcleo (`lights`): alcance geográfico 2,03·(√ojo + √luz), alcance luminoso con la visibilidad real (ley
@@ -399,6 +403,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   por la rama `release/v5.4.2` a la vez que tracker, rotor, Display y app. **No se publicó**: Manuel (2026-11-12, «sube
   mejor el release de todo a 5.4.3») pasó todo a la **5.4.3** (`PLOTTER_VERSION`, notas en `docs/releases/v5.4.3.md`,
   rama `release/v5.4.3`); la preliminar v5.4.2 que quedó en GitHub se puede borrar.
+- **Versión 5.4.6 (2026-11-15; Manuel: «subimos release a 5.4.6»; prepara Claude, publica Manuel)**: `PLOTTER_VERSION`, `library.json`, manuales y guías, notas en `docs/releases/v5.4.6.md`. La release sale de la etiqueta `v5.4.6` o de una rama `release/v5.4.6`.
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - **Accesorio: instrumento de viento de 4″ (pedido 2026-11-12)**: equipo aparte sobre la **Waveshare
   ESP32-S3-Touch-LCD-4** (SKU 28154, 480×480, táctil, 16 MB + 8 MB; confirmada por Manuel, no la 4.3C) que lee el NASA

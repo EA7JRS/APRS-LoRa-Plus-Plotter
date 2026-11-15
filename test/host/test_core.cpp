@@ -186,7 +186,27 @@ static void testAstro() {
     // Cadiz, 11 de noviembre: coherencia interna (orto < mediodia < ocaso, dia de unas 10 h 20 min)
     CHECK(sunTimes(2026, 11, 11, 36.53, -6.28, -0.833, r, s));
     NEAR(s - r, 10 * 60 + 21, 4);
-    NEAR((r + s) / 2, solarNoonUtcMin(2026, 11, 11, -6.28), 1e-9);
+    NEAR((r + s) / 2, solarNoonUtcMin(2026, 11, 11, -6.28), 0.5);
+    // Orto y ocaso iterados: en ese momento el sol (celnav, 0,1') esta a la altura pedida, en cualquier latitud y fecha
+    {
+        const double lats[] = {0, 36.53, 43.5, 52, 60, 66}, alts[] = {-0.833, -6, -12};
+        int bad = 0, n = 0;
+        for (double la : lats)
+            for (double h : alts)
+                for (int mo = 1; mo <= 12; mo++) {
+                    double rr, ss, a1, a2, z;
+                    if (!sunTimes(2026, mo, 15, la, -6.28, h, rr, ss)) continue;
+                    sunPosition(2026, mo, 15, rr / 60, la, -6.28, a1, z);
+                    sunPosition(2026, mo, 15, ss / 60, la, -6.28, a2, z);
+                    n++;
+                    if (std::fabs(a1 - h) > 0.002 || std::fabs(a2 - h) > 0.002 || z < 180) bad++;
+                }
+        CHECK(n > 180 && bad == 0);
+        // Al mediodia solar el angulo horario es cero: el sol esta al sur (o al norte en el ecuador en junio)
+        double a, z;
+        sunPosition(2026, 6, 15, solarNoonUtcMin(2026, 6, 15, -6.28) / 60, 52, -6.28, a, z);
+        NEAR(z, 180, 0.01);
+    }
     double r2, s2;
     CHECK(sunTimes(2026, 11, 11, 36.53, -6.28, -12, r2, s2));
     CHECK(r2 < r && s2 > s);

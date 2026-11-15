@@ -2069,6 +2069,14 @@ static void astroCompute() {
     if (astroBody == 2 || astroBody == 3) sd *= 1.0 + sin(deg2rad(sext)) * sin(deg2rad(hp / 60.0));   // la Luna, mas cerca en alto
     const plotter::Limb limb = astroBody >= 4 ? plotter::Limb::Center : (astroBody % 2 == 0 ? plotter::Limb::Lower : plotter::Limb::Upper);
     const double ho = plotter::observedAltitude(sext, astroNum(2), astroNum(3), limb, sd, hp);
+    {
+        const int i10 = (int)lround(astroNum(2) * 10), e10 = (int)lround(astroNum(3) * 10);
+        settings::Values& sv = settings::get();
+        if (abs(i10) <= 600 && e10 >= 0 && e10 <= 500 && (i10 != sv.astroIdx10 || e10 != sv.astroEye10)) {
+            sv.astroIdx10 = i10; sv.astroEye10 = e10;
+            settings::save();
+        }
+    }
     AstroLop L;
     L.s = plotter::reduceSight(la, lo, gha, dec, ho);
     if (L.s.hcDeg < 0 || fabs(L.s.interceptNm) > 120) {     // astro, hora o altura equivocados: no se traza
@@ -2111,8 +2119,8 @@ static void astroCompute() {
 static void onAstroBtn(lv_event_t* e) {
     const int a = (int)(intptr_t)lv_event_get_user_data(e);
     if (a == 0) astroBody = (astroBody + 1) % 9;
-    else if (a == 1) { astroBody = kAstroStar; astroStar = (astroStar + plotter::navStarCount() - 1) % plotter::navStarCount(); }
-    else if (a == 2) { astroBody = kAstroStar; astroStar = (astroStar + 1) % plotter::navStarCount(); }
+    else if (a == 1) { astroBody = kAstroStar; astroStar = (astroStar + plotter::starCount() - 1) % plotter::starCount(); }
+    else if (a == 2) { astroBody = kAstroStar; astroStar = (astroStar + 1) % plotter::starCount(); }
     else if (a == 3) astroNow();
     else if (a == 4) astroCompute();
     else if (a == 5) { lopN = 0; astroFixOn = false; lv_label_set_text(astroOut, "Rectas borradas."); }
@@ -2170,8 +2178,11 @@ static void makeAstro() {
         vesTa[i] = keepTa[i];
     }
     vesScr = keep;
-    lv_textarea_set_text(astroTa[2], "0");
-    lv_textarea_set_text(astroTa[3], "2");
+    char sv[12];                                           // error de indice y elevacion del ojo: los ultimos usados
+    snprintf(sv, sizeof(sv), "%.1f", settings::get().astroIdx10 / 10.0);
+    lv_textarea_set_text(astroTa[2], sv);
+    snprintf(sv, sizeof(sv), "%.1f", settings::get().astroEye10 / 10.0);
+    lv_textarea_set_text(astroTa[3], sv);
     b = textButton(astroScr, "Ahora", 92, 48, onAstroBtn, 3);
     lv_obj_set_pos(b, 916, 124);
     astroOut = label(astroScr, "Mide la altura con el sextante, pulsa Ahora en el instante de la medida y escribe grados y minutos.\nLa estima es la posici\xC3\xB3n del barco en la carta.", &dejavu_16, C_SOFT);

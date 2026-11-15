@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- **Astro: 99 estrellas más** (las «otras estrellas» de los almanaques: 157 en total; catálogo HYG / Hipparcos, CC BY-SA 4.0) y el error de índice y la elevación del ojo **se recuerdan**.
 - **Astro: Luna y planetas.** Luna (limbo inferior o superior, con su paralaje y semidiámetro; Meeus cap. 47 completo, 0,25′ frente al JPL DE421) y Venus, Marte, Júpiter y Saturno (VSOP87 recortada con tiempo de luz y aberración, 0,06′ frente a PyEphem) en `celnav` y en Carta > Astro. La posición de la Luna de Meteo usa la misma serie.
 - **Astro: traslado de rectas** (las anteriores se llevan al instante de la última por lo navegado, «(trasl.)») y **crepúsculo náutico** en la línea del Sol de Meteo.
 - **Carta > Astro: recta de altura con el sextante.** Sol (limbo inferior o superior) y las 57 estrellas de navegación más la Polar; correcciones de error de índice, depresión, refracción, semidiámetro y paralaje; altura calculada, azimut y determinante; hasta cuatro rectas dibujadas en la carta y situación por dos o más. Núcleo `celnav` (`observedAltitude`, `reduceSight`, `fixFromSights`). Sin Luna ni planetas; sin traslado de rectas.

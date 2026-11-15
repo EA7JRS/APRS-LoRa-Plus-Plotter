@@ -79,3 +79,5 @@ Si el proyecto te resulta útil:
 ## Referencia de formatos: CANboat
 
 Los formatos de los PGN (NMEA 2000 y J1939) se contrastan con la base de datos de **[CANboat](https://canboat.github.io/canboat/)** (Apache-2.0), release fijada **v9.2.0**: `tools/canboat/run.sh` baja `canboat.json` y `canboat-j1939.json` y comprueba los codificadores (130306, 129283, 129284) y el lector de motor (127488 / 127489 / 127505 / 127508 y J1939). La CI lo ejecuta en cada subida.
+
+Estrellas de la navegación astronómica: las 57 de navegación y la Polar, del catálogo de PyEphem; las otras 99, de la **[HYG Database](https://github.com/astronexus/HYG-Database)** v4.1 (CC BY-SA 4.0); ambas con datos de Hipparcos. Series del Sol, la Luna y los planetas: VSOP87 y Meeus, «Astronomical Algorithms».

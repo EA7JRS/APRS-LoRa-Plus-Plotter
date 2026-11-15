@@ -35,6 +35,10 @@ void load() {
     if (v.blePin < 0 || v.blePin > 999999) v.blePin = 123456;
     v.pilotOut = p.getInt("pilot", 0);
     v.pilotModel = p.getInt("pilotM", 1);
+    v.astroIdx10 = p.getInt("astIdx", 0);
+    v.astroEye10 = p.getInt("astEye", 20);
+    if (v.astroIdx10 < -600 || v.astroIdx10 > 600) v.astroIdx10 = 0;
+    if (v.astroEye10 < 0 || v.astroEye10 > 500) v.astroEye10 = 20;
     v.units = p.getInt("units", 0);
     v.baseMap = p.getInt("map", 0);
     v.anchorOn = p.getBool("anc", false);
@@ -97,6 +101,8 @@ void save() {
     p.putInt("blePin", v.blePin);
     p.putInt("pilot", v.pilotOut);
     p.putInt("pilotM", v.pilotModel);
+    p.putInt("astIdx", v.astroIdx10);
+    p.putInt("astEye", v.astroEye10);
     p.putInt("units", v.units);
     p.putInt("map", v.baseMap);
     p.putBool("anc", v.anchorOn);

@@ -2046,6 +2046,16 @@ static void testCelnav() {
     starShaDec(navStar(navStarFind("Polaris")), julianDay(2035, 2, 2, 3), s, d);
     CHECK(near(d, 89.4083, 0.0005));
     CHECK(navStarCount() == 58 && navStarFind("nada") < 0);
+    // Otras estrellas (catalogo HYG / Hipparcos) contra la tabla mensual del almanaque de junio de 2026 (medias del mes: 0,3')
+    CHECK(starCount() == 157 && navStarFind("Caph") >= 58 && std::string(navStar(57).name) == "Polaris");
+    {
+        struct { const char* n; double sha, dec; } ex[] = {{"Caph", 357 + 21.3 / 60, 59 + 17.5 / 60}, {"Mimosa", 167 + 40.6 / 60, -(59 + 50.3 / 60)},
+            {"Scheat", 13 + 44.0 / 60, 28 + 13.4 / 60}, {"Alhena", 260 + 11.6 / 60, 16 + 22.6 / 60}, {"Sargas", 95 + 11.1 / 60, -(43 + 0.8 / 60)}};
+        for (const auto& x : ex) {
+            starShaDec(navStar(navStarFind(x.n)), julianDay(2026, 6, 16, 0), s, d);
+            CHECK(near((s - x.sha) * std::cos(deg2rad(d)), 0, 0.3 / 60) && near(d, x.dec, 0.3 / 60));
+        }
+    }
     // Correcciones (tablas del almanaque): depresion 11,08 m -> 5,9'; 1,03 m -> 1,8'; refraccion a 15 01' -> 3,6'; a 19 02' -> 2,8'
     CHECK(near(dipArcmin(11.08), 5.9, 0.05) && near(dipArcmin(1.03), 1.8, 0.05) && dipArcmin(0) == 0);
     CHECK(near(refractionArcmin(15.0 + 1 / 60.0), 3.6, 0.06) && near(refractionArcmin(19.0 + 2 / 60.0), 2.8, 0.06));

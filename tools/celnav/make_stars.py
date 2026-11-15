@@ -19,3 +19,11 @@ print("// nombre, magnitud, AR J2000 (horas), declinacion J2000 (grados), movimi
 for n in NAV:
     ra, dec, pmra, pmdec, mag = rows[n.replace("_", " ")]
     print('{"%s", %.2ff, %.8f, %.8f, %.2f, %.2f},' % (n.replace("_", " "), mag, ra, dec, pmra, pmdec))
+
+# Otras estrellas (tools/celnav/extra_stars.csv), detras de las 58 para no mover sus indices
+import os
+for line in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "extra_stars.csv"), encoding="utf-8"):
+    if line.startswith("#") or not line.strip():
+        continue
+    name, _, mag, ra, dec, pmra, pmdec = line.strip().split(";")
+    print('{"%s", %.2ff, %.8f, %.8f, %.2f, %.2f},' % (name, float(mag), float(ra), float(dec), float(pmra), float(pmdec)))

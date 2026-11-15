@@ -2049,6 +2049,31 @@ static void testCelnav() {
     // Otras estrellas (catalogo HYG / Hipparcos) contra la tabla mensual del almanaque de junio de 2026 (medias del mes: 0,3')
     CHECK(starCount() == 157 && navStarFind("Caph") >= 58 && std::string(navStar(57).name) == "Polaris");
     {
+        // Cielo visible: 15 de junio de 2026, 21:30 UTC, en 36,5 N 6,3 W (crepusculo nautico en Cadiz)
+        static SkyItem it[200];
+        const double jd = julianDay(2026, 6, 15, 21.5);
+        const int n = visibleBodies(jd, 36.5, -6.3, 10, 80, it, 200);
+        bool sorted = true, inRange = true, sun = false, vega = false, polaris = false;
+        for (int i = 0; i < n; i++) {
+            if (i && it[i].az < it[i - 1].az) sorted = false;
+            if (it[i].alt < 10 || it[i].alt > 80) inRange = false;
+            if (it[i].kind == 0) sun = true;
+            if (it[i].kind == 3 && std::string(navStar(it[i].index).name) == "Vega") vega = true;
+            if (it[i].kind == 3 && it[i].index == 57) {
+                polaris = near(it[i].alt, 36.5 + (navStar(57).decDeg - 90) * std::cos(deg2rad(it[i].az)) * 0, 1.0);
+            }
+        }
+        CHECK(n > 40 && sorted && inRange && !sun && vega && polaris);
+        int t[3];
+        CHECK(bestStarTriple(it, n, t));
+        auto sep = [](float a, float b) { float d = std::fabs(a - b); return d > 180 ? 360 - d : d; };
+        CHECK(sep(it[t[0]].az, it[t[1]].az) >= 100 && sep(it[t[0]].az, it[t[2]].az) >= 100 && sep(it[t[1]].az, it[t[2]].az) >= 100);
+        CHECK(it[t[0]].kind == 3 && it[t[1]].kind == 3 && it[t[2]].kind == 3 && it[t[0]].mag < 2.5 && it[t[1]].mag < 2.5 && it[t[2]].mag < 2.5);
+        SkyItem day[10];
+        const int nd = visibleBodies(julianDay(2026, 6, 15, 12), 36.5, -6.3, 10, 90, day, 10);
+        CHECK(nd == 10 && !bestStarTriple(day, 0, t));
+    }
+    {
         struct { const char* n; double sha, dec; } ex[] = {{"Caph", 357 + 21.3 / 60, 59 + 17.5 / 60}, {"Mimosa", 167 + 40.6 / 60, -(59 + 50.3 / 60)},
             {"Scheat", 13 + 44.0 / 60, 28 + 13.4 / 60}, {"Alhena", 260 + 11.6 / 60, 16 + 22.6 / 60}, {"Sargas", 95 + 11.1 / 60, -(43 + 0.8 / 60)}};
         for (const auto& x : ex) {

@@ -130,6 +130,10 @@ power cycle.
 The **Astro** button on the chart opens *Recta de altura* (line of position), to fix your position with a sextant, with no tables or almanac:
 
 1. Choose the body: the *Astro* button cycles **Sol (limbo inferior)** (Sun, lower limb), **Sol (limbo superior)** (upper limb) and **Estrella** (star); `<` and `>` step through the 57 navigational stars and Polaris, followed by 99 more bright almanac stars (Caph, Mimosa, Castor, Mizar...). The index error and eye height are remembered for next time. For each star it shows its altitude and azimuth right now, to identify it.
+   **Visibles** (visible now) lists what is between 10° and 80° of altitude right now (Sun, Moon, planets and stars), sorted by azimuth, with altitude and azimuth; tap one to choose it. White: bodies of the almanac daily pages; grey: the other stars. **Yellow: the three stars that best spread round the horizon** (widest azimuth separation, ideally 120°, brightest among similar ones). The note says whether it is day, twilight (the right time) or full night.
+
+   ![Visible bodies](img/astro_visibles.png)
+
 2. At the instant of the sight press **Ahora** (now), or type the UTC time as `hhmmss`.
 3. Type the sextant altitude (*Grados*, *Minutos*), the index error in minutes (*Error índice*, positive if the sextant reads high) and the height of eye in metres (*Ojo*).
 4. **Calcular y trazar** (compute and plot): dip, refraction, semi-diameter and the Sun's parallax are applied, and you get the observed altitude, the computed altitude, the azimuth and the **intercept** (*Determinante*: miles *hacia el astro*, towards, or *en contra*, away). The line is drawn on the chart in yellow, with the body and the time.

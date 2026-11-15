@@ -68,6 +68,7 @@ int main(int argc, char** argv) {
             else if (a == "barco") ui::testVessel();
             else if (a.rfind("astro:", 0) == 0) { size_t c = a.find(':', 6); ui::testAstro(a.substr(6, c == std::string::npos ? c : c - 6).c_str(), c == std::string::npos ? 0.0 : atof(a.c_str() + c + 1)); }
             else if (a == "astrocerrar") ui::closeAstro();
+            else if (a == "astrolista") ui::testAstroList();
             else if (a == "rs485") ui::testRs485();
             else if (sscanf(a.c_str(), "piloto:%d", &x) == 1) settings::get().pilotOut = x;   // 1 RS485, 2 red, 3 Bluetooth
             else if (a == "internet") ui::testInternet();

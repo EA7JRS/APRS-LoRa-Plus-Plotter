@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- **Astro > Visibles**: lista de lo que hay ahora entre 10° y 80° (Sol, Luna, planetas y estrellas) por azimut; toca uno para elegirlo; en amarillo, las tres estrellas que mejor reparten el horizonte.
 - **Astro: 99 estrellas más** (las «otras estrellas» de los almanaques: 157 en total; catálogo HYG / Hipparcos, CC BY-SA 4.0) y el error de índice y la elevación del ojo **se recuerdan**.
 - **Astro: Luna y planetas.** Luna (limbo inferior o superior, con su paralaje y semidiámetro; Meeus cap. 47 completo, 0,25′ frente al JPL DE421) y Venus, Marte, Júpiter y Saturno (VSOP87 recortada con tiempo de luz y aberración, 0,06′ frente a PyEphem) en `celnav` y en Carta > Astro. La posición de la Luna de Meteo usa la misma serie.
 - **Astro: traslado de rectas** (las anteriores se llevan al instante de la última por lo navegado, «(trasl.)») y **crepúsculo náutico** en la línea del Sol de Meteo.

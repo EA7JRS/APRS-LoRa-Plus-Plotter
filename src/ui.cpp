@@ -214,6 +214,9 @@ static lv_obj_t* astroKb = nullptr;
 static lv_obj_t* astroBodyLbl = nullptr;
 static lv_obj_t* astroStarLbl = nullptr;
 static lv_obj_t* astroOut = nullptr;
+static lv_obj_t* astroListScr = nullptr;                 // Astro > Visibles
+static lv_obj_t* astroListBox = nullptr;
+static lv_obj_t* astroListNote = nullptr;
 static int astroBody = 0;                               // 0 / 1 Sol limbo inferior / superior, 2 / 3 Luna, 4 a 7 Venus, Marte, Jupiter y Saturno, 8 estrella
 static int astroStar = 0;
 static void openAstro();
@@ -2116,6 +2119,95 @@ static void astroCompute() {
     lv_label_set_text(astroOut, b);
 }
 
+// ---- Astro > Visibles: lo que se puede observar ahora, por azimut, con las tres estrellas que mejor sitúan ----
+static plotter::SkyItem astroSky[200];
+static int astroSkyN = 0;
+static void openAstroList();
+
+static void onAstroPick(lv_event_t* e) {
+    const int i = (int)(intptr_t)lv_event_get_user_data(e);
+    lv_obj_set_hidden(astroListScr, true);
+    if (i < 0 || i >= astroSkyN) return;
+    const plotter::SkyItem& s = astroSky[i];
+    if (s.kind == 0) astroBody = 0;
+    else if (s.kind == 1) astroBody = 2;
+    else if (s.kind == 2) astroBody = 4 + s.index;
+    else { astroBody = kAstroStar; astroStar = s.index; }
+    astroRefresh();
+}
+
+static void makeAstroList() {
+    astroListScr = lv_obj_create(astroScr);
+    lv_obj_remove_style_all(astroListScr);
+    lv_obj_set_size(astroListScr, board::W, board::H);
+    lv_obj_set_style_bg_color(astroListScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(astroListScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(astroListScr, false);
+    lv_obj_set_clickable(astroListScr, true);
+    lv_obj_t* t = label(astroListScr, "Astros visibles ahora", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    lv_obj_t* b = textButton(astroListScr, "Cerrar", 124, 48, onAstroPick, -1);
+    lv_obj_set_pos(b, 884, 8);
+    astroListNote = label(astroListScr, "", &dejavu_16, C_SOFT);
+    lv_obj_set_pos(astroListNote, 16, 64);
+    lv_obj_set_width(astroListNote, 992);
+    astroListBox = lv_obj_create(astroListScr);
+    lv_obj_remove_style_all(astroListBox);
+    lv_obj_set_pos(astroListBox, 16, 116);
+    lv_obj_set_size(astroListBox, 992, board::H - 126);
+    lv_obj_set_flex_flow(astroListBox, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_style_pad_gap(astroListBox, 8, 0);
+    lv_obj_set_scroll_dir(astroListBox, LV_DIR_VER);
+}
+
+static void openAstroList() {
+    if (!astroListScr) makeAstroList();
+    lv_obj_clean(astroListBox);
+    astroSkyN = 0;
+    const uint32_t now = millis();
+    double la, lo;
+    const int64_t t = tsync::now();
+    if (!store->get(Key::Lat, now, la) || !store->get(Key::Lon, now, lo) || t < 1600000000) {
+        lv_label_set_text(astroListNote, "Hace falta la posici\xC3\xB3n del barco y la hora para saber qu\xC3\xA9 astros hay sobre el horizonte.");
+        lv_obj_set_hidden(astroListScr, false);
+        return;
+    }
+    const double jd = t / 86400.0 + 2440587.5;
+    astroSkyN = plotter::visibleBodies(jd, la, lo, 10, 80, astroSky, 200);
+    int best[3] = {-1, -1, -1};
+    const bool trio = plotter::bestStarTriple(astroSky, astroSkyN, best);
+    double gha, dec, sunAlt, sunAz;
+    plotter::sunGhaDec(jd, gha, dec);
+    plotter::bodyAltAz(gha, dec, la, lo, sunAlt, sunAz);
+    char note[260];
+    const char* phase = sunAlt > -3 ? " Es de d\xC3\xAD" "a: de las estrellas solo se ven las m\xC3\xA1s brillantes, y con dificultad."
+                      : (sunAlt < -12 ? " Noche cerrada: sin horizonte visible las alturas no son fiables."
+                                      : " Crep\xC3\xBAsculo: buen momento para tomar estrellas.");
+    snprintf(note, sizeof(note), "Entre 10\xC2\xB0 y 80\xC2\xB0 de altura, por azimut.%s%s", phase,
+             trio ? "\nEn amarillo, las tres estrellas que mejor reparten el horizonte." : "");
+    lv_label_set_text(astroListNote, note);
+    static const char* pn[] = {"Venus", "Marte", "J\xC3\xBApiter", "Saturno"};
+    for (int i = 0; i < astroSkyN; i++) {
+        const plotter::SkyItem& s = astroSky[i];
+        const bool pick = trio && (i == best[0] || i == best[1] || i == best[2]);
+        char txt[64];
+        const char* nm = s.kind == 0 ? "Sol" : (s.kind == 1 ? "Luna" : (s.kind == 2 ? pn[s.index & 3] : plotter::navStar(s.index).name));
+        snprintf(txt, sizeof(txt), "%s  %.0f\xC2\xB0 / %03.0f\xC2\xB0", nm, (double)s.alt, (double)s.az);
+        lv_obj_t* b = textButton(astroListBox, txt, 324, 44, onAstroPick, i);
+        if (s.kind < 3 || s.index < plotter::navStarCount())                // los de las tablas diarias, en blanco; los demas, apagados
+            lv_obj_set_style_text_color(lv_obj_get_child(b, 0), lv_color_hex(C_TEXT), 0);
+        else lv_obj_set_style_text_color(lv_obj_get_child(b, 0), lv_color_hex(C_SOFT), 0);
+        if (pick) {
+            lv_obj_set_style_border_color(b, lv_color_hex(C_WARN), 0);
+            lv_obj_set_style_border_width(b, 3, 0);
+            lv_obj_set_style_text_color(lv_obj_get_child(b, 0), lv_color_hex(C_WARN), 0);
+        }
+    }
+    if (!astroSkyN) lv_label_set_text(astroListNote, "Ning\xC3\xBAn astro entre 10\xC2\xB0 y 80\xC2\xB0 de altura.");
+    lv_obj_scroll_to_y(astroListBox, 0, LV_ANIM_OFF);
+    lv_obj_set_hidden(astroListScr, false);
+}
+
 static void onAstroBtn(lv_event_t* e) {
     const int a = (int)(intptr_t)lv_event_get_user_data(e);
     if (a == 0) astroBody = (astroBody + 1) % 9;
@@ -2124,6 +2216,7 @@ static void onAstroBtn(lv_event_t* e) {
     else if (a == 3) astroNow();
     else if (a == 4) astroCompute();
     else if (a == 5) { lopN = 0; astroFixOn = false; lv_label_set_text(astroOut, "Rectas borradas."); }
+    else if (a == 7) { openAstroList(); return; }
     else { lv_obj_set_hidden(astroScr, true); return; }
     astroRefresh();
 }
@@ -2153,15 +2246,18 @@ static void makeAstro() {
     lv_obj_set_pos(b, 712, 8);
     b = textButton(astroScr, "Cerrar", 124, 48, onAstroBtn, 6);
     lv_obj_set_pos(b, 884, 8);
-    b = textButton(astroScr, "", 330, 48, onAstroBtn, 0);
+    b = textButton(astroScr, "", 280, 48, onAstroBtn, 0);
     lv_obj_set_pos(b, 16, 66);
     astroBodyLbl = lv_obj_get_child(b, 0);
-    b = textButton(astroScr, "<", 56, 48, onAstroBtn, 1);
-    lv_obj_set_pos(b, 356, 66);
-    b = textButton(astroScr, ">", 56, 48, onAstroBtn, 2);
-    lv_obj_set_pos(b, 420, 66);
+    lv_obj_set_style_text_font(astroBodyLbl, &dejavu_bold_16, 0);
+    b = textButton(astroScr, "<", 52, 48, onAstroBtn, 1);
+    lv_obj_set_pos(b, 304, 66);
+    b = textButton(astroScr, ">", 52, 48, onAstroBtn, 2);
+    lv_obj_set_pos(b, 364, 66);
+    b = textButton(astroScr, "Visibles", 108, 48, onAstroBtn, 7);
+    lv_obj_set_pos(b, 424, 66);
     astroStarLbl = label(astroScr, "", &dejavu_16, C_SOFT);
-    lv_obj_set_pos(astroStarLbl, 490, 80);
+    lv_obj_set_pos(astroStarLbl, 546, 80);
     static const struct { int x, w, max; const char* hint; const char* chars; } F[5] = {
         {16, 150, 2, "Grados", "0123456789"}, {174, 170, 4, "Minutos", "0123456789.,"}, {352, 200, 5, "Error \xC3\xADndice, '", "-0123456789.,"},
         {560, 190, 4, "Ojo, m", "0123456789.,"}, {758, 150, 6, "UTC hhmmss", "0123456789"}};
@@ -2233,6 +2329,7 @@ void testAstro(const char* star, double errArcmin) {
 }
 
 void closeAstro() { if (astroScr) lv_obj_set_hidden(astroScr, true); }
+void testAstroList() { if (!astroScr) return; lv_obj_set_hidden(astroScr, false); openAstroList(); }
 
 static void makeAbout() {
     aboutScr = lv_obj_create(lv_layer_top());

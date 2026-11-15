@@ -2542,28 +2542,30 @@ static void astroNow() {
     lv_textarea_set_text(astroTa[4], b);
 }
 
-static void astroCompute() {
+// Lo comun a la recta y a la latitud: estima, instante, altura observada, AHG y declinacion (escribe el error en astroOut)
+static bool astroInputs(double& la, double& lo, double& jd, double& ho, double& gha, double& dec, int& hh, int& mm) {
     const uint32_t now = millis();
-    double la, lo;
     if (!store->get(Key::Lat, now, la) || !store->get(Key::Lon, now, lo)) {
         lv_label_set_text(astroOut, "Hace falta una posici\xC3\xB3n de estima (GPS o la \xC3\xBAltima conocida).");
-        return;
+        return false;
     }
     const int64_t t0 = tsync::now();
     const char* hs = lv_textarea_get_text(astroTa[4]);
-    if (t0 < 1600000000 || strlen(hs) != 6) { lv_label_set_text(astroOut, "Falta la hora UTC (hhmmss) o el reloj no tiene fecha."); return; }
-    const int hh = (hs[0] - '0') * 10 + (hs[1] - '0'), mm = (hs[2] - '0') * 10 + (hs[3] - '0'), ss = (hs[4] - '0') * 10 + (hs[5] - '0');
-    if (hh > 23 || mm > 59 || ss > 59) { lv_label_set_text(astroOut, "Hora UTC no v\xC3\xA1lida."); return; }
+    if (t0 < 1600000000 || strlen(hs) != 6) { lv_label_set_text(astroOut, "Falta la hora UTC (hhmmss) o el reloj no tiene fecha."); return false; }
+    hh = (hs[0] - '0') * 10 + (hs[1] - '0');
+    mm = (hs[2] - '0') * 10 + (hs[3] - '0');
+    const int ss = (hs[4] - '0') * 10 + (hs[5] - '0');
+    if (hh > 23 || mm > 59 || ss > 59) { lv_label_set_text(astroOut, "Hora UTC no v\xC3\xA1lida."); return false; }
     int64_t t = t0 - t0 % 86400 + hh * 3600 + mm * 60 + ss;
     if (t > t0 + 3600) t -= 86400;                        // una hora "del futuro" es de ayer
-    const double jd = t / 86400.0 + 2440587.5;
+    jd = t / 86400.0 + 2440587.5;
     const double sext = astroNum(0) + astroNum(1) / 60.0;
-    if (sext <= 0 || sext >= 90) { lv_label_set_text(astroOut, "Altura de sextante entre 0 y 90 grados."); return; }
-    double gha, dec, sd, hp;
+    if (sext <= 0 || sext >= 90) { lv_label_set_text(astroOut, "Altura de sextante entre 0 y 90 grados."); return false; }
+    double sd, hp;
     astroGhaDec(jd, gha, dec, sd, hp);
     if (astroBody == 2 || astroBody == 3) sd *= 1.0 + sin(deg2rad(sext)) * sin(deg2rad(hp / 60.0));   // la Luna, mas cerca en alto
     const plotter::Limb limb = astroBody >= 4 ? plotter::Limb::Center : (astroBody % 2 == 0 ? plotter::Limb::Lower : plotter::Limb::Upper);
-    const double ho = plotter::observedAltitude(sext, astroNum(2), astroNum(3), limb, sd, hp);
+    ho = plotter::observedAltitude(sext, astroNum(2), astroNum(3), limb, sd, hp);
     {
         const int i10 = (int)lround(astroNum(2) * 10), e10 = (int)lround(astroNum(3) * 10);
         settings::Values& sv = settings::get();
@@ -2572,6 +2574,13 @@ static void astroCompute() {
             settings::save();
         }
     }
+    return true;
+}
+
+static void astroCompute() {
+    double la, lo, jd, ho, gha, dec;
+    int hh, mm;
+    if (!astroInputs(la, lo, jd, ho, gha, dec, hh, mm)) return;
     AstroLop L;
     L.s = plotter::reduceSight(la, lo, gha, dec, ho);
     if (L.s.hcDeg < 0 || fabs(L.s.interceptNm) > 120) {     // astro, hora o altura equivocados: no se traza
@@ -2607,6 +2616,51 @@ static void astroCompute() {
         for (char* c = p; *c; c++) if ((unsigned char)c[0] == 0xE2 && (unsigned char)c[1] == 0x80 && (unsigned char)c[2] == 0xB2) { c[0] = '\''; memmove(c + 1, c + 3, strlen(c + 3) + 1); }   // la fuente de 16 no trae el signo de minuto
         snprintf(b + n, sizeof(b) - (size_t)n, "\nSituaci\xC3\xB3n por %d rectas: %s (a %.1f mn de la estima).", lopN, p, gcDistanceNm({la, lo}, astroFix));
     } else if (lopN >= 2 && n > 0 && n < (int)sizeof(b)) snprintf(b + n, sizeof(b) - (size_t)n, "\nRectas casi paralelas: sin situaci\xC3\xB3n.");
+    for (char* c = b; *c; c++) if (*c == '.' && c > b && isdigit((unsigned char)c[-1]) && isdigit((unsigned char)c[1])) *c = ',';
+    lv_label_set_text(astroOut, b);
+}
+
+// ---- Astro > Latitud: por la meridiana, por la Polar o con una altura cerca del meridiano ----
+static double astroBodyGha(double jd, void*) { double g, d, sd, hp; astroGhaDec(jd, g, d, sd, hp); return g; }
+
+static void astroLatitude() {
+    double la, lo, jd, ho, gha, dec;
+    int hh, mm;
+    if (!astroInputs(la, lo, jd, ho, gha, dec, hh, mm)) return;
+    const bool polaris = astroBody == kAstroStar && astroStar == plotter::navStarFind("Polaris");
+    const double lha = remainder(gha + lo, 360.0);
+    auto dm = [](double v, char* o, size_t n, bool isLat) {
+        const double a = fabs(v); int d = (int)a; double m = (a - d) * 60;
+        if (m >= 59.95) { d++; m = 0; }
+        snprintf(o, n, "%d\xC2\xB0 %04.1f'%s", d, m, isLat ? (v >= 0 ? " N" : " S") : "");
+    };
+    char b[420], lt[24], le[24], hc[20];
+    int n = 0;
+    double lat;
+    if (!plotter::latitudeFromAltitude(ho, dec, lha, la, lat)) {
+        n = snprintf(b, sizeof(b), "Ninguna latitud da esa altura a esa hora: revisa el astro, la hora UTC y la altura.");
+    } else {
+        const char* how = polaris ? "por la Polar" : (fabs(lha) <= 2.5 ? "por la meridiana" : "con la altura (fuera del meridiano)");
+        dm(lat, lt, sizeof(lt), true);
+        dm(la, le, sizeof(le), true);
+        const double dn = (lat - la) * 60.0;
+        n = snprintf(b, sizeof(b), "Latitud %s: %s \xC2\xB7 estima %s (%.1f mn al %s)", how, lt, le, fabs(dn), dn >= 0 ? "N" : "S");
+        if (polaris) { char c[20]; dm(lat - ho, c, sizeof(c), false); n += snprintf(b + n, sizeof(b) - (size_t)n, "\nCorrecci\xC3\xB3n de la Polar a esa hora: %s%s", lat - ho < 0 ? "-" : "+", c); }
+        else if (fabs(lha) > 2.5)
+            n += snprintf(b + n, sizeof(b) - (size_t)n, "\nHorario local %.1f\xC2\xB0: depende de la longitud de estima. La buena es la del paso por el meridiano.", fabs(lha));
+    }
+    if (!polaris && n > 0 && n < (int)sizeof(b)) {         // cuando pasa por el meridiano y a que altura (con la estima)
+        const double tp = plotter::meridianPassageJd(jd, lo, astroBodyGha, nullptr);
+        double g, d, sd, hp;
+        astroGhaDec(tp, g, d, sd, hp);
+        const double hmax = 90.0 - fabs(la - d);
+        const int64_t ut = (int64_t)llround((tp - 2440587.5) * 86400.0);
+        const int sod = (int)(((ut % 86400) + 86400) % 86400);
+        dm(hmax, hc, sizeof(hc), false);
+        if (hmax > 0) n += snprintf(b + n, sizeof(b) - (size_t)n, "\nPaso por el meridiano: %02d:%02d:%02d UTC, altura verdadera %s al %s.",
+                                    sod / 3600, sod / 60 % 60, sod % 60, hc, d < la ? "S" : "N");
+        else snprintf(b + n, sizeof(b) - (size_t)n, "\nEse astro no sube sobre el horizonte en su paso por el meridiano.");
+    }
     for (char* c = b; *c; c++) if (*c == '.' && c > b && isdigit((unsigned char)c[-1]) && isdigit((unsigned char)c[1])) *c = ',';
     lv_label_set_text(astroOut, b);
 }
@@ -2710,6 +2764,8 @@ static void onAstroBtn(lv_event_t* e) {
     else if (a == 5) { lopN = 0; astroFixOn = false; lv_label_set_text(astroOut, "Rectas borradas."); }
     else if (a == 7) { openAstroList(); return; }
     else if (a == 8) { openCt(); return; }
+    else if (a == 9) astroLatitude();
+    else if (a == 10) { const int p = plotter::navStarFind("Polaris"); if (p >= 0) { astroBody = kAstroStar; astroStar = p; } }
     else { lv_obj_set_hidden(astroScr, true); return; }
     astroRefresh();
 }
@@ -2731,9 +2787,11 @@ static void makeAstro() {
     lv_obj_set_style_bg_opa(astroScr, LV_OPA_COVER, 0);
     lv_obj_set_scrollable(astroScr, false);
     lv_obj_set_clickable(astroScr, true);
-    lv_obj_t* t = label(astroScr, "Recta de altura", &dejavu_bold_20, C_TEXT);
+    lv_obj_t* t = label(astroScr, "Astro", &dejavu_bold_20, C_TEXT);
     lv_obj_set_pos(t, 16, 18);
-    lv_obj_t* b = textButton(astroScr, "Desv\xC3\xADo (Ct)", 176, 48, onAstroBtn, 8);
+    lv_obj_t* b = textButton(astroScr, "Latitud", 110, 48, onAstroBtn, 9);
+    lv_obj_set_pos(b, 184, 8);
+    b = textButton(astroScr, "Desv\xC3\xADo (Ct)", 176, 48, onAstroBtn, 8);
     lv_obj_set_pos(b, 300, 8);
     b = textButton(astroScr, "Calcular y trazar", 220, 48, onAstroBtn, 4);
     lv_obj_set_pos(b, 484, 8);
@@ -2751,8 +2809,11 @@ static void makeAstro() {
     lv_obj_set_pos(b, 364, 66);
     b = textButton(astroScr, "Visibles", 108, 48, onAstroBtn, 7);
     lv_obj_set_pos(b, 424, 66);
+    b = textButton(astroScr, "Polar", 76, 48, onAstroBtn, 10);
+    lv_obj_set_pos(b, 540, 66);
     astroStarLbl = label(astroScr, "", &dejavu_16, C_SOFT);
-    lv_obj_set_pos(astroStarLbl, 546, 80);
+    lv_obj_set_pos(astroStarLbl, 626, 80);
+    lv_obj_set_width(astroStarLbl, 390);
     static const struct { int x, w, max; const char* hint; const char* chars; } F[5] = {
         {16, 150, 2, "Grados", "0123456789"}, {174, 170, 4, "Minutos", "0123456789.,"}, {352, 200, 5, "Error \xC3\xADndice, '", "-0123456789.,"},
         {560, 190, 4, "Ojo, m", "0123456789.,"}, {758, 150, 6, "UTC hhmmss", "0123456789"}};
@@ -2799,7 +2860,7 @@ static void makeAstro() {
 }
 
 // Para las pruebas en el PC: abre la pantalla y traza la recta de una estrella con la altura que tendria ahora (+ err minutos)
-void testAstro(const char* star, double errArcmin) {
+void testAstro(const char* star, double errArcmin, bool latitude) {
     openAstro();
     const int i = plotter::navStarFind(star);
     static const char* bodies[] = {"luna", "venus", "marte", "jupiter", "saturno"};
@@ -2819,7 +2880,8 @@ void testAstro(const char* star, double errArcmin) {
         snprintf(b, sizeof(b), "%.1f", (hs - (int)hs) * 60);
         lv_textarea_set_text(astroTa[1], b);
     }
-    astroCompute();
+    if (latitude) astroLatitude();
+    else astroCompute();
     astroRefresh();
 }
 

@@ -2,6 +2,7 @@
 
 ## Sin publicar
 
+- **Latitud por la meridiana y por la Polar**: Carta > Astro > **Latitud** da la latitud de una sola altura (por la meridiana, por la Polar o, con aviso, fuera del meridiano) y la hora UTC y la altura del paso por el meridiano del astro elegido; botón **Polar**. Núcleo: `latitudeFromAltitude` y `meridianPassageJd` en `celnav` (14 comprobaciones; 1908 en total).
 - **Luces en la Carta**: la lista `/luces.txt` de la tarjeta se dibuja con el color y el ritmo de cada luz (las principales desde el zoom 8, el resto desde el 11); tocar una abre su ficha con característica, altura, alcance, «se verá a» y distancia y demora, e **Ir a**.
 - **Libro de Faros → lista de luces**: `tools/faros/libro_faros.py` convierte el PDF del Libro de Faros del IHM en la lista de luces del plotter, para uso personal (los datos del IHM no van en el repositorio).
 - **LSD / DSC**: sentencia DSC de NMEA 0183 de una emisora con LSD o de la app APRS LoRa+ (que decodifica el canal 70 y MF / HF), por el RS485, la red o Bluetooth; Meteo > **LSD** con la lista (repeticiones en 10 min, tocar una con posición pone rumbo a ella) y ventana **DSC DISTRESS** para alertas, retransmisiones y acuses de socorro (IR A). Núcleo `dsc` (18 comprobaciones; 1894 en total).

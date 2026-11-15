@@ -154,6 +154,19 @@ La estima es la posición del barco en la carta en ese momento. Se guardan hasta
 
 ![Recta de un planeta](img/astro_planeta.png)
 
+**Latitud** usa la misma medida para dar la latitud directamente, sin trazar:
+
+- **Por la meridiana**: mide el Sol (u otro astro) en su paso por el meridiano, cuando deja de subir. El resultado es la
+  latitud y su diferencia con la estima. Además se dice **a qué hora UTC pasa por el meridiano** y con qué altura
+  verdadera, con la longitud de la estima, para estar preparado.
+- **Por la Polar**: el botón **Polar** elige la estrella Polar; de noche, su altura da la latitud a cualquier hora (se
+  calcula con su posición exacta de la fecha, sin tablas) y se dice la corrección de la Polar en ese momento.
+- Fuera del meridiano también da una latitud, pero depende de la longitud de la estima y se avisa con el horario local.
+
+![Latitud por la Polar](img/astro_polar.png)
+
+![Latitud y paso por el meridiano](img/astro_meridiana.png)
+
 El Sol, Aries y las estrellas se calculan a bordo con precisión de almanaque (0,1′), contrastados con un almanaque náutico de 2026. Los planetas, a 0,1′ (contra PyEphem); la **Luna**, a unos 0,3′ (contra las efemérides DE421 del JPL): su recta vale, pero con algo menos de precisión que las del Sol o las estrellas. Hace falta que el reloj tenga fecha y hora (GPS o internet): un segundo de error son hasta 0,25 millas.
 
 **Cómo calcula.** Es el método de Marcq Saint-Hilaire (altura y azimut desde la estima), sin almanaque ni tablas de reducción:

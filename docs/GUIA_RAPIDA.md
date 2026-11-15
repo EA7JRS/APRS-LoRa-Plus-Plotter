@@ -23,7 +23,7 @@ Al encender sale un par de segundos la bienvenida de APRS LoRa+ (logo y versión
 | Pestaña | Para qué |
 |---|---|
 | Instrumentos | Velocidad, rumbo, profundidad, viento y temperatura, con la fuente de cada dato. Tocando otra vez la pestaña: página **Motor** (régimen, temperaturas, aceite, combustible, batería, consumo, horas; por NMEA 2000 o J1939) |
-| Carta | Mapa, barco, derrota, blancos AIS, luces de la lista de la tarjeta (con su ritmo y «se verá a»), waypoints, rutas, medir, fondeo y **Astro** (recta de altura con el sextante: Sol, Luna, Venus, Marte, Júpiter, Saturno y 157 estrellas, con lista de los astros visibles, sin almanaque; y **Desvío (Ct)**: corrección total del compás con un astro y tablilla de desvíos) |
+| Carta | Mapa, barco, derrota, blancos AIS, luces de la lista de la tarjeta (con su ritmo y «se verá a»), waypoints, rutas, medir, fondeo y **Astro** (recta de altura con el sextante: Sol, Luna, Venus, Marte, Júpiter, Saturno y 157 estrellas, con lista de los astros visibles, **latitud por la meridiana y por la Polar** y hora del paso por el meridiano, sin almanaque; y **Desvío (Ct)**: corrección total del compás con un astro y tablilla de desvíos) |
 | Rutas | Lista de waypoints y la ruta |
 | Radar AIS | Blancos alrededor del barco, con riesgo de abordaje |
 | Viento | Esfera de viento aparente y real, e historial de 10 minutos |

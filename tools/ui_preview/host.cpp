@@ -67,6 +67,7 @@ int main(int argc, char** argv) {
             else if (a == "acerca") ui::testAbout();
             else if (a == "barco") ui::testVessel();
             else if (a.rfind("astro:", 0) == 0) { size_t c = a.find(':', 6); ui::testAstro(a.substr(6, c == std::string::npos ? c : c - 6).c_str(), c == std::string::npos ? 0.0 : atof(a.c_str() + c + 1)); }
+            else if (a.rfind("astrolat:", 0) == 0) { size_t c = a.find(':', 9); ui::testAstro(a.substr(9, c == std::string::npos ? c : c - 9).c_str(), c == std::string::npos ? 0.0 : atof(a.c_str() + c + 1), true); }
             else if (a == "astrocerrar") ui::closeAstro();
             else if (a == "astrolista") ui::testAstroList();
             else if (a.rfind("ct:", 0) == 0) {           // ct:<estrella o vacio = Sol>:<desvio>:<paso de rumbos, 0 = uno solo>

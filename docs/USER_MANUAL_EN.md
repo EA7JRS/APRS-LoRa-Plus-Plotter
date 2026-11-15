@@ -166,6 +166,22 @@ The Sun, Aries and the stars are computed on board to almanac precision (0.1′)
 - *Intercept*: Ho − Hc in nautical miles; positive means towards the body. The line is perpendicular to the azimuth through that point.
 - *Fix*: with two or more lines, the point that best satisfies all of them (least squares), after advancing the earlier ones for the run. Nearly parallel lines give no fix.
 
+### Astro > Latitud (latitude by meridian altitude and by Polaris)
+
+**Latitud** uses the same sight to give the latitude directly, without plotting:
+
+- *Por la meridiana* (meridian altitude): sight the Sun (or another body) at meridian passage, when it stops rising.
+  You get the latitude and its difference from the DR. It also gives **the UTC time of meridian passage** and the true
+  altitude then, from the DR longitude, so you can be ready.
+- *Por la Polar* (by Polaris): the **Polar** button selects Polaris; at night its altitude gives the latitude at any
+  time (computed with its exact position for the date, no tables) and the Polaris correction at that moment is shown.
+- Away from the meridian a latitude is still given, but it depends on the DR longitude; the local hour angle is shown
+  as a warning.
+
+![Latitude by Polaris](img/astro_polar.png)
+
+![Latitude and meridian passage](img/astro_meridiana.png)
+
 ### Astro > Desvío (Ct): total correction and deviation card
 
 The **Desvío (Ct)** button in *Recta de altura* opens *Corrección total y desvío* (total correction and deviation), to check the compass against a celestial body:

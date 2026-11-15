@@ -2021,6 +2021,46 @@ static void testMtCheck() {
 
 // Navegacion astronomica. Valores de referencia: PyEphem 4.2.1 (lugar aparente geocentrico) y las paginas del 1 de enero
 // y del 16 de junio de un almanaque nautico de 2026 (precision 0,1').
+static double sunGhaFn(double jd, void*) { double g, d; plotter::sunGhaDec(jd, g, d); return g; }
+static double starGhaFn(double jd, void* ctx) {
+    double sha, dec;
+    plotter::starShaDec(plotter::navStar(*(int*)ctx), jd, sha, dec);
+    return std::fmod(plotter::ariesGha(jd) + sha, 360.0);
+}
+
+static void testLatitude() {
+    using namespace plotter;
+    // en el meridiano: Ho = 90 - |lat - dec|
+    double lat = 0;
+    CHECK(latitudeFromAltitude(90 - (36.5 + 18.3), -18.3, 0, 36, lat)); NEAR(lat, 36.5, 1e-9);
+    CHECK(latitudeFromAltitude(90 - (12.0 - 5.0), -5.0, 0, -10, lat)); NEAR(lat, -12.0, 1e-9);     // hemisferio sur, astro al N
+    // fuera del meridiano, con la longitud bien: vuelve la latitud de partida
+    double alt, az;
+    bodyAltAz(30.0, 10.0, 41.2, -20.0, alt, az);                 // LHA = 30 - 20 = 10
+    CHECK(latitudeFromAltitude(alt, 10.0, 10.0, 40, lat)); NEAR(lat, 41.2, 1e-9);
+    CHECK(!latitudeFromAltitude(80, -60, 90, 0, lat));            // imposible: con horario 90 ese astro no sube a 80 grados
+    // la Polar, en cualquier momento: de su altura sale la latitud
+    const int pol = navStarFind("Polaris");
+    CHECK(pol >= 0);
+    const double jd = 2461360.75;                                 // 2026-11-15 06:00 UTC
+    double sha, dec;
+    starShaDec(navStar(pol), jd, sha, dec);
+    const double gha = std::fmod(ariesGha(jd) + sha, 360.0);
+    bodyAltAz(gha, dec, 36.53, -6.28, alt, az);
+    CHECK(latitudeFromAltitude(alt, dec, gha - 6.28, 35.0, lat)); NEAR(lat, 36.53, 1e-9);
+    CHECK(std::fabs(alt - 36.53) < 1.0);                          // la Polar va a menos de un grado de la latitud
+    // paso del Sol por el meridiano de 6 17' W el 15-11-2026: 12 h - ecuacion del tiempo + 25,1 min
+    const double jdNoon = 2461360.0;                              // 12:00 UTC
+    const double tp = meridianPassageJd(jdNoon, -6.28, sunGhaFn, nullptr);
+    const double expect = 12 * 60 - equationOfTimeMin(jdNoon) + 6.28 * 4;
+    NEAR((tp - (jdNoon - 0.5)) * 1440.0, expect, 0.2);
+    // y de una estrella: en su paso el horario local es 0
+    int idx = navStarFind("Vega");
+    const double tv = meridianPassageJd(jdNoon, -6.28, starGhaFn, &idx);
+    NEAR(std::remainder(starGhaFn(tv, &idx) - 6.28, 360.0), 0.0, 1e-4);
+    CHECK(std::fabs(tv - jdNoon) <= 0.51);
+}
+
 static void testCelnav() {
     auto dm = [](double deg, double min) { return deg + min / 60.0; };
     double g, d, s;
@@ -2324,6 +2364,7 @@ int main() {
     testCallsign();
     testMtCheck();
     testCelnav();
+    testLatitude();
     testDeviation();
     testNavtex();
     testDsc();

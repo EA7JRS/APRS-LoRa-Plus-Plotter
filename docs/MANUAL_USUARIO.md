@@ -311,7 +311,7 @@ tu barco. La nota de abajo dice si la consulta a OpenWeatherMap funciona y de d�
 
 Cálculos a bordo: la casilla de temperatura da la **sensación térmica** (enfriamiento por el viento real con frío,
 índice de calor con calor y humedad) cuando se aparta medio grado del aire, y la de humedad el **punto de rocío**
-(fórmula de Magnus). Arriba de la nota, el **sol** (salida y puesta, crepúsculo civil y náutico) y la **luna** (fase, iluminada y
+(fórmula de Magnus). Arriba de la nota, el **sol** (salida y puesta con menos de un segundo de error, crepúsculo civil y náutico) y la **luna** (fase, iluminada y
 horas de salida y puesta) del día en la posición del barco, en hora UTC.
 
 
@@ -385,7 +385,10 @@ datos al transponder** (cambian lo que emite): solo lee los suyos. Si cambias el
 
 **Distintivo marítimo comprobado**: el transponder solo lo emite comprobado. Con la clave de la API de MarineTraffic (de
 pago, 40 caracteres) en *Clave API MarineTraffic*, el botón **MarineTraffic** busca el MMSI y compara el distintivo
-(MarineTraffic solo conoce barcos que ha recibido por AIS de verdad). Si no está, búscalo en el **MARS de la UIT**
+(MarineTraffic solo conoce barcos que ha recibido por AIS de verdad). **Sin clave**, el aviso de la pantalla da la ficha
+pública del barco (marinetraffic.com/es/ais/details/ships/mmsi:…): mírala en el móvil o el ordenador y, si el distintivo
+coincide, pulsa **MarineTraffic** para darlo por comprobado («MarineTraffic: OK»; otra pulsación lo quita). Sus condiciones
+no dejan que un programa lea esa página, por eso la mira la persona. Si no está, búscalo en el **MARS de la UIT**
 (itu.int/mmsapp/ShipStation/list, el registro oficial) y pulsa **MARS UIT** para confirmarlo a mano («MARS: OK»). El
 resultado se manda al transponder. Si cambias el MMSI o el distintivo, hay que comprobarlo otra vez.
 

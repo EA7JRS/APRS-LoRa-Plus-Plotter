@@ -313,7 +313,7 @@ the observation is from.
 
 On-board calculations: the temperature tile gives the **feels-like temperature** (wind chill with the true wind when
 cold, heat index when hot and humid) when it differs from the air by half a degree, and the humidity tile the **dew
-point** (Magnus formula). Above the note, the **sun** (rise and set, civil and nautical twilight) and the **moon** (phase, lit
+point** (Magnus formula). Above the note, the **sun** (rise and set to within a second, civil and nautical twilight) and the **moon** (phase, lit
 fraction, rise and set) for the day at the boat's position, in UTC.
 
 
@@ -390,7 +390,10 @@ the transponder** (they change what it transmits): it only reads the transponder
 
 **Verified maritime call sign**: the transponder only sends it once verified. With the MarineTraffic API key (paid, 40
 characters) in *Clave API MarineTraffic*, the **MarineTraffic** button looks up the MMSI and compares the call sign
-(MarineTraffic only knows vessels it has received over real AIS). If it is not there, look it up in the **ITU MARS**
+(MarineTraffic only knows vessels it has received over real AIS). **Without a key**, the note on the screen gives the
+vessel's public page (marinetraffic.com/es/ais/details/ships/mmsi:…): look at it on the phone or a computer and, if the
+call sign matches, press **MarineTraffic** to mark it as checked («MarineTraffic: OK»; another press removes it). Its terms
+do not let a program read that page, so a person looks at it. If it is not there, look it up in the **ITU MARS**
 (itu.int/mmsapp/ShipStation/list, the official register) and press **MARS UIT** to confirm it by hand («MARS: OK»). The
 result is sent to the transponder. Changing the MMSI or the call sign needs a new check.
 

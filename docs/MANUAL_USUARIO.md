@@ -144,6 +144,14 @@ La estima es la posición del barco en la carta en ese momento. Se guardan hasta
 
 El Sol, Aries y las estrellas se calculan a bordo con precisión de almanaque (0,1′), contrastados con un almanaque náutico de 2026. Los planetas, a 0,1′ (contra PyEphem); la **Luna**, a unos 0,3′ (contra las efemérides DE421 del JPL): su recta vale, pero con algo menos de precisión que las del Sol o las estrellas. Hace falta que el reloj tenga fecha y hora (GPS o internet): un segundo de error son hasta 0,25 millas.
 
+**Cómo calcula.** Es el método de Marcq Saint-Hilaire (altura y azimut desde la estima), sin almanaque ni tablas de reducción:
+
+- *Efemérides*: el horario (AHG) y la declinación del astro en el segundo de la medida, calculados a bordo: Sol y planetas con las series VSOP87, Luna con las tablas de Meeus, estrellas con su catálogo corregido de precesión, nutación y aberración.
+- *Altura observada (Ho)*: a la del sextante se le aplican el error de índice, la depresión del horizonte por la elevación del ojo, la refracción y, en el Sol y la Luna, el semidiámetro del limbo y el paralaje.
+- *Altura calculada y azimut (Hc, Zn)*: se resuelve el triángulo de posición desde la estima.
+- *Determinante*: Ho − Hc en millas; positivo, hacia el astro. La recta es la perpendicular al azimut por ese punto.
+- *Situación*: con dos o más rectas, el punto que mejor las cumple todas (mínimos cuadrados), después de trasladar las anteriores por lo navegado. Si se cortan casi en paralelo no se da situación.
+
 ## 4. Rutas
 
 ![Rutas](img/rutas.png)

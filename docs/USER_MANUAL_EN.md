@@ -129,7 +129,7 @@ power cycle.
 
 The **Astro** button on the chart opens *Recta de altura* (line of position), to fix your position with a sextant, with no tables or almanac:
 
-1. Choose the body: the *Astro* button cycles **Sol (limbo inferior)** (Sun, lower limb), **Sol (limbo superior)** (upper limb) and **Estrella** (star); `<` and `>` step through the 57 navigational stars and Polaris, followed by 99 more bright almanac stars (Caph, Mimosa, Castor, Mizar...). The index error and eye height are remembered for next time. For each star it shows its altitude and azimuth right now, to identify it.
+1. Choose the body: the *Astro* button cycles **Sol** (Sun) and **Luna** (Moon), each with *limbo inferior* / *superior* (lower / upper limb), **Venus**, **Marte** (Mars), **Júpiter**, **Saturno** and **Estrella** (star); `<` and `>` step through the 57 navigational stars and Polaris, followed by 99 more bright almanac stars (Caph, Mimosa, Castor, Mizar...). The index error and eye height are remembered for next time. For the Moon, the planets and each star it shows its altitude and azimuth right now, to identify it.
    **Visibles** (visible now) lists what is between 10° and 80° of altitude right now (Sun, Moon, planets and stars), sorted by azimuth, with altitude and azimuth; tap one to choose it. White: bodies of the almanac daily pages; grey: the other stars. **Yellow: the three stars that best spread round the horizon** (widest azimuth separation, ideally 120°, brightest among similar ones). The note says whether it is day, twilight (the right time) or full night.
 
    ![Visible bodies](img/astro_visibles.png)
@@ -145,6 +145,14 @@ The assumed position is the boat's position on the chart at that moment. Up to f
 ![Lines on the chart](img/carta_rectas.png)
 
 The Sun, Aries and the stars are computed on board to almanac precision (0.1′), checked against a 2026 nautical almanac. The *Astro* button also offers the **Moon** (lower or upper limb; about 0.3′ against JPL DE421, so slightly less precise) and **Venus, Mars, Jupiter and Saturn** (0.1′ against PyEphem), with their parallax applied. The clock must have date and time (GPS or internet): one second of error is up to 0.25 miles.
+
+**How it computes.** It is the Marcq Saint-Hilaire (intercept) method from the assumed position, with no almanac or sight reduction tables:
+
+- *Ephemeris*: the body's GHA and declination at the second of the sight, computed on board: Sun and planets from the VSOP87 series, Moon from Meeus's tables, stars from their catalogue corrected for precession, nutation and aberration.
+- *Observed altitude (Ho)*: the sextant altitude corrected for index error, dip for the eye height, refraction and, for the Sun and Moon, the limb semi-diameter and parallax.
+- *Computed altitude and azimuth (Hc, Zn)*: the navigational triangle solved from the assumed position.
+- *Intercept*: Ho − Hc in nautical miles; positive means towards the body. The line is perpendicular to the azimuth through that point.
+- *Fix*: with two or more lines, the point that best satisfies all of them (least squares), after advancing the earlier ones for the run. Nearly parallel lines give no fix.
 
 ## 4. Rutas (Routes)
 

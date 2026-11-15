@@ -23,7 +23,7 @@ Cambios de cada versión: [CHANGELOG.md](CHANGELOG.md).
 ## Estado
 
 Versión 5.4.4, preliminar. El núcleo de cálculo (`lib/plotter_core`) no depende de Arduino y tiene pruebas en el PC. El firmware de la
-7B compila en la CI (Instrumentos, Carta, Rutas, Radar AIS, Viento, Piloto, Meteo y Ajustes); **todavía sin probar en la placa**.
+7B compila en la CI (Instrumentos con motor, Carta con recta de altura, Rutas, Radar AIS, Viento, Piloto, Meteo y Ajustes); **todavía sin probar en la placa**.
 
 | Módulo | Contenido |
 |---|---|
@@ -34,7 +34,8 @@ Versión 5.4.4, preliminar. El núcleo de cálculo (`lib/plotter_core`) no depen
 | `tiles` | Teselas de mapa: posición a tesela y píxel, escala, direcciones XYZ y TMS |
 | `wxstation` | Observación de la estación meteorológica más cercana (AEMET) |
 | `units` | Sistemas náutico, métrico, imperial y usuario |
-| `astro` | Orto, ocaso, crepúsculos, posición del sol, edad de la luna |
+| `astro` | Orto, ocaso, crepúsculos, posición del sol y de la luna, fase |
+| `celnav` | Navegación astronómica: Sol, Luna, Venus, Marte, Júpiter, Saturno y 157 estrellas con precisión de almanaque; correcciones de altura, recta de altura, traslado, situación, astros visibles y las tres estrellas que mejor se cortan |
 | `store` | Tabla única de datos con fuente, hora y prioridad |
 | `nmea` | NMEA 0183: RMC, GLL, VTG, DPT, DBT, MWV, HDT, VHW, MTW, VDM, VDO |
 | `aistargets` | Tabla de blancos AIS: distancia, demora, CPA / TCPA, riesgo, perdidos |
@@ -62,7 +63,7 @@ Versión 5.4.4, preliminar. El núcleo de cálculo (`lib/plotter_core`) no depen
 1. **Núcleo:** instrumentos, carta con waypoints y rutas, radar AIS, alarmas, viento, piloto (datos de ruta por RS485, TCP, BLE o **NMEA 2000**: emite 129283/129284 para un piloto del bus; sin probar en piloto real). Datos por CAN (NMEA 2000) y serie.
 2. **Tracker y emergencias:** enlace BLE con el tracker APRS LoRa+ y la ventana de emergencias de la app Android, LSD de la emisora.
 3. **Internet y mensajes:** mapas base (OpenSeaMap, IHM), capas de Portus y AEMET, meteo, Navtex y SafetyNET por TCP.
-4. **Mareas y navegación astronómica:** mareas por cálculo armónico y rectas de altura con sextante.
+4. **Mareas y navegación astronómica:** rectas de altura con sextante (hechas: Carta > Astro); mareas por cálculo armónico (pendiente).
 
 Vista previa de las pantallas: https://claude.ai/artifact/3rGbM86ZobibCQ2KU44DAD
 

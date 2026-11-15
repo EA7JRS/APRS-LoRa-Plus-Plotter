@@ -2026,6 +2026,22 @@ static void testCelnav() {
         }
         double fLat, fLon;
         CHECK(fixFromSights(eLat, eLon, sg, 3, fLat, fLon) && near(fLat, tLat, 0.3 / 60) && near(fLon, tLon, 0.4 / 60));
+        // traslado: una recta tomada 6 mn al oeste (antes) se lleva a la posicion de ahora y, con otra, da la situacion
+        {
+            const double pLon = tLon - 6 / (60.0 * std::cos(deg2rad(tLat)));
+            double sha, dec, ho, zn, aLat, aLon;
+            starShaDec(navStar(navStarFind("Vega")), jd, sha, dec);
+            const double gha = norm360(ariesGha(jd) + sha);
+            bodyAltAz(gha, dec, tLat, pLon, ho, zn);                                    // medida hecha alli
+            const Sight old = reduceSight(tLat, pLon, gha, dec, ho);                    // pasa por la posicion de entonces
+            Sight adv = advanceSight(old, tLat, pLon, tLat, tLon);
+            CHECK(near(adv.znDeg, old.znDeg, 1e-9) && near(gcDistanceNm({old.lat, old.lon}, {adv.lat, adv.lon}), 6.0, 0.02));
+            // referida a la estima: su determinante es la proyeccion de su punto sobre su azimut
+            const double dN = (adv.lat - eLat) * 60.0, dE = (adv.lon - eLon) * 60.0 * std::cos(deg2rad(eLat));
+            adv.interceptNm = dN * std::cos(deg2rad(adv.znDeg)) + dE * std::sin(deg2rad(adv.znDeg));
+            const Sight two[2] = {adv, sg[2]};
+            CHECK(fixFromSights(eLat, eLon, two, 2, aLat, aLon) && near(aLat, tLat, 0.4 / 60) && near(aLon, tLon, 0.5 / 60));
+        }
         Sight par[2] = {sg[0], sg[0]};
         CHECK(!fixFromSights(eLat, eLon, par, 2, fLat, fLon) && !fixFromSights(eLat, eLon, sg, 1, fLat, fLon));
     }

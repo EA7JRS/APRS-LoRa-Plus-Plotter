@@ -51,6 +51,10 @@ struct Sight {
 };
 Sight reduceSight(double estLat, double estLon, double ghaDeg, double decDeg, double observedAltDeg);
 
+// Traslada una recta por lo navegado entre dos posiciones (la del barco al tomarla y la de ahora): mismo azimut, punto
+// determinante movido ese rumbo y distancia (loxodromica).
+Sight advanceSight(const Sight& s, double fromLat, double fromLon, double toLat, double toLon);
+
 // Situacion por dos o mas rectas (minimos cuadrados alrededor de la estima). false si son casi paralelas.
 bool fixFromSights(double estLat, double estLon, const Sight* sights, int n, double& lat, double& lon);
 

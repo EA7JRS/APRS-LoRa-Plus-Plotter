@@ -136,7 +136,7 @@ The **Astro** button on the chart opens *Recta de altura* (line of position), to
 
 ![Line of position](img/astro_recta.png)
 
-The assumed position is the boat's position on the chart at that moment. Up to four lines are kept; with two or more crossing well a **fix** is computed (*Situación*, yellow circle on the chart) with its distance from the assumed position. Lines are not advanced for the run between sights: they suit sights taken together (a round of stars at twilight). *Borrar rectas* clears them. If the sight does not fit the body and time (over 120 miles), nothing is plotted and a warning is shown.
+The assumed position is the boat's position on the chart at that moment. Up to four lines are kept; with two or more crossing well a **fix** is computed (*Situación*, yellow circle on the chart) with its distance from the assumed position. Earlier lines are **advanced** automatically for the run since they were taken (the change in the boat's position between one sight and the next) and are tagged "(trasl.)": this works for a round of stars at twilight as well as for two Sun lines hours apart. The fix is for the instant of the last sight. *Borrar rectas* clears them. If the sight does not fit the body and time (over 120 miles), nothing is plotted and a warning is shown.
 
 ![Lines on the chart](img/carta_rectas.png)
 

@@ -132,7 +132,7 @@ El botón **Astro** de la carta abre *Recta de altura*, para situarse con el sex
 
 ![Recta de altura](img/astro_recta.png)
 
-La estima es la posición del barco en la carta en ese momento. Se guardan hasta cuatro rectas; con dos o más que se corten bien se calcula la **situación** (círculo amarillo en la carta) y su distancia a la estima. Las rectas no se trasladan por el rumbo y la distancia navegados entre una y otra: sirven para medidas seguidas (un crepúsculo de estrellas). *Borrar rectas* las quita. Si la medida no cuadra con el astro y la hora (más de 120 millas), no se traza y se avisa.
+La estima es la posición del barco en la carta en ese momento. Se guardan hasta cuatro rectas; con dos o más que se corten bien se calcula la **situación** (círculo amarillo en la carta) y su distancia a la estima. Las rectas anteriores se **trasladan** solas por lo navegado desde que se tomaron (la diferencia de posición del barco entre una medida y la siguiente) y salen marcadas «(trasl.)»: valen tanto para un crepúsculo de estrellas como para dos rectas de Sol con horas de diferencia. La situación corresponde al instante de la última medida. *Borrar rectas* las quita. Si la medida no cuadra con el astro y la hora (más de 120 millas), no se traza y se avisa.
 
 ![Rectas en la carta](img/carta_rectas.png)
 

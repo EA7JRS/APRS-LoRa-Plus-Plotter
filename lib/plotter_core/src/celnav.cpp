@@ -187,6 +187,14 @@ Sight reduceSight(double lat, double lon, double gha, double dec, double ho) {
     return s;
 }
 
+Sight advanceSight(const Sight& s, double fromLat, double fromLon, double toLat, double toLon) {
+    Sight r = s;
+    const double mid = deg2rad((fromLat + toLat) / 2.0);
+    r.lat = s.lat + (toLat - fromLat);
+    r.lon = s.lon + (toLon - fromLon) * std::cos(mid) / std::cos(deg2rad((s.lat + r.lat) / 2.0));
+    return r;
+}
+
 bool fixFromSights(double lat, double lon, const Sight* sg, int n, double& outLat, double& outLon) {
     if (n < 2) return false;
     // determinante_i = dN cos Zn_i + dE sin Zn_i (millas al norte y al este de la estima)

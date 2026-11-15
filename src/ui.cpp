@@ -199,7 +199,7 @@ static lv_point_precise_t navLinePts[2];
 static lv_obj_t* navMark = nullptr;
 // Rectas de altura (navegacion astronomica): hasta 4 en la carta, y la situacion si hay dos o mas
 static const int kLops = 4;
-struct AstroLop { plotter::Sight s; char name[20]; char hhmm[8]; };
+struct AstroLop { plotter::Sight s; char name[20]; char hhmm[8]; LatLon at; };   // at: posicion del barco al tomarla
 static AstroLop lops[kLops];
 static int lopN = 0;
 static bool astroFixOn = false;
@@ -1496,7 +1496,10 @@ static void updateChart() {
     // Rectas de altura: 30 mn a cada lado del punto determinante, perpendicular al azimut
     for (int i = 0; i < kLops; i++) {
         if (i >= lopN) { lv_obj_set_hidden(lopLine[i], true); lv_obj_set_hidden(lopLbl[i], true); continue; }
-        const LatLon c = {lops[i].s.lat, lops[i].s.lon};
+        const LatLon ref = lops[lopN - 1].at;               // todas, trasladadas al momento de la ultima
+        const plotter::Sight adv = plotter::advanceSight(lops[i].s, lops[i].at.lat, lops[i].at.lon, ref.lat, ref.lon);
+        const bool moved = gcDistanceNm(lops[i].at, ref) > 0.05;
+        const LatLon c = {adv.lat, adv.lon};
         double x1, y1, xc, yc;
         toScreen(c, xc, yc);
         toScreen(gcDestination(c, norm360(lops[i].s.znDeg + 90), 1.0), x1, y1);     // una milla a lo largo de la recta
@@ -1508,7 +1511,7 @@ static void updateChart() {
         lv_line_set_points(lopLine[i], lopPts[i], 2);
         lv_obj_set_hidden(lopLine[i], false);
         char t[40];
-        snprintf(t, sizeof(t), "%s %s", lops[i].name, lops[i].hhmm);
+        snprintf(t, sizeof(t), "%s %s%s", lops[i].name, lops[i].hhmm, moved ? " (trasl.)" : "");
         lv_label_set_text(lopLbl[i], t);
         lv_obj_set_pos(lopLbl[i], (int)lround(xc) + 8, (int)lround(yc) - 22);
         lv_obj_set_hidden(lopLbl[i], !inside(xc, yc));
@@ -2055,12 +2058,13 @@ static void astroCompute() {
     }
     snprintf(L.name, sizeof(L.name), "%s", sun ? "Sol" : plotter::navStar(astroStar).name);
     snprintf(L.hhmm, sizeof(L.hhmm), "%02d:%02d", hh, mm);
+    L.at = {la, lo};
     if (lopN == kLops) { for (int i = 1; i < kLops; i++) lops[i - 1] = lops[i]; lopN--; }
     lops[lopN++] = L;
     plotter::Sight sg[kLops];                             // cada recta, referida a la estima de ahora (se tomaron desde otras)
     for (int i = 0; i < lopN; i++) {
-        sg[i] = lops[i].s;
-        const double dN = (lops[i].s.lat - la) * 60.0, dE = (lops[i].s.lon - lo) * 60.0 * cos(deg2rad(la));
+        sg[i] = plotter::advanceSight(lops[i].s, lops[i].at.lat, lops[i].at.lon, la, lo);   // trasladada por lo navegado desde entonces
+        const double dN = (sg[i].lat - la) * 60.0, dE = (sg[i].lon - lo) * 60.0 * cos(deg2rad(la));
         sg[i].interceptNm = dN * cos(deg2rad(sg[i].znDeg)) + dE * sin(deg2rad(sg[i].znDeg));
     }
     double fLat, fLon;
@@ -3064,12 +3068,16 @@ static void skyLine(char* out, size_t n) {
     double sr, ss, cr, cs, mr, ms;
     bool hr, hs;
     char a[8], bb[8], c[8], e[8], f[8], g[8];
-    char sun[64], moon[80];
+    char sun[112], moon[80];
     if (plotter::sunTimes(y, mo, d, la, lo, -0.833, sr, ss)) {
         hhmm(a, sizeof a, sr); hhmm(bb, sizeof bb, ss);
         if (plotter::sunTimes(y, mo, d, la, lo, -6, cr, cs)) { hhmm(c, sizeof c, cr); hhmm(e, sizeof e, cs); }
         else { snprintf(c, sizeof c, "--"); snprintf(e, sizeof e, "--"); }
-        snprintf(sun, sizeof sun, "Sol %s-%s (crep\xC3\xBAsculo civil %s-%s)", a, bb, c, e);
+        char n1[8], n2[8];                                   // crepusculo nautico: el de las estrellas con horizonte
+        double nr, ns;
+        if (plotter::sunTimes(y, mo, d, la, lo, -12, nr, ns)) { hhmm(n1, sizeof n1, nr); hhmm(n2, sizeof n2, ns); }
+        else { snprintf(n1, sizeof n1, "--"); snprintf(n2, sizeof n2, "--"); }
+        snprintf(sun, sizeof sun, "Sol %s-%s (crep\xC3\xBAsculo civil %s-%s, n\xC3\xA1utico %s-%s)", a, bb, c, e, n1, n2);
     } else snprintf(sun, sizeof sun, "Sol: no sale ni se pone hoy");
     double age = plotter::moonAgeDays(y, mo, d, h);
     plotter::moonTimes(y, mo, d, la, lo, mr, hr, ms, hs);

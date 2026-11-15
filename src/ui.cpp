@@ -38,6 +38,7 @@
 #include "wind.h"
 #include "astro.h"
 #include "celnav.h"
+#include "current.h"
 #include "wmm.h"
 #include "wxcalc.h"
 
@@ -232,6 +233,8 @@ static int astroBody = 0;                               // 0 / 1 Sol limbo infer
 static int astroStar = 0;
 static void openAstro();
 static void onAstroOpen(lv_event_t*) { openAstro(); }
+static void openCurrent();                               // Carta > Corriente
+static void onCurrentOpen(lv_event_t*) { openCurrent(); }
 static void openCt();                                    // Astro > Desvio (Ct): correccion total y tablilla de desvios
 static lv_obj_t* ctScr = nullptr;
 static lv_obj_t* ctTa[3] = {};                           // demora de aguja, rumbo de aguja, hora UTC
@@ -1785,6 +1788,8 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_set_hidden(astroFixMark, true);
     lv_obj_t* asb = textButton(chart, "Astro", 110, 46, onAstroOpen, 0);
     lv_obj_align(asb, LV_ALIGN_TOP_RIGHT, -68, 128);
+    lv_obj_t* cub = textButton(chart, "Corriente", 110, 46, onCurrentOpen, 0);
+    lv_obj_align(cub, LV_ALIGN_TOP_RIGHT, -68, 188);
     chCenterBtn = textButton(chart, "Centrar barco", 170, 46, onCenter, 0);
     lv_obj_align(chCenterBtn, LV_ALIGN_TOP_RIGHT, -68, 8);
     chScaleBar = box(chart, C_TEXT);
@@ -4622,9 +4627,278 @@ static void showEngine(int idx, Key k, int decimals, double scale, bool temp) {
     lv_label_set_text(tiles[idx].sub, t);
 }
 
+// ---- Carta > Corriente: corriente medida, corriente por la estima y rumbo a gobernar ----
+static lv_obj_t* curScr = nullptr;
+static lv_obj_t* curTa[6] = {};      // rumbo efectivo, velocidad, abatimiento, corriente rumbo, corriente nudos, Rv navegado
+static lv_obj_t* curKb = nullptr;
+static lv_obj_t* curLive = nullptr;
+static lv_obj_t* curOut = nullptr;
+static plotter::CurrentAverager curAvg(120);
+static uint32_t curSampleMs = 0, curLiveMs = 0;
+static bool curMarked = false;
+static LatLon curMarkPos{0, 0};
+static int64_t curMarkT = 0;
+
+static void decimalComma(char* b) {
+    for (char* c = b; *c; c++) if (*c == '.' && c > b && isdigit((unsigned char)c[-1]) && isdigit((unsigned char)c[1])) *c = ',';
+}
+
+static double curNum(int i, bool& ok) {
+    char d[16];
+    snprintf(d, sizeof(d), "%s", lv_textarea_get_text(curTa[i]));
+    for (char* c = d; *c; c++) if (*c == ',') *c = '.';
+    ok = d[0] != 0 && !(d[0] == '-' && d[1] == 0);
+    return atof(d);
+}
+
+static void curSet(int i, double v, int dec) {
+    char b[16];
+    snprintf(b, sizeof(b), "%.*f", dec, v);
+    decimalComma(b);
+    lv_textarea_set_text(curTa[i], b);
+}
+
+// Corriente medida: fondo (GPS) - agua (rumbo verdadero y corredera), media de 2 minutos; una muestra por segundo
+static void sampleCurrent() {
+    const uint32_t now = millis();
+    if (now - curSampleMs < 1000) return;
+    curSampleMs = now;
+    double h, stw, cog, sog;
+    if (!store->get(Key::Heading, now, h) || !store->get(Key::Stw, now, stw) || !store->get(Key::Cog, now, cog) || !store->get(Key::Sog, now, sog)) return;
+    if (stw < 0.5 && sog < 0.5) return;                   // parado: el rumbo y la demora no dicen nada
+    curAvg.add(plotter::currentFromVectors(h, stw, 0, cog, sog), now);
+}
+
+static void curLiveText() {
+    if (!curLive) return;
+    const uint32_t now = millis();
+    plotter::Current c;
+    char b[220];
+    double v;
+    if (curAvg.get(c, now)) snprintf(b, sizeof(b), "Corriente medida (GPS frente a rumbo y corredera, media de 2 min): al %03.0f\xC2\xB0, %.1f kn", c.setDeg, c.driftKn);
+    else if (!store->get(Key::Stw, now, v)) snprintf(b, sizeof(b), "Sin corredera la corriente no se puede medir: calc\xC3\xBAlala por la estima (Marcar salida y, m\xC3\xA1s tarde, Por la estima).");
+    else snprintf(b, sizeof(b), "Midiendo la corriente (hace falta rumbo verdadero, corredera y GPS durante 20 s).");
+    if (curMarked) {
+        const int64_t t = curMarkT;
+        const int sod = (int)(((t % 86400) + 86400) % 86400);
+        const int n = (int)strlen(b);
+        snprintf(b + n, sizeof(b) - (size_t)n, "\nSalida marcada a las %02d:%02d UTC (hace %.0f min).", sod / 3600, sod / 60 % 60, (tsync::now() - t) / 60.0);
+    }
+    decimalComma(b);
+    lv_label_set_text(curLive, b);
+}
+
+// rumbo de aguja para un rumbo verdadero: Ra = Rv - dm - desvio(Ra)
+static bool curCompass(double rv, double& ra, double& dm, double& dev) {
+    const links::Status& ls = links::status();
+    if (!ls.hasDeclination) return false;
+    dm = ls.declination;
+    const plotter::DeviationCard& card = links::deviationCard();
+    dev = 0;
+    ra = norm360(rv - dm);
+    for (int i = 0; i < 4 && card.terms; i++) { dev = card.at(ra); ra = norm360(rv - dm - dev); }
+    return true;
+}
+
+static void curSteer() {
+    bool ok[5];
+    const double ref = curNum(0, ok[0]), stw = curNum(1, ok[1]), lw = curNum(2, ok[2]);
+    plotter::Current c;
+    c.setDeg = curNum(3, ok[3]);
+    c.driftKn = curNum(4, ok[4]);
+    if (!ok[0] || ref < 0 || ref >= 360) { lv_label_set_text(curOut, "Escribe el rumbo efectivo que quieres hacer (0 a 359\xC2\xB0) o pulsa Destino."); return; }
+    if (!ok[1] || stw <= 0) { lv_label_set_text(curOut, "Escribe la velocidad en el agua (nudos) o pulsa Corredera."); return; }
+    if (!ok[3] || !ok[4]) { c.driftKn = 0; c.setDeg = 0; }
+    double hdg, sog;
+    if (!plotter::courseToSteer(ref, stw, ok[2] ? lw : 0, c, hdg, sog)) {
+        lv_label_set_text(curOut, "Con esa corriente no se puede hacer ese rumbo: cruza m\xC3\xA1s r\xC3\xA1pido que el barco o lo frena del todo.");
+        return;
+    }
+    char b[420];
+    int n = snprintf(b, sizeof(b), "Rumbo verdadero a gobernar: %05.1f\xC2\xB0 (corrige %+.0f\xC2\xB0) \xC2\xB7 velocidad efectiva %.1f kn", hdg, remainder(hdg - ref, 360.0), sog);
+    double ra, dm, dev;
+    if (curCompass(hdg, ra, dm, dev)) {
+        n += snprintf(b + n, sizeof(b) - (size_t)n, "\nRumbo de aguja: %05.1f\xC2\xB0 (declinaci\xC3\xB3n %.1f\xC2\xB0 %s", ra, fabs(dm), dm >= 0 ? "E" : "W");
+        if (n > 0 && n < (int)sizeof(b))
+            n += links::deviationCard().terms ? snprintf(b + n, sizeof(b) - (size_t)n, ", desv\xC3\xADo %+.1f\xC2\xB0)", dev)
+                                              : snprintf(b + n, sizeof(b) - (size_t)n, ", sin tablilla de desv\xC3\xADos)");
+    }
+    const RouteStatus& st = nav.status();
+    if (navOn && st.active && n > 0 && n < (int)sizeof(b)) {
+        const int mins = (int)lround(st.distanceNm / sog * 60);
+        n += snprintf(b + n, sizeof(b) - (size_t)n, "\nAl destino: %.1f mn, %d h %02d min a esa velocidad efectiva.", st.distanceNm, mins / 60, mins % 60);
+    }
+    decimalComma(b);
+    lv_label_set_text(curOut, b);
+}
+
+static void curFromDr() {
+    const uint32_t now = millis();
+    double la, lo;
+    if (!curMarked) { lv_label_set_text(curOut, "Primero pulsa Marcar salida en un punto conocido; luego gobierna a rumbo y velocidad constantes."); return; }
+    if (!store->get(Key::Lat, now, la) || !store->get(Key::Lon, now, lo)) { lv_label_set_text(curOut, "Hace falta la situaci\xC3\xB3n del barco ahora (GPS)."); return; }
+    bool ok[3];
+    const double rv = curNum(5, ok[0]), stw = curNum(1, ok[1]), lw = curNum(2, ok[2]);
+    if (!ok[0] || rv < 0 || rv >= 360) { lv_label_set_text(curOut, "Escribe el rumbo verdadero gobernado desde la salida (Rv navegado) o pulsa Proa."); return; }
+    if (!ok[1] || stw < 0) { lv_label_set_text(curOut, "Escribe la velocidad en el agua (nudos)."); return; }
+    const double hours = (tsync::now() - curMarkT) / 3600.0;
+    if (hours < 0.1) { lv_label_set_text(curOut, "Han pasado menos de 6 minutos desde la salida: espera m\xC3\xA1s para que la corriente se note."); return; }
+    LatLon dr;
+    plotter::Current c;
+    plotter::currentFromDr(curMarkPos, rv, stw, ok[2] ? lw : 0, hours, {la, lo}, dr, c);
+    curSet(3, c.setDeg, 0);
+    curSet(4, c.driftKn, 1);
+    const int mins = (int)lround(hours * 60);
+    char p[48], b[360];
+    formatLatLon(p, sizeof(p), dr, 1, true);
+    for (char* q = p; *q; q++) if ((unsigned char)q[0] == 0xE2 && (unsigned char)q[1] == 0x80 && (unsigned char)q[2] == 0xB2) { q[0] = '\''; memmove(q + 1, q + 3, strlen(q + 3) + 1); }
+    snprintf(b, sizeof(b), "Estima tras %d h %02d min: %s.\nLa situaci\xC3\xB3n est\xC3\xA1 %.1f mn al %03.0f\xC2\xB0 de la estima: corriente al %03.0f\xC2\xB0, %.1f kn (copiada arriba para el rumbo a gobernar).",
+             mins / 60, mins % 60, p, c.driftKn * hours, c.setDeg, c.setDeg, c.driftKn);
+    decimalComma(b);
+    lv_label_set_text(curOut, b);
+}
+
+static void onCurrentBtn(lv_event_t* e) {
+    const int a = (int)(intptr_t)lv_event_get_user_data(e);
+    const uint32_t now = millis();
+    double v;
+    if (a == 1) curSteer();
+    else if (a == 2) curFromDr();
+    else if (a == 3) {
+        double la, lo;
+        if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo) && tsync::now() > 1600000000) {
+            curMarked = true; curMarkPos = {la, lo}; curMarkT = tsync::now();
+            if (store->get(Key::Heading, now, v)) curSet(5, v, 0);
+            lv_label_set_text(curOut, "Salida marcada en la situaci\xC3\xB3n del barco. Gobierna a rumbo y velocidad constantes y pulsa Por la estima pasado un rato (mejor una hora o m\xC3\xA1s).");
+        } else lv_label_set_text(curOut, "Hace falta la situaci\xC3\xB3n del barco y la hora para marcar la salida.");
+    } else if (a == 4) {                                  // destino
+        const RouteStatus& st = nav.status();
+        if (navOn && st.active) curSet(0, st.bearing, 0);
+        else lv_label_set_text(curOut, "No hay destino: elige uno en la carta (Ir a) o en Rutas.");
+    } else if (a == 5) {                                  // corredera
+        if (store->get(Key::Stw, now, v)) curSet(1, v, 1);
+        else lv_label_set_text(curOut, "No llega la corredera: escribe la velocidad de m\xC3\xA1quina.");
+    } else if (a == 6) {                                  // corriente medida
+        plotter::Current c;
+        if (curAvg.get(c, now)) { curSet(3, c.setDeg, 0); curSet(4, c.driftKn, 1); }
+        else lv_label_set_text(curOut, "Todav\xC3\xAD" "a no hay corriente medida.");
+    } else if (a == 7) {                                  // proa
+        if (store->get(Key::Heading, now, v)) curSet(5, v, 0);
+        else lv_label_set_text(curOut, "No llega el rumbo verdadero del barco.");
+    } else { lv_obj_set_hidden(curScr, true); return; }
+    curLiveText();
+}
+
+static void onCurField(lv_event_t* e) { lv_keyboard_set_textarea(curKb, (lv_obj_t*)lv_event_get_target(e)); }
+
+static void makeCurrent() {
+    curScr = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(curScr);
+    lv_obj_set_size(curScr, board::W, board::H);
+    lv_obj_set_style_bg_color(curScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(curScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(curScr, false);
+    lv_obj_set_clickable(curScr, true);
+    lv_obj_t* t = label(curScr, "Corriente", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    static const struct { const char* txt; int x, y, w, a; } B[] = {
+        {"Rumbo a gobernar", 170, 8, 220, 1}, {"Marcar salida", 398, 8, 170, 3}, {"Por la estima", 576, 8, 170, 2}, {"Cerrar", 884, 8, 124, 0},
+        {"Destino", 650, 82, 112, 4}, {"Corredera", 770, 82, 130, 5}, {"Medida", 442, 154, 112, 6}, {"Proa", 770, 154, 112, 7}};
+    for (const auto& d : B) {
+        lv_obj_t* b = textButton(curScr, d.txt, d.w, 48, onCurrentBtn, d.a);
+        lv_obj_set_pos(b, d.x, d.y);
+    }
+    static const struct { int x, y, w, max; const char* hint; const char* chars; } F[6] = {
+        {16, 82, 210, 5, "Rumbo efectivo, \xC2\xB0", "0123456789.,"}, {234, 82, 200, 4, "Veloc. agua, kn", "0123456789.,"},
+        {442, 82, 200, 5, "Abatim., \xC2\xB0 (+Er)", "-0123456789.,"}, {16, 154, 210, 5, "Corriente al, \xC2\xB0", "0123456789.,"},
+        {234, 154, 200, 4, "Corriente, kn", "0123456789.,"}, {562, 154, 200, 5, "Rv navegado, \xC2\xB0", "0123456789.,"}};
+    static const char* const cap[6] = {"Rumbo efectivo deseado (\xC2\xB0)", "Velocidad en el agua (kn)", "Abatimiento (\xC2\xB0, + a estribor)",
+                                       "Corriente: rumbo (\xC2\xB0)", "Corriente: intensidad (kn)", "Rv navegado desde la salida (\xC2\xB0)"};
+    for (int i = 0; i < 6; i++) {
+        lv_obj_t* l = label(curScr, cap[i], &dejavu_14, C_SOFT);
+        lv_obj_set_pos(l, F[i].x + 2, F[i].y - 20);
+    }
+    lv_obj_t* keep = vesScr;                              // vesField crea sus campos en vesScr: se le presta esta pantalla
+    lv_obj_t* keepTa[6];
+    for (int i = 0; i < 6; i++) keepTa[i] = vesTa[i];
+    vesScr = curScr;
+    for (int i = 0; i < 6; i++) {
+        lv_obj_t* ta = vesField(i, F[i].x, F[i].y, F[i].w, F[i].hint, F[i].max, F[i].chars);
+        lv_obj_remove_event_cb(ta, onVesField);
+        lv_obj_add_event_cb(ta, onCurField, LV_EVENT_FOCUSED, nullptr);
+        lv_obj_add_event_cb(ta, onCurField, LV_EVENT_CLICKED, nullptr);
+        curTa[i] = ta;
+        vesTa[i] = keepTa[i];
+    }
+    vesScr = keep;
+    lv_textarea_set_text(curTa[2], "0");
+    curLive = label(curScr, "", &dejavu_16, C_ACC);
+    lv_obj_set_pos(curLive, 16, 212);
+    lv_obj_set_width(curLive, 992);
+    curOut = label(curScr, "Rumbo a gobernar: rumbo efectivo que quieres hacer, velocidad en el agua, abatimiento y corriente.", &dejavu_16, C_SOFT);
+    lv_obj_set_pos(curOut, 16, 256);
+    lv_obj_set_width(curOut, 992);
+    curKb = lv_keyboard_create(curScr);
+    lv_keyboard_set_mode(curKb, LV_KEYBOARD_MODE_NUMBER);
+    lv_obj_set_size(curKb, board::W, 220);
+    lv_obj_align(curKb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(curKb, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(curKb, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(curKb, 6, 0);
+    lv_obj_set_style_pad_gap(curKb, 6, 0);
+    lv_obj_set_style_border_width(curKb, 0, 0);
+    lv_obj_set_style_bg_color(curKb, lv_color_hex(C_PANEL), LV_PART_ITEMS);
+    lv_obj_set_style_bg_opa(curKb, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(curKb, lv_color_hex(C_ACC), LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(curKb, lv_color_hex(C_TEXT), LV_PART_ITEMS);
+    lv_obj_set_style_radius(curKb, 8, LV_PART_ITEMS);
+    lv_obj_set_style_border_width(curKb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_width(curKb, 0, LV_PART_ITEMS);
+    lv_obj_set_hidden(curScr, true);
+}
+
+static void openCurrent() {
+    if (!curScr) makeCurrent();
+    const uint32_t now = millis();
+    double v;
+    const RouteStatus& st = nav.status();
+    if (!lv_textarea_get_text(curTa[0])[0] && navOn && st.active) curSet(0, st.bearing, 0);
+    if (!lv_textarea_get_text(curTa[1])[0] && store->get(Key::Stw, now, v)) curSet(1, v, 1);
+    plotter::Current c;
+    if (!lv_textarea_get_text(curTa[3])[0] && curAvg.get(c, now)) { curSet(3, c.setDeg, 0); curSet(4, c.driftKn, 1); }
+    lv_keyboard_set_textarea(curKb, curTa[0]);
+    curLiveText();
+    lv_obj_set_hidden(curScr, false);
+}
+
+// Para las pruebas en el PC: rumbo a gobernar con unos datos fijos (mode 0) o la corriente por la estima con la salida hace 'mins' (mode 1)
+void testCurrent(int mode, int mins) {
+    openCurrent();
+    lv_textarea_set_text(curTa[0], "90");
+    lv_textarea_set_text(curTa[1], "6");
+    lv_textarea_set_text(curTa[2], "3");
+    lv_textarea_set_text(curTa[3], "180");
+    lv_textarea_set_text(curTa[4], "1,5");
+    if (mode == 1) {
+        double la, lo;
+        if (store->get(Key::Lat, millis(), la) && store->get(Key::Lon, millis(), lo)) {
+            curMarked = true;
+            curMarkT = tsync::now() - mins * 60;
+            // ha ido al 090 a 6 kn con una corriente al 200 de 1,2 kn: la salida se reconstruye hacia atras
+            curMarkPos = plotter::rhumbDestination(plotter::rhumbDestination({la, lo}, 20, 1.2 * mins / 60), 270, 6.0 * mins / 60);
+            lv_textarea_set_text(curTa[2], "0");
+            lv_textarea_set_text(curTa[5], "90");
+        }
+        curFromDr();
+    } else curSteer();
+    curLiveText();
+}
+
 void update() {
     if (!store) return;
     uint32_t now = millis();
+    sampleCurrent();
+    if (curScr && !lv_obj_is_hidden(curScr) && now - curLiveMs >= 1000) { curLiveMs = now; curLiveText(); }
     sampleTrack();
     sampleWind();
     updateNav();

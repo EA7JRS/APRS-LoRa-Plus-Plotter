@@ -133,6 +133,27 @@ la mayor distancia vista; **− 5 m / + 5 m** cambian el radio y **Levar** termi
 Si el barco pasa 10 segundos seguidos fuera del círculo salta **ANCHOR DRAG**; un salto suelto del GPS no la dispara.
 Si pasa un minuto sin posición, **ANCHOR WATCH · NO GPS FIX**. El fondeo se guarda: sigue vigilando tras un apagado.
 
+### Corriente
+
+El botón **Corriente** de la carta abre una pantalla con tres cosas:
+
+- **Corriente medida**: si llegan rumbo verdadero, corredera y GPS, el plotter compara el movimiento sobre el fondo (GPS)
+  con el movimiento en el agua (rumbo y corredera) y da la corriente (hacia dónde va y cuántos nudos), en media de dos
+  minutos. **Medida** la copia a los campos de la corriente.
+- **Corriente por la estima**, para cuando no hay corredera: pulsa **Marcar salida** en un punto conocido, gobierna a
+  rumbo y velocidad constantes y, pasado un rato (mejor una hora o más), pulsa **Por la estima**. Con el rumbo verdadero
+  gobernado (*Rv navegado*; **Proa** lo copia del rumbo del barco), la velocidad en el agua y el abatimiento se calcula la
+  estima; la diferencia hasta la situación del GPS es la corriente, que se copia a sus campos.
+- **Rumbo a gobernar**: con el rumbo efectivo que quieres hacer (**Destino** pone la demora al destino activo), la
+  velocidad en el agua (**Corredera** la copia), el abatimiento (+ a estribor, − a babor) y la corriente, da el **rumbo
+  verdadero a gobernar**, cuánto corrige y la velocidad efectiva; el **rumbo de aguja** con la declinación del WMM y, si
+  hay tablilla de desvíos, con el desvío; y, navegando a un destino, el tiempo hasta él. Si la corriente cruza más rápido
+  que el barco o lo frena del todo, lo dice.
+
+![Rumbo a gobernar con corriente](img/corriente_rumbo.png)
+
+![Corriente por la estima](img/corriente_estima.png)
+
 ### Astro: recta de altura
 
 El botón **Astro** de la carta abre *Recta de altura*, para situarse con el sextante sin tablas ni almanaque:

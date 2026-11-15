@@ -20,6 +20,7 @@ void testInternet();                // mete una observacion de internet de prueb
 void testNet();                     // abre la pantalla de red
 void testAbout();                   // abre "Acerca de"
 void testAstroList();                                  // Astro > Visibles (dibujo del PC)
+void testCurrent(int mode, int mins);                   // Carta > Corriente: 0 rumbo a gobernar, 1 corriente por la estima (salida hace mins)
 void testAstro(const char* star, double errArcmin, bool latitude = false);   // latitude: boton Latitud en vez de trazar   // abre Carta > Astro y traza una recta ("" = el Sol)
 void closeAstro();
 void testCt(const char* star, double dev, int step);   // Astro > Desvio (Ct) con un compas simulado; step > 0 llena la tablilla

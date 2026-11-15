@@ -2,6 +2,7 @@
 
 ## Sin publicar
 
+- **Corriente**: botón de la Carta con la corriente medida (GPS frente a rumbo y corredera, media de 2 min), la corriente por la estima (Marcar salida / Por la estima) y el rumbo a gobernar con corriente y abatimiento (verdadero, de aguja con la declinación y la tablilla, velocidad efectiva y tiempo al destino). Núcleo `current` y `rhumbDestination` en `geo` (34 comprobaciones; 1942 en total).
 - **Latitud por la meridiana y por la Polar**: Carta > Astro > **Latitud** da la latitud de una sola altura (por la meridiana, por la Polar o, con aviso, fuera del meridiano) y la hora UTC y la altura del paso por el meridiano del astro elegido; botón **Polar**. Núcleo: `latitudeFromAltitude` y `meridianPassageJd` en `celnav` (14 comprobaciones; 1908 en total).
 - **Luces en la Carta**: la lista `/luces.txt` de la tarjeta se dibuja con el color y el ritmo de cada luz (las principales desde el zoom 8, el resto desde el 11); tocar una abre su ficha con característica, altura, alcance, «se verá a» y distancia y demora, e **Ir a**.
 - **Libro de Faros → lista de luces**: `tools/faros/libro_faros.py` convierte el PDF del Libro de Faros del IHM en la lista de luces del plotter, para uso personal (los datos del IHM no van en el repositorio).

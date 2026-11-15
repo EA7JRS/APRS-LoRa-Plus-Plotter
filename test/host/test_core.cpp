@@ -19,6 +19,7 @@
 #include "aistargets.h"
 #include "astro.h"
 #include "celnav.h"
+#include "current.h"
 #include "deviation.h"
 #include "navtex.h"
 #include "dsc.h"
@@ -2021,6 +2022,58 @@ static void testMtCheck() {
 
 // Navegacion astronomica. Valores de referencia: PyEphem 4.2.1 (lugar aparente geocentrico) y las paginas del 1 de enero
 // y del 16 de junio de un almanaque nautico de 2026 (precision 0,1').
+static void testCurrent() {
+    using namespace plotter;
+    // loxodromica de ida y vuelta
+    LatLon d = rhumbDestination({36.0, -6.0}, 45, 100);
+    NEAR(rhumbBearing({36.0, -6.0}, d), 45, 1e-6);
+    NEAR(rhumbDistanceNm({36.0, -6.0}, d), 100, 1e-6);
+    d = rhumbDestination({36.0, -6.0}, 90, 60);
+    NEAR(d.lat, 36.0, 1e-9); NEAR(rhumbDistanceNm({36.0, -6.0}, d), 60, 1e-6); NEAR(rhumbBearing({36.0, -6.0}, d), 90, 1e-6);
+    // rumbo a gobernar: Ref 090, 6 kn, corriente al 180 de 2 kn -> Rv 070,5, 5,66 kn efectivos
+    Current c; c.setDeg = 180; c.driftKn = 2;
+    double h = 0, sog = 0, cog = 0;
+    CHECK(courseToSteer(90, 6, 0, c, h, sog));
+    NEAR(h, 90 - std::asin(1.0 / 3) * 180 / 3.14159265358979, 1e-9); NEAR(sog, std::sqrt(32.0), 1e-9);
+    groundTrack(h, 6, 0, c, cog, sog);
+    NEAR(cog, 90, 1e-9); NEAR(sog, std::sqrt(32.0), 1e-9);
+    CHECK(courseToSteer(90, 6, 5, c, h, sog));             // con 5 grados de abatimiento a estribor, 5 grados menos
+    NEAR(h, 90 - std::asin(1.0 / 3) * 180 / 3.14159265358979 - 5, 1e-9);
+    groundTrack(h, 6, 5, c, cog, sog);
+    NEAR(cog, 90, 1e-9);
+    c.driftKn = 7;
+    CHECK(!courseToSteer(90, 6, 0, c, h, sog));            // la corriente cruza mas rapido que el barco
+    c.setDeg = 270; c.driftKn = 8;
+    CHECK(!courseToSteer(90, 6, 0, c, h, sog));            // de proa y mas fuerte: no se avanza
+    c.setDeg = 270; c.driftKn = 2;
+    CHECK(courseToSteer(90, 6, 0, c, h, sog)); NEAR(h, 90, 1e-9); NEAR(sog, 4, 1e-9);
+    // corriente medida = fondo - agua
+    c.setDeg = 135; c.driftKn = 1.5;
+    groundTrack(10, 5, 0, c, cog, sog);
+    Current m = currentFromVectors(10, 5, 0, cog, sog);
+    NEAR(m.setDeg, 135, 1e-9); NEAR(m.driftKn, 1.5, 1e-9);
+    m = currentFromVectors(10, 5, 0, 10, 5);
+    NEAR(m.driftKn, 0, 1e-9);
+    // por la estima y la situacion: salida, 090 a 6 kn durante 2 h; situacion 2 millas al 200 de la estima
+    LatLon dr, fix;
+    CHECK(currentFromDr({36.0, -6.0}, 90, 6, 0, 2, rhumbDestination(rhumbDestination({36.0, -6.0}, 90, 12), 200, 2), dr, c));
+    NEAR(rhumbDistanceNm(dr, rhumbDestination({36.0, -6.0}, 90, 12)), 0, 1e-9);
+    NEAR(c.setDeg, 200, 1e-6); NEAR(c.driftKn, 1.0, 1e-6);
+    fix = dr;
+    CHECK(!currentFromDr({36.0, -6.0}, 90, 6, 0, 0, fix, dr, c));
+    // media: a los 20 s, la corriente constante; un valor suelto apenas la mueve
+    CurrentAverager av(120);
+    Current one; one.setDeg = 45; one.driftKn = 1;
+    for (uint32_t t = 0; t <= 15000; t += 1000) av.add(one, t);
+    CHECK(!av.get(m, 15000));
+    for (uint32_t t = 16000; t <= 60000; t += 1000) av.add(one, t);
+    CHECK(av.get(m, 60000)); NEAR(m.setDeg, 45, 1e-6); NEAR(m.driftKn, 1, 1e-6);
+    Current odd; odd.setDeg = 225; odd.driftKn = 3;
+    av.add(odd, 61000);
+    CHECK(av.get(m, 61000)); NEAR(m.setDeg, 45, 1e-6); CHECK(m.driftKn > 0.9);
+    CHECK(!av.get(m, 95000));                            // sin datos hace mas de 30 s
+}
+
 static double sunGhaFn(double jd, void*) { double g, d; plotter::sunGhaDec(jd, g, d); return g; }
 static double starGhaFn(double jd, void* ctx) {
     double sha, dec;
@@ -2365,6 +2418,7 @@ int main() {
     testMtCheck();
     testCelnav();
     testLatitude();
+    testCurrent();
     testDeviation();
     testNavtex();
     testDsc();

@@ -137,6 +137,27 @@ If the boat stays outside the circle for 10 seconds, **ANCHOR DRAG** is raised; 
 After one minute without a position, **ANCHOR WATCH · NO GPS FIX**. The anchor watch is saved: it keeps watching after a
 power cycle.
 
+### Corriente (current)
+
+The chart's **Corriente** button opens a screen with three things:
+
+- **Measured current** (*Corriente medida*): when true heading, log speed and GPS are all coming in, the plotter
+  compares the motion over the ground (GPS) with the motion through the water (heading and log) and shows the current
+  (where it is going and how many knots), averaged over two minutes. **Medida** copies it into the current fields.
+- **Current from dead reckoning** (*Por la estima*), for when there is no log: press **Marcar salida** (mark departure) at
+  a known point, steer a steady course and speed and, after a while (an hour or more is best), press **Por la estima**.
+  From the true course steered (*Rv navegado*; **Proa** copies the boat's heading), the speed through the water and the
+  leeway, the DR position is worked out; the difference to the GPS position is the current, copied into its fields.
+- **Course to steer** (*Rumbo a gobernar*): from the course you want to make good (**Destino** fills in the bearing to the
+  active destination), the speed through the water (**Corredera** copies the log), the leeway (+ to starboard, − to port)
+  and the current, it gives the **true course to steer**, the correction and the speed made good; the **compass course**
+  with the WMM variation and, if there is a deviation card, the deviation; and, when navigating to a destination, the
+  time to get there. If the current crosses faster than the boat or stops it altogether, it says so.
+
+![Course to steer with current](img/corriente_rumbo.png)
+
+![Current from dead reckoning](img/corriente_estima.png)
+
 ### Astro: line of position
 
 The **Astro** button on the chart opens *Recta de altura* (line of position), to fix your position with a sextant, with no tables or almanac:

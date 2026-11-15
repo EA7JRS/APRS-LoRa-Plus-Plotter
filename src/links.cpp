@@ -139,8 +139,37 @@ static void canLoop(uint32_t now) {
 #endif
 }
 
+static plotter::DeviationCard devCard;
+
+plotter::DeviationCard& deviationCard() { return devCard; }
+
+void saveDeviationCard() {
+    char* o = settings::get().devCard;
+    const size_t cap = sizeof(settings::get().devCard);
+    size_t n = 0;
+    o[0] = 0;
+    for (int i = 0; i < devCard.n && n + 16 < cap; i++)
+        n += (size_t)snprintf(o + n, cap - n, "%s%d:%d", i ? ";" : "", (int)lround(devCard.p[i].compassHdg * 10), (int)lround(devCard.p[i].dev * 10));
+    settings::save();
+}
+
+static void loadDeviationCard() {
+    devCard.clear();
+    const char* c = settings::get().devCard;
+    while (*c) {
+        char* e;
+        const long h = strtol(c, &e, 10);
+        if (*e != ':') break;
+        const long d = strtol(e + 1, &e, 10);
+        if (h >= 0 && h < 3600 && labs(d) <= 450) devCard.add(h / 10.0, d / 10.0);
+        if (*e != ';') break;
+        c = e + 1;
+    }
+}
+
 void begin(DataStore* s) {
     store = s;
+    loadDeviationCard();
     // El simulador entra como "sensor": mientras este encendido manda sobre lo demas, para ver la interfaz sin nada conectado
     Serial1.setRxBufferSize(2048);
     Serial1.begin(st.serialBaud, SERIAL_8N1, board::PIN_RS485_RX, board::PIN_RS485_TX);
@@ -471,7 +500,8 @@ void loop() {
             double hm, ht;
             if (store->get(Key::HeadingMag, now, hm) &&
                 (!store->get(Key::Heading, now, ht) || store->quality(Key::Heading) == Quality::Computed))
-                store->set(Key::Heading, norm360(hm + st.declination), store->source(Key::HeadingMag, now), now, Quality::Computed);
+                store->set(Key::Heading, norm360(hm + (settings::get().devOn ? devCard.at(hm) : 0.0) + st.declination),   // aguja + desvio + dm
+                           store->source(Key::HeadingMag, now), now, Quality::Computed);
         }
     }
 }

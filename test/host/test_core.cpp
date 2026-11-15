@@ -19,6 +19,7 @@
 #include "aistargets.h"
 #include "astro.h"
 #include "celnav.h"
+#include "deviation.h"
 #include "chartui.h"
 #include "geo.h"
 #include "gpx.h"
@@ -2191,6 +2192,57 @@ static void testCelnav() {
     CHECK(near(alt, 60.0, 1e-6) && near(az, 180.0, 1e-6));
 }
 
+static void testDeviation() {
+    // Correccion total y desvio con su signo: Zv 135,4, demora de aguja 131,2 -> Ct +4,2 (E); dm 1,5 W -> desvio +5,7 (E)
+    CHECK(near(totalCorrection(135.4, 131.2), 4.2, 1e-9) && near(deviationFromCt(4.2, -1.5), 5.7, 1e-9));
+    CHECK(near(totalCorrection(2.0, 358.0), 4.0, 1e-9) && near(totalCorrection(358.0, 2.0), -4.0, 1e-9));
+    CHECK(near(deviationFromCt(-3.0, 2.0), -5.0, 1e-9));
+    // La Polar desde 40 N: azimut a menos de 1,5 grados del norte en cualquier momento
+    {
+        const NavStar& pol = navStar(navStarFind("Polaris"));
+        bool ok = true;
+        for (int h = 0; h < 24; h += 3) {
+            double sha, dec, alt, az;
+            const double jd = julianDay(2026, 11, 15, h);
+            starShaDec(pol, jd, sha, dec);
+            bodyAltAz(norm360(ariesGha(jd) + sha), dec, 40.0, -5.0, alt, az);
+            if (std::fabs(angleDiffDeg(az, 0.0)) > 1.5 || !near(alt, 40.0, 1.5)) ok = false;
+        }
+        CHECK(ok);
+    }
+    // Tablilla: ocho rumbos de una curva conocida dan sus cinco coeficientes
+    const double A = 1.0, B = 2.0, C = 3.0, D = -0.5, E = 0.7;
+    auto curve = [&](double h) { const double r = deg2rad(h); return A + B * std::sin(r) + C * std::cos(r) + D * std::sin(2 * r) + E * std::cos(2 * r); };
+    DeviationCard k;
+    for (int h = 0; h < 360; h += 45) k.add(h, curve(h));
+    CHECK(k.n == 8 && k.terms == 5 && near(k.coef[0], A, 1e-6) && near(k.coef[1], B, 1e-6) && near(k.coef[2], C, 1e-6) &&
+          near(k.coef[3], D, 1e-6) && near(k.coef[4], E, 1e-6) && k.rmsDeg < 1e-6);
+    CHECK(near(k.at(100), curve(100), 1e-6));
+    // gobernar a un magnetico: el rumbo de aguja que, con su desvio, lo da
+    const double ra = k.compassFromMagnetic(100.0);
+    CHECK(near(ra + k.at(ra), 100.0, 1e-3));
+    // misma proa otra vez: sustituye la observacion
+    k.add(46, curve(46) + 1.0);
+    CHECK(k.n == 8 && k.rmsDeg > 0.1);
+    // tres rumbos repartidos: A, B y C
+    DeviationCard t3;
+    t3.add(0, 4.0); t3.add(120, 1.0); t3.add(240, -2.0);
+    CHECK(t3.terms == 3 && near(t3.at(0), 4.0, 1e-6) && near(t3.at(240), -2.0, 1e-6));
+    // rumbos amontonados: solo el desvio medio
+    DeviationCard tc;
+    tc.add(10, 2.0); tc.add(16, 3.0); tc.add(22, 2.5); tc.add(28, 2.5); tc.add(34, 2.0);
+    CHECK(tc.terms == 1 && near(tc.at(200), 2.4, 1e-6));
+    // una sola observacion; borrar; llena: se va la mas antigua
+    DeviationCard t1;
+    t1.add(90, -3.0);
+    CHECK(t1.terms == 1 && near(t1.at(270), -3.0, 1e-9));
+    t1.remove(0);
+    CHECK(t1.n == 0 && t1.terms == 0 && near(t1.at(0), 0.0, 1e-12));
+    DeviationCard full;
+    for (int i = 0; i < 30; i++) full.add(i * 12.0, 1.0);
+    CHECK(full.n == DeviationCard::kMax && near(full.p[0].compassHdg, 72.0, 1e-6));
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
@@ -2203,6 +2255,7 @@ int main() {
     testCallsign();
     testMtCheck();
     testCelnav();
+    testDeviation();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

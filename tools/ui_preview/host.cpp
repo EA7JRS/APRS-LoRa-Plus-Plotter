@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
         lv_timer_handler();
     }
     if (argc > 4) {                              // cuarto argumento: acciones separadas por comas antes de la foto
-        // cerrar | mob | fondeo | red | acerca | barco | rs485 | internet | ajuste:n | marcar | tocar:x:y | boton:n | pagina:n | wp:n | rutas:n | esperar:s
+        // ct:<astro>:<desvio>:<paso> | tablilla | cerrar | mob | fondeo | red | acerca | barco | rs485 | internet | ajuste:n | marcar | tocar:x:y | boton:n | pagina:n | wp:n | rutas:n | esperar:s
         std::string acts = argv[4];
         size_t pos = 0;
         while (pos <= acts.size()) {
@@ -69,6 +69,13 @@ int main(int argc, char** argv) {
             else if (a.rfind("astro:", 0) == 0) { size_t c = a.find(':', 6); ui::testAstro(a.substr(6, c == std::string::npos ? c : c - 6).c_str(), c == std::string::npos ? 0.0 : atof(a.c_str() + c + 1)); }
             else if (a == "astrocerrar") ui::closeAstro();
             else if (a == "astrolista") ui::testAstroList();
+            else if (a.rfind("ct:", 0) == 0) {           // ct:<estrella o vacio = Sol>:<desvio>:<paso de rumbos, 0 = uno solo>
+                char st[32] = ""; double dv = 0; int stp = 0;
+                sscanf(a.c_str() + 3, "%31[^:]:%lf:%d", st, &dv, &stp);
+                if (a.size() > 3 && a[3] == ':') sscanf(a.c_str() + 4, "%lf:%d", &dv, &stp), st[0] = 0;
+                ui::testCt(st, dv, stp);
+            }
+            else if (a == "tablilla") ui::testCtCard();
             else if (a == "rs485") ui::testRs485();
             else if (sscanf(a.c_str(), "piloto:%d", &x) == 1) settings::get().pilotOut = x;   // 1 RS485, 2 red, 3 Bluetooth
             else if (a == "internet") ui::testInternet();

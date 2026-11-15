@@ -154,6 +154,25 @@ The Sun, Aries and the stars are computed on board to almanac precision (0.1′)
 - *Intercept*: Ho − Hc in nautical miles; positive means towards the body. The line is perpendicular to the azimuth through that point.
 - *Fix*: with two or more lines, the point that best satisfies all of them (least squares), after advancing the earlier ones for the run. Nearly parallel lines give no fix.
 
+### Astro > Desvío (Ct): total correction and deviation card
+
+The **Desvío (Ct)** button in *Recta de altura* opens *Corrección total y desvío* (total correction and deviation), to check the compass against a celestial body:
+
+1. Choose the body (Sun, Moon, planets or a star; **Polar** picks Polaris directly). The limb does not matter.
+2. Take the **compass bearing of the body** and press **Ahora** (now) at that instant (UTC `hhmmss`).
+3. Type the compass bearing (*Demora de aguja*) and the boat's **compass heading** (*Rumbo de aguja*) at that moment (**Proa** fills in the electronic compass heading if it arrives as HDM / HDG or NMEA 2000).
+4. **Calcular** (compute): you get the true azimuth of the body (computed on board, as for the line of position), the **total correction** Ct = Zv − Zc (true azimuth minus compass bearing), the local magnetic variation (World Magnetic Model) and the **deviation** = Ct − variation at that compass heading. Sign: + is E (the compass reads low), − is W.
+
+![Total correction](img/astro_ct.png)
+
+A low body is best (Sun at rising or setting, Polaris): above 60° it warns that the bearing is imprecise. A deviation over 20° is not accepted (check body, time and bearing).
+
+**A la tablilla** (to the card) stores the observation (compass heading and deviation). Another one on the same heading (within 5°) replaces it; up to 24 are kept. **Tablilla** (card) shows them: the approximate coefficients A, B, C, D and E (deviation = A + B·sin Hc + C·cos Hc + D·sin 2Hc + E·cos 2Hc, least squares fit; with fewer than five well spread headings, only A, B and C, or only A), the residual, the deviation every 30° of compass heading and the list of observations (tap one to remove it). *Vaciar* (empty) removes them all. The card is kept across restarts.
+
+![Deviation card](img/astro_tablilla.png)
+
+**Aplicar al rumbo** (apply to heading, off by default): the plotter's true heading is then compass heading + deviation from the card + variation, when the compass only gives a magnetic heading (HDM / HDG, or PGN 127250 without variation). Do not turn it on if the compass already corrects itself (self-calibrating electronic compasses usually do).
+
 ## 4. Rutas (Routes)
 
 ![Routes](img/rutas.png)

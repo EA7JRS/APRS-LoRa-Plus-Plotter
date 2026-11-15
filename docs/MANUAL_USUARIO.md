@@ -152,6 +152,25 @@ El Sol, Aries y las estrellas se calculan a bordo con precisión de almanaque (0
 - *Determinante*: Ho − Hc en millas; positivo, hacia el astro. La recta es la perpendicular al azimut por ese punto.
 - *Situación*: con dos o más rectas, el punto que mejor las cumple todas (mínimos cuadrados), después de trasladar las anteriores por lo navegado. Si se cortan casi en paralelo no se da situación.
 
+### Astro > Desvío (Ct): corrección total y tablilla de desvíos
+
+El botón **Desvío (Ct)** de *Recta de altura* abre *Corrección total y desvío*, para comprobar el compás con un astro:
+
+1. Elige el astro (Sol, Luna, planetas o una estrella; **Polar** la elige directamente). El limbo no importa.
+2. Toma con la aguja la **demora del astro** y pulsa **Ahora** en ese instante (hora UTC `hhmmss`).
+3. Escribe la demora de aguja y el **rumbo de aguja** del barco en ese momento (**Proa** pone el del compás electrónico si llega por HDM / HDG o NMEA 2000).
+4. **Calcular**: sale el azimut verdadero del astro (calculado a bordo, como en la recta de altura), la **corrección total** Ct = Zv − Za, la declinación magnética del lugar (Modelo Magnético Mundial) y el **desvío** = Ct − dm al rumbo de aguja. Signo: + es E (la aguja marca de menos), − es W.
+
+![Corrección total](img/astro_ct.png)
+
+Mejor con el astro bajo (Sol al salir o al ponerse, la Polar): con más de 60° de altura se avisa de que la demora es poco precisa. Si el desvío pasa de 20° no se acepta (revisa astro, hora y demora).
+
+**A la tablilla** guarda la observación (rumbo de aguja y desvío). Con una misma proa (a menos de 5°) se sustituye la anterior; caben 24. **Tablilla** enseña lo guardado: los coeficientes aproximados A, B, C, D y E (desvío = A + B·sen Ra + C·cos Ra + D·sen 2Ra + E·cos 2Ra, ajustados por mínimos cuadrados; con menos de cinco rumbos repartidos, solo A, B y C, o solo A), el residuo, el desvío cada 30° de rumbo de aguja y la lista de observaciones (toca una para quitarla). *Vaciar* las borra todas. Se guarda entre arranques.
+
+![Tablilla de desvíos](img/astro_tablilla.png)
+
+**Aplicar al rumbo** (apagado de serie): el rumbo verdadero del plotter sale entonces de rumbo de aguja + desvío de la tablilla + declinación, cuando el compás solo da rumbo magnético (HDM / HDG, o 127250 sin declinación). No lo actives si el compás ya se corrige solo (los electrónicos que se calibran girando suelen hacerlo).
+
 ## 4. Rutas
 
 ![Rutas](img/rutas.png)

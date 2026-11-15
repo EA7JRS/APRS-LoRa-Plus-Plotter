@@ -39,6 +39,8 @@ void load() {
     v.astroEye10 = p.getInt("astEye", 20);
     if (v.astroIdx10 < -600 || v.astroIdx10 > 600) v.astroIdx10 = 0;
     if (v.astroEye10 < 0 || v.astroEye10 > 500) v.astroEye10 = 20;
+    p.getString("devCard", v.devCard, sizeof(v.devCard));
+    v.devOn = p.getBool("devOn", false);
     v.units = p.getInt("units", 0);
     v.baseMap = p.getInt("map", 0);
     v.anchorOn = p.getBool("anc", false);
@@ -103,6 +105,8 @@ void save() {
     p.putInt("pilotM", v.pilotModel);
     p.putInt("astIdx", v.astroIdx10);
     p.putInt("astEye", v.astroEye10);
+    p.putString("devCard", v.devCard);
+    p.putBool("devOn", v.devOn);
     p.putInt("units", v.units);
     p.putInt("map", v.baseMap);
     p.putBool("anc", v.anchorOn);

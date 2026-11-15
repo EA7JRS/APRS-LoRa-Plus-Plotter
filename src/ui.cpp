@@ -221,6 +221,18 @@ static int astroBody = 0;                               // 0 / 1 Sol limbo infer
 static int astroStar = 0;
 static void openAstro();
 static void onAstroOpen(lv_event_t*) { openAstro(); }
+static void openCt();                                    // Astro > Desvio (Ct): correccion total y tablilla de desvios
+static lv_obj_t* ctScr = nullptr;
+static lv_obj_t* ctTa[3] = {};                           // demora de aguja, rumbo de aguja, hora UTC
+static lv_obj_t* ctKb = nullptr;
+static lv_obj_t* ctBodyLbl = nullptr;
+static lv_obj_t* ctOut = nullptr;
+static lv_obj_t* ctCardScr = nullptr;                    // la tablilla
+static lv_obj_t* ctCardBox = nullptr;
+static lv_obj_t* ctCardNote = nullptr;
+static lv_obj_t* ctApplyBtn = nullptr;
+static bool ctHave = false;                              // ultimo calculo valido: rumbo de aguja y desvio
+static double ctLastRa = 0, ctLastDev = 0;
 static lv_obj_t* chPanel = nullptr;
 static lv_obj_t* chPanelTxt = nullptr;
 static lv_obj_t* chPanelBtn[4] = {};
@@ -2218,6 +2230,7 @@ static void onAstroBtn(lv_event_t* e) {
     else if (a == 4) astroCompute();
     else if (a == 5) { lopN = 0; astroFixOn = false; lv_label_set_text(astroOut, "Rectas borradas."); }
     else if (a == 7) { openAstroList(); return; }
+    else if (a == 8) { openCt(); return; }
     else { lv_obj_set_hidden(astroScr, true); return; }
     astroRefresh();
 }
@@ -2241,7 +2254,9 @@ static void makeAstro() {
     lv_obj_set_clickable(astroScr, true);
     lv_obj_t* t = label(astroScr, "Recta de altura", &dejavu_bold_20, C_TEXT);
     lv_obj_set_pos(t, 16, 18);
-    lv_obj_t* b = textButton(astroScr, "Calcular y trazar", 220, 48, onAstroBtn, 4);
+    lv_obj_t* b = textButton(astroScr, "Desv\xC3\xADo (Ct)", 176, 48, onAstroBtn, 8);
+    lv_obj_set_pos(b, 300, 8);
+    b = textButton(astroScr, "Calcular y trazar", 220, 48, onAstroBtn, 4);
     lv_obj_set_pos(b, 484, 8);
     b = textButton(astroScr, "Borrar rectas", 160, 48, onAstroBtn, 5);
     lv_obj_set_pos(b, 712, 8);
@@ -2329,7 +2344,296 @@ void testAstro(const char* star, double errArcmin) {
     astroRefresh();
 }
 
-void closeAstro() { if (astroScr) lv_obj_set_hidden(astroScr, true); }
+
+// ---- Astro > Desvio (Ct): correccion total con la demora de aguja de un astro, y tablilla de desvios ----
+static void ctComma(char* b) { for (char* p = b; *p; p++) if (*p == '.' && p > b && isdigit((unsigned char)p[-1]) && isdigit((unsigned char)p[1])) *p = ','; }
+static double ctNum(int i, bool& ok) {
+    char d[16];
+    snprintf(d, sizeof(d), "%s", lv_textarea_get_text(ctTa[i]));
+    ok = d[0] != 0;
+    for (char* c = d; *c; c++) if (*c == ',') *c = '.';
+    return atof(d);
+}
+static const char* ctSign(double v) { return v >= 0 ? "E" : "W"; }
+
+static void ctRefresh() {
+    char b[80];
+    snprintf(b, sizeof(b), "Astro: %s", astroShortName());
+    lv_label_set_text(ctBodyLbl, b);
+}
+
+static void ctNow() {
+    const time_t tt = (time_t)tsync::now();
+    struct tm g;
+    gmtime_r(&tt, &g);
+    char b[12];
+    snprintf(b, sizeof(b), "%02d%02d%02d", g.tm_hour, g.tm_min, g.tm_sec);
+    lv_textarea_set_text(ctTa[2], b);
+}
+
+static void ctHeading() {                                 // rumbo de aguja: el del compas del barco, si llega
+    double hm;
+    if (!store->get(Key::HeadingMag, millis(), hm)) return;
+    char b[12];
+    snprintf(b, sizeof(b), "%.0f", norm360(hm));
+    lv_textarea_set_text(ctTa[1], b);
+}
+
+static void ctCompute() {
+    ctHave = false;
+    const uint32_t now = millis();
+    double la, lo;
+    if (!store->get(Key::Lat, now, la) || !store->get(Key::Lon, now, lo)) {
+        lv_label_set_text(ctOut, "Hace falta la posici\xC3\xB3n del barco (GPS o la \xC3\xBAltima conocida).");
+        return;
+    }
+    const links::Status& ls = links::status();
+    if (!ls.hasDeclination) { lv_label_set_text(ctOut, "Falta la declinaci\xC3\xB3n magn\xC3\xA9tica (se calcula con la posici\xC3\xB3n)."); return; }
+    const int64_t t0 = tsync::now();
+    const char* hs = lv_textarea_get_text(ctTa[2]);
+    if (t0 < 1600000000 || strlen(hs) != 6) { lv_label_set_text(ctOut, "Falta la hora UTC (hhmmss) o el reloj no tiene fecha."); return; }
+    const int hh = (hs[0] - '0') * 10 + (hs[1] - '0'), mm = (hs[2] - '0') * 10 + (hs[3] - '0'), ss = (hs[4] - '0') * 10 + (hs[5] - '0');
+    if (hh > 23 || mm > 59 || ss > 59) { lv_label_set_text(ctOut, "Hora UTC no v\xC3\xA1lida."); return; }
+    int64_t t = t0 - t0 % 86400 + hh * 3600 + mm * 60 + ss;
+    if (t > t0 + 3600) t -= 86400;
+    bool okDa, okRa;
+    const double da = ctNum(0, okDa), ra = ctNum(1, okRa);
+    if (!okDa || da < 0 || da >= 360) { lv_label_set_text(ctOut, "Escribe la demora de aguja del astro (0 a 359,9\xC2\xB0)."); return; }
+    if (!okRa || ra < 0 || ra >= 360) { lv_label_set_text(ctOut, "Escribe el rumbo de aguja del barco al tomar la demora (0 a 359\xC2\xB0)."); return; }
+    double gha, dec, sd, hp, alt, zv;
+    astroGhaDec(t / 86400.0 + 2440587.5, gha, dec, sd, hp);
+    plotter::bodyAltAz(gha, dec, la, lo, alt, zv);
+    if (alt < -1) {
+        char w[120];
+        snprintf(w, sizeof(w), "A esa hora %s est\xC3\xA1 bajo el horizonte (%.0f\xC2\xB0). Revisa el astro y la hora UTC.", astroShortName(), alt);
+        lv_label_set_text(ctOut, w);
+        return;
+    }
+    const double ct = plotter::totalCorrection(zv, da);
+    const double dm = ls.declination;
+    const double dev = plotter::deviationFromCt(ct, dm);
+    char b[420];
+    int n = snprintf(b, sizeof(b),
+                     "%s %02d:%02d UTC \xC2\xB7 azimut verdadero %05.1f\xC2\xB0 (altura %.0f\xC2\xB0) \xC2\xB7 demora de aguja %05.1f\xC2\xB0\n"
+                     "Correcci\xC3\xB3n total %+.1f\xC2\xB0 (%s) \xC2\xB7 declinaci\xC3\xB3n %.1f\xC2\xB0 %s \xC2\xB7 desv\xC3\xADo %+.1f\xC2\xB0 (%s) al rumbo de aguja %03.0f\xC2\xB0",
+                     astroShortName(), hh, mm, zv, alt, da, ct, ctSign(ct), fabs(dm), ctSign(dm), dev, ctSign(dev), ra);
+    const plotter::DeviationCard& card = links::deviationCard();
+    if (card.terms && n > 0 && n < (int)sizeof(b))
+        n += snprintf(b + n, sizeof(b) - (size_t)n, "\nLa tablilla daba %+.1f\xC2\xB0 a ese rumbo.", card.at(ra));
+    if (fabs(dev) > 20 && n > 0 && n < (int)sizeof(b))
+        n += snprintf(b + n, sizeof(b) - (size_t)n, "\nDesv\xC3\xADo muy grande: revisa la demora, el astro y la hora.");
+    else if (alt > 60 && n > 0 && n < (int)sizeof(b))
+        n += snprintf(b + n, sizeof(b) - (size_t)n, "\nCon el astro tan alto la demora es poco precisa: mejor bajo, por debajo de 30\xC2\xB0.");
+    ctComma(b);
+    lv_label_set_text(ctOut, b);
+    ctHave = fabs(dev) <= 20;
+    ctLastRa = ra;
+    ctLastDev = dev;
+}
+
+static void ctCardOpen();
+static void onCtCardPick(lv_event_t* e) {
+    const int a = (int)(intptr_t)lv_event_get_user_data(e);
+    plotter::DeviationCard& card = links::deviationCard();
+    if (a == -1) { lv_obj_set_hidden(ctCardScr, true); return; }
+    if (a == -2) { card.clear(); links::saveDeviationCard(); }
+    else if (a == -3) { settings::get().devOn = !settings::get().devOn; settings::save(); }
+    else if (a >= 0 && a < card.n) { card.remove(a); links::saveDeviationCard(); }
+    ctCardOpen();
+}
+
+static void makeCtCard() {
+    ctCardScr = lv_obj_create(ctScr);
+    lv_obj_remove_style_all(ctCardScr);
+    lv_obj_set_size(ctCardScr, board::W, board::H);
+    lv_obj_set_style_bg_color(ctCardScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(ctCardScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(ctCardScr, false);
+    lv_obj_set_clickable(ctCardScr, true);
+    lv_obj_t* t = label(ctCardScr, "Tablilla de desv\xC3\xADos", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    ctApplyBtn = textButton(ctCardScr, "", 300, 48, onCtCardPick, -3);
+    lv_obj_set_pos(ctApplyBtn, 440, 8);
+    lv_obj_t* b = textButton(ctCardScr, "Vaciar", 124, 48, onCtCardPick, -2);
+    lv_obj_set_pos(b, 752, 8);
+    b = textButton(ctCardScr, "Cerrar", 124, 48, onCtCardPick, -1);
+    lv_obj_set_pos(b, 884, 8);
+    ctCardNote = label(ctCardScr, "", &dejavu_16, C_SOFT);
+    lv_obj_set_pos(ctCardNote, 16, 66);
+    lv_obj_set_width(ctCardNote, 992);
+    ctCardBox = lv_obj_create(ctCardScr);
+    lv_obj_remove_style_all(ctCardBox);
+    lv_obj_set_pos(ctCardBox, 16, 250);
+    lv_obj_set_size(ctCardBox, 992, board::H - 260);
+    lv_obj_set_flex_flow(ctCardBox, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_style_pad_gap(ctCardBox, 8, 0);
+    lv_obj_set_scroll_dir(ctCardBox, LV_DIR_VER);
+}
+
+static void ctCardOpen() {
+    if (!ctCardScr) makeCtCard();
+    const plotter::DeviationCard& card = links::deviationCard();
+    const bool on = settings::get().devOn;
+    lv_label_set_text(lv_obj_get_child(ctApplyBtn, 0), on ? "Aplicar al rumbo: S\xC3\x8D" : "Aplicar al rumbo: NO");
+    lv_obj_set_style_text_color(lv_obj_get_child(ctApplyBtn, 0), lv_color_hex(on ? C_WARN : C_TEXT), 0);
+    char b[700];
+    int n;
+    if (!card.terms) n = snprintf(b, sizeof(b), "Sin observaciones. Calcula el desv\xC3\xADo con un astro y pulsa \xC2\xAB" "A la tablilla\xC2\xBB; mejor a rumbos repartidos (cada 45\xC2\xB0).");
+    else {
+        static const char* how[] = {"", "solo el desv\xC3\xADo medio (A)", "", "A, B y C (hacen falta 5 rumbos repartidos para D y E)", "", "A, B, C, D y E"};
+        n = snprintf(b, sizeof(b), "%d observaciones \xC2\xB7 curva con %s \xC2\xB7 A %+.1f  B %+.1f  C %+.1f  D %+.1f  E %+.1f \xC2\xB7 residuo %.1f\xC2\xB0\n",
+                     card.n, how[card.terms], card.coef[0], card.coef[1], card.coef[2], card.coef[3], card.coef[4], card.rmsDeg);
+        for (int h = 0; h < 360 && n > 0 && n < (int)sizeof(b); h += 30)
+            n += snprintf(b + n, sizeof(b) - (size_t)n, "%s%03d\xC2\xB0 %+.1f", h ? (h == 180 ? "\n" : "   ") : "", h, card.at(h));
+    }
+    if (n > 0 && n < (int)sizeof(b))
+        snprintf(b + n, sizeof(b) - (size_t)n, "\n\nCon \xC2\xAB" "Aplicar\xC2\xBB, el rumbo verdadero sale de rumbo de aguja + desv\xC3\xADo + declinaci\xC3\xB3n (solo si el comp\xC3\xA1s no lo corrige ya).\nObservaciones (rumbo de aguja y desv\xC3\xADo); toca una para quitarla:");
+    ctComma(b);
+    lv_label_set_text(ctCardNote, b);
+    lv_obj_clean(ctCardBox);
+    for (int i = 0; i < card.n; i++) {
+        char txt[40];
+        snprintf(txt, sizeof(txt), "%03.0f\xC2\xB0  %+.1f\xC2\xB0 %s", (double)card.p[i].compassHdg, (double)card.p[i].dev, ctSign(card.p[i].dev));
+        ctComma(txt);
+        textButton(ctCardBox, txt, 236, 44, onCtCardPick, i);
+    }
+    lv_obj_set_hidden(ctCardScr, false);
+}
+
+static void ctAdd() {
+    if (!ctHave) { lv_label_set_text(ctOut, "Primero calcula un desv\xC3\xADo v\xC3\xA1lido."); return; }
+    links::deviationCard().add(ctLastRa, ctLastDev);
+    links::saveDeviationCard();
+    ctHave = false;
+    char b[120];
+    snprintf(b, sizeof(b), "A\xC3\xB1" "adido a la tablilla: rumbo de aguja %03.0f\xC2\xB0, desv\xC3\xADo %+.1f\xC2\xB0 (%d observaciones).", ctLastRa, ctLastDev, links::deviationCard().n);
+    ctComma(b);
+    lv_label_set_text(ctOut, b);
+}
+
+static void onCtBtn(lv_event_t* e) {
+    const int a = (int)(intptr_t)lv_event_get_user_data(e);
+    if (a == 0) { astroBody = (astroBody + 1) % 9; if (astroBody == 1 || astroBody == 3) astroBody++; }   // sin limbos
+    else if (a == 1) { astroBody = kAstroStar; astroStar = (astroStar + plotter::starCount() - 1) % plotter::starCount(); }
+    else if (a == 2) { astroBody = kAstroStar; astroStar = (astroStar + 1) % plotter::starCount(); }
+    else if (a == 3) ctNow();
+    else if (a == 4) ctCompute();
+    else if (a == 5) ctAdd();
+    else if (a == 6) { ctCardOpen(); return; }
+    else if (a == 7) { const int i = plotter::navStarFind("Polaris"); if (i >= 0) { astroBody = kAstroStar; astroStar = i; } }
+    else if (a == 8) ctHeading();
+    else { lv_obj_set_hidden(ctScr, true); astroRefresh(); return; }
+    ctRefresh();
+}
+
+static void onCtField(lv_event_t* e) { lv_keyboard_set_textarea(ctKb, (lv_obj_t*)lv_event_get_target(e)); }
+
+static void makeCt() {
+    ctScr = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(ctScr);
+    lv_obj_set_size(ctScr, board::W, board::H);
+    lv_obj_set_style_bg_color(ctScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(ctScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(ctScr, false);
+    lv_obj_set_clickable(ctScr, true);
+    lv_obj_t* t = label(ctScr, "Correcci\xC3\xB3n total y desv\xC3\xADo", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    lv_obj_t* b = textButton(ctScr, "Calcular", 140, 48, onCtBtn, 4);
+    lv_obj_set_pos(b, 392, 8);
+    b = textButton(ctScr, "A la tablilla", 160, 48, onCtBtn, 5);
+    lv_obj_set_pos(b, 540, 8);
+    b = textButton(ctScr, "Tablilla", 124, 48, onCtBtn, 6);
+    lv_obj_set_pos(b, 708, 8);
+    b = textButton(ctScr, "Cerrar", 136, 48, onCtBtn, 9);
+    lv_obj_set_pos(b, 872, 8);
+    b = textButton(ctScr, "", 280, 48, onCtBtn, 0);
+    lv_obj_set_pos(b, 16, 66);
+    ctBodyLbl = lv_obj_get_child(b, 0);
+    lv_obj_set_style_text_font(ctBodyLbl, &dejavu_bold_16, 0);
+    b = textButton(ctScr, "<", 52, 48, onCtBtn, 1);
+    lv_obj_set_pos(b, 304, 66);
+    b = textButton(ctScr, ">", 52, 48, onCtBtn, 2);
+    lv_obj_set_pos(b, 364, 66);
+    b = textButton(ctScr, "Polar", 92, 48, onCtBtn, 7);
+    lv_obj_set_pos(b, 424, 66);
+    static const struct { int x, w, max; const char* hint; const char* chars; } F[3] = {
+        {16, 260, 5, "Demora de aguja, \xC2\xB0", "0123456789.,"}, {284, 260, 3, "Rumbo de aguja, \xC2\xB0", "0123456789"},
+        {552, 180, 6, "UTC hhmmss", "0123456789"}};
+    lv_obj_t* keep = vesScr;                              // vesField crea sus campos en vesScr: se le presta esta pantalla
+    lv_obj_t* keepTa[3];
+    for (int i = 0; i < 3; i++) keepTa[i] = vesTa[i];
+    vesScr = ctScr;
+    for (int i = 0; i < 3; i++) {
+        lv_obj_t* ta = vesField(i, F[i].x, 124, F[i].w, F[i].hint, F[i].max, F[i].chars);
+        lv_obj_remove_event_cb(ta, onVesField);
+        lv_obj_add_event_cb(ta, onCtField, LV_EVENT_FOCUSED, nullptr);
+        lv_obj_add_event_cb(ta, onCtField, LV_EVENT_CLICKED, nullptr);
+        ctTa[i] = ta;
+        vesTa[i] = keepTa[i];
+    }
+    vesScr = keep;
+    b = textButton(ctScr, "Proa", 84, 48, onCtBtn, 8);
+    lv_obj_set_pos(b, 740, 124);
+    b = textButton(ctScr, "Ahora", 92, 48, onCtBtn, 3);
+    lv_obj_set_pos(b, 916, 124);
+    ctOut = label(ctScr, "Toma la demora del astro con la aguja, pulsa Ahora en ese instante y escribe la demora y el rumbo de aguja del barco.\nMejor con el astro bajo (Sol al salir o al ponerse, la Polar).", &dejavu_16, C_SOFT);
+    lv_obj_set_pos(ctOut, 16, 186);
+    lv_obj_set_width(ctOut, 992);
+    ctKb = lv_keyboard_create(ctScr);
+    lv_keyboard_set_mode(ctKb, LV_KEYBOARD_MODE_NUMBER);
+    lv_obj_set_size(ctKb, board::W, 300);
+    lv_obj_align(ctKb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(ctKb, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(ctKb, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(ctKb, 6, 0);
+    lv_obj_set_style_pad_gap(ctKb, 6, 0);
+    lv_obj_set_style_border_width(ctKb, 0, 0);
+    lv_obj_set_style_bg_color(ctKb, lv_color_hex(C_PANEL), LV_PART_ITEMS);
+    lv_obj_set_style_bg_opa(ctKb, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(ctKb, lv_color_hex(C_ACC), LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(ctKb, lv_color_hex(C_TEXT), LV_PART_ITEMS);
+    lv_obj_set_style_radius(ctKb, 8, LV_PART_ITEMS);
+    lv_obj_set_style_border_width(ctKb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_width(ctKb, 0, LV_PART_ITEMS);
+    lv_obj_set_hidden(ctScr, true);
+}
+
+static void openCt() {
+    if (!ctScr) makeCt();
+    if (astroBody == 1 || astroBody == 3) astroBody--;    // el limbo no importa para el azimut
+    if (!lv_textarea_get_text(ctTa[2])[0]) ctNow();
+    if (!lv_textarea_get_text(ctTa[1])[0]) ctHeading();
+    lv_keyboard_set_textarea(ctKb, ctTa[0]);
+    ctRefresh();
+    lv_obj_set_hidden(ctScr, false);
+}
+
+// Para las pruebas en el PC: con el astro elegido, un compas con desvio dev y rumbos de aguja cada 'step' grados
+void testCt(const char* star, double dev, int step) {
+    openAstro();
+    const int i = plotter::navStarFind(star);
+    if (i >= 0) { astroBody = kAstroStar; astroStar = i; } else astroBody = 0;
+    openCt();
+    double la, lo, gha, dec, sd, hp, alt, zv;
+    if (!store->get(Key::Lat, millis(), la) || !store->get(Key::Lon, millis(), lo)) return;
+    astroGhaDec(tsync::now() / 86400.0 + 2440587.5, gha, dec, sd, hp);
+    plotter::bodyAltAz(gha, dec, la, lo, alt, zv);
+    const double dm = links::status().declination;
+    for (int h = 0; h < 360; h += step > 0 ? step : 360) {
+        const double r = deg2rad(h), d = dev + 2.5 * sin(r) - 1.5 * cos(r) + 0.8 * sin(2 * r);   // curva de un compas real
+        char b[16];
+        ctNow();
+        snprintf(b, sizeof(b), "%.1f", norm360(zv - d - dm));
+        lv_textarea_set_text(ctTa[0], b);
+        snprintf(b, sizeof(b), "%d", h);
+        lv_textarea_set_text(ctTa[1], b);
+        ctCompute();
+        if (step > 0) ctAdd();
+    }
+}
+void testCtCard() { if (ctScr) ctCardOpen(); }
+
+void closeAstro() { if (astroScr) lv_obj_set_hidden(astroScr, true); if (ctScr) lv_obj_set_hidden(ctScr, true); }
 void testAstroList() { if (!astroScr) return; lv_obj_set_hidden(astroScr, false); openAstroList(); }
 
 static void makeAbout() {
@@ -3655,6 +3959,7 @@ void begin(DataStore* s) {
     makeNet();                                            // antes que las alertas: estas quedan por encima
     makeVessel();
     makeAstro();
+    makeCt();
     makeAbout();
     makeModal();
     loadWaypoints();

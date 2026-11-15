@@ -10,6 +10,7 @@
 
 #include "ais.h"
 #include "aistargets.h"
+#include "deviation.h"
 #include "nmea.h"
 #include "store.h"
 
@@ -63,4 +64,7 @@ const Status& status();
 const plotter::NmeaStats& serialStats();
 // Blancos AIS (del puerto serie y del simulador), con distancia y CPA respecto al barco: se recalculan cada segundo
 plotter::AisTargets& targets();
+// Tablilla de desvios del compas (Carta > Astro > Ct). Con settings.devOn se aplica al rumbo magnetico (HDM / HDG)
+plotter::DeviationCard& deviationCard();
+void saveDeviationCard();               // la guarda en los ajustes
 }

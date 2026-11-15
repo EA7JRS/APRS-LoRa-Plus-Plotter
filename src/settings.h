@@ -30,6 +30,8 @@ struct Values {
     int pilotModel = 1;             // 0 generico (APB + RMB), 1 Raymarine ST2000+ de Manuel (RMB + APB con waypoints de 4 letras, VWR, VHW)
     int astroIdx10 = 0;             // sextante: error de indice en decimas de minuto (+ si marca de mas)
     int astroEye10 = 20;            // elevacion del ojo en decimetros
+    char devCard[300] = "";         // tablilla de desvios: "rumbo de aguja:desvio;..." en decimas de grado (Carta > Astro > Ct)
+    bool devOn = false;             // aplicar la tablilla al rumbo magnetico del compas (HDM / HDG) antes de la declinacion
     int units = 0;                  // 0 nautico, 1 metrico, 2 imperial
     int baseMap = 0;                // 0 OpenSeaMap, 1 IHM, 2 IGN, 3 ortofoto (carpetas de la tarjeta)
     bool anchorOn = false;          // fondeo vigilado: sigue tras un reinicio

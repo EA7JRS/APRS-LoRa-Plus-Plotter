@@ -319,10 +319,11 @@ Collision and anchor alerts close by themselves when the danger is over.
 
 **In this version alerts make no sound.** Do not rely on the plotter as your only anchor or collision alarm.
 
-**Official alerts** (Wi-Fi with internet access, *Ajustes > Red*): weather (AEMET in Spain, from the public Meteoalerta RSS;
+**Official alerts** (Wi-Fi with internet access, *Ajustes > Red*): weather (AEMET in Spain: with a position, the alerts whose polygon has the boat inside, from the public bundle of every CAP;
+without one, the Meteoalerta RSS;
 MeteoAlarm in the rest of Europe, with the country in *País ISO*; NWS in the US), tsunamis (tsunami.gov), earthquakes (USGS and EMSC, by
 magnitude and distance, e.g. M5 under 600 km) and space weather (NOAA SWPC: G / R / S scales, Kp, solar flux), every 15 min in their own
-task. *Avisos: zonas* filters by words of the zone ("Huelva, Cádiz"; empty = the whole country, and with MeteoAlarm only red alerts open
+task. *Avisos: zonas* filters by words of the zone when there is no polygon ("Huelva, Cádiz"; empty = the whole country, and with MeteoAlarm only red alerts open
 the window). The Meteo tab sums them up, with the space weather.
 
 ## 11. Where the data comes from

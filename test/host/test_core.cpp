@@ -11,6 +11,8 @@
 
 #include "ais.h"
 #include "alerts.h"
+#include "gunzip.h"
+#include "aemet_tgz.h"
 #include "minijson.h"
 #include "same.h"
 #include "anchor.h"
@@ -1696,6 +1698,37 @@ static void testAlerts() {
     CHECK(a.onset == unixFromUtc(2026, 11, 4, 17, 0, 0) && a.expires == unixFromUtc(2026, 11, 5, 6, 59, 0));
     CHECK(a.text == "precipitaci\xc3\xb3n acumulada en una hora" && a.id == "Z_CAP_C_LEMM_20261104171224_AFAZ610403PRP10507.xml");
     CHECK(!aemetParseRssItem("<item><title>Estado completo de avisos para Espa\xc3\xb1" "a</title></item>", a));
+    // el item del paquete con todos los CAP: su enlace
+    CHECK(aemetRssBundle("<item><title>Estado completo</title><link>https://www.aemet.es/documentos_d/eltiempo/prediccion/avisos/cap/Z_CAP_C_LEMM_20261115.tar.gz</link></item>").size() > 20);
+    CHECK(aemetRssBundle(it).empty());
+    {
+        // el .tar.gz: pax delante, un .txt que no cuenta, un aviso verde que no cuenta y el de Cadiz sin poligono en ingles
+        std::vector<Alert> v; size_t caps = 0;
+        const int64_t t = unixFromUtc(2026, 11, 13, 0, 30, 0);
+        CHECK(aemetCapBundle(AEMET_TGZ, sizeof(AEMET_TGZ), {37.389, -5.984}, t, v, &caps) == 0);
+        CHECK(caps == 3 && v.size() == 1 && v[0].level == 2 && v[0].src == AlertSrc::Aemet && v[0].event == "Rain warning" && v[0].area == "Campina sevillana");
+        v.clear();
+        CHECK(aemetCapBundle(AEMET_TGZ, sizeof(AEMET_TGZ), {36.3, -5.8}, t, v) == 0 && v.size() == 1 && v[0].level == 1 && v[0].id == "ES.CAD");
+        v.clear();
+        CHECK(aemetCapBundle(AEMET_TGZ, sizeof(AEMET_TGZ), {37.389, -5.984}, unixFromUtc(2026, 11, 13, 3, 30, 0), v) == 0 && v.empty());   // ya caducado
+        CHECK(aemetCapBundle(AEMET_TGZ, sizeof(AEMET_TGZ), {40.4, -3.7}, t, v) == 0 && v.empty());                                      // Madrid: ninguno
+        std::string bad((const char*)AEMET_TGZ, sizeof(AEMET_TGZ));
+        bad[bad.size() / 2] ^= 0x5A;
+        CHECK(aemetCapBundle((const uint8_t*)bad.data(), bad.size(), {37.389, -5.984}, t, v) < 0);
+        CHECK(aemetCapBundle(AEMET_TGZ, 40, {37.389, -5.984}, t, v) == -2);
+        // el tar a trozos de 7 bytes da lo mismo que entero
+        std::string tar;
+        CHECK(gz::gunzip(AEMET_TGZ, sizeof(AEMET_TGZ), [&](const uint8_t* d, size_t k) { tar.append((const char*)d, k); }) == 0);
+        TarStream ts; int xml = 0, all = 0;
+        for (size_t i = 0; i < tar.size(); i += 7) {
+            ts.feed((const uint8_t*)tar.data() + i, std::min<size_t>(7, tar.size() - i), [&](const std::string& n, const std::string& b) {
+                all++; if (n.size() > 4 && n.compare(n.size() - 4, 4, ".xml") == 0 && b.find("</alert>") != std::string::npos) xml++; });
+        }
+        CHECK(all == 4 && xml == 3 && ts.ended());
+        TarStream small(100); int got = 0;
+        small.feed((const uint8_t*)tar.data(), tar.size(), [&](const std::string&, const std::string&) { got++; });
+        CHECK(got == 1);                                           // solo el .txt cabe
+    }
     CHECK(alertZoneMatch("Poniente y Almer\xc3\xad" "a Capital", "huelva, almeria") && !alertZoneMatch("Costa granadina", "Huelva") && alertZoneMatch("x", " "));
     CHECK(alertLevelFromColour("Nivel rojo") == 3 && alertLevelFromColour("reduced visibility") == -1 && alertLevelFromColour("Red Wind Warning") == 3);
     // CAP de AEMET con poligono (recortado del .tar.gz del 2026-11-04)

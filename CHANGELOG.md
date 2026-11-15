@@ -1,5 +1,9 @@
 # Changelog
 
+## Sin publicar
+
+- **Avisos de AEMET por su polígono**: con posición, el plotter baja el paquete público con todos los CAP en vigor (el .tar.gz que enlaza el RSS de Meteoalerta), lo descomprime (`gunzip` propio en el núcleo, ventana de 32 KB, CRC-32) y se queda con los avisos cuyo polígono tiene dentro el barco; solo lo vuelve a bajar si cambia o si el barco se mueve más de 5 km. Sin posición o si el paquete falla, el RSS con el filtro por zonas, como antes. Núcleo: `gunzip`, `TarStream`, `aemetCapBundle`, `aemetRssBundle` (12 comprobaciones; 1841 en total). Sustituye a la rama `avisos-meteo`, que duplicaba los avisos oficiales.
+
 ## 5.4.6 — 2026-11-15
 _La 5.4.5 no tuvo entrada propia: lo que ya llevaba está también en esta lista._
 

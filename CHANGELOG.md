@@ -4,7 +4,8 @@
 
 - **Avisos meteorológicos:** avisos oficiales de AEMET (con su clave de OpenData, por la posición del barco) o de
   Meteoalarm (por país y zonas): ventana emergente con el color del nivel, lista en la pestaña Meteo y ajustes en
-  Ajustes > Red. Sin probar contra los servidores.
+  Ajustes > Red (con el nivel desde el que salta la ventana). AEMET entrega un `.tar.gz`: se guarda en la PSRAM y se
+  descomprime en el plotter (`gunzip`, con CRC-32). Manuales, guías e imágenes al día. Sin probar contra los servidores.
 
 ## 5.4.1 — 2026-11-12 — primera versión (preliminar)
 

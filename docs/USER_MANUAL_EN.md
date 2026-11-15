@@ -191,6 +191,24 @@ Anything coming **from the internet** is shown in **amber** and labelled «estim
 station or model, not from your boat. The note at the bottom says whether the OpenWeatherMap request works and where
 the observation is from.
 
+### Weather warnings
+
+With official warnings in force for your area, the note at the bottom becomes their list (up to three, most severe
+first, with the level colour and the time they are in force). Tap one to see the whole warning.
+
+- **AEMET** (Spain): put your free AEMET OpenData key in Ajustes > Red. You get the warnings for the zone the boat is in
+  and those within 30 km.
+- **Meteoalarm** (rest of Europe), with no AEMET key: write the country and the names of your zones as Meteoalarm calls
+  them: «spain: Estrecho, Cádiz».
+
+The plotter checks them every 15 minutes.
+
+![Warning](img/aviso_meteo.png)
+
+When a new one comes in at the chosen level or above, the **WEATHER WARNING** window opens with a band in the level colour
+(yellow, orange or red): phenomenon, area, time in force, probability and the warning text. **ALL WARNINGS** goes to the
+Meteo tab; **CLOSE** closes it. Each warning is shown once.
+
 ## 9. Ajustes (Settings)
 
 ![Settings](img/ajustes.png)
@@ -212,7 +230,10 @@ and waypoints.
 ![Network](img/red.png)
 
 On the **Red** (Network) screen: the Wi-Fi and its password, the server type (off, NMEA 0183, gpsd or Signal K), its
-address and port, the UDP port, the OpenWeatherMap key and the tracker PIN. **Guardar y conectar** applies the changes.
+address and port, the UDP port, the OpenWeatherMap key, the tracker PIN and the weather warnings: the AEMET OpenData
+key, or the Meteoalarm country and zones, and the button for the level from which the window opens (**Desde amarillo**
+from yellow, **Desde naranja** from orange, **Solo rojo** red only, **Sin ventana** no window). **Guardar y conectar**
+applies the changes.
 
 ## 10. Alerts
 
@@ -228,6 +249,7 @@ An alert opens a window over any screen. Alert texts are in English, as in the A
 | **ANCHOR WATCH · NO GPS FIX** | Anchored and 1 min without a position | Same |
 | **SIGNAL K ALARM / EMERGENCY** | Notification from the Signal K server | Closes by itself when the server lowers its level |
 | **RS485 COMPARTIDO** (shared RS485) | The pilot output uses the port data is coming in on | Apagar salida (turn output off) · Seguir así (keep going) |
+| **WEATHER WARNING** | A new official weather warning for your area (section 8) | ALL WARNINGS · CLOSE. On-board alerts take its place |
 
 Collision and anchor alerts close by themselves when the danger is over.
 
@@ -257,7 +279,7 @@ The internet only stands in for weather: true wind, gust, pressure, temperature,
 - Alert sound.
 - Chart download over Wi-Fi and a fallback coastline.
 - Renaming waypoints and saving several named routes.
-- Tides, weather warnings, navigational warnings and forecast layers.
+- Tides, navigational warnings and forecast layers; weather warnings for the zones of the route and their map.
 - Autopilot controls.
 - English interface.
 

@@ -184,6 +184,24 @@ Presión, temperatura del aire, humedad, viento real, racha y visibilidad. Cada 
 Lo que viene **de internet** sale en **ámbar** y con «estimado»: es un dato de una estación o un modelo cercano, no de
 tu barco. La nota de abajo dice si la consulta a OpenWeatherMap funciona y de dónde es la observación.
 
+### Avisos meteorológicos
+
+Con avisos oficiales en vigor para tu zona, la nota de abajo pasa a ser su lista (hasta tres, del más grave al más
+leve, con el color del nivel y la vigencia). Tócalo para ver el aviso entero.
+
+- **AEMET** (España): pon tu clave gratuita de AEMET OpenData en Ajustes > Red. Salen los avisos de la zona en la que
+  está el barco y los de menos de 30 km.
+- **Meteoalarm** (resto de Europa), sin clave de AEMET: escribe el país y los nombres de tus zonas, como los llama
+  Meteoalarm: «spain: Estrecho, Cádiz».
+
+El plotter los comprueba cada 15 minutos.
+
+![Aviso](img/aviso_meteo.png)
+
+Cuando entra uno nuevo del nivel elegido o más grave, sale la ventana **WEATHER WARNING** con la franja del color del nivel
+(amarillo, naranja o rojo): fenómeno, zona, vigencia, probabilidad y el texto del aviso. **ALL WARNINGS** lleva a la
+pestaña Meteo; **CLOSE** la cierra. Cada aviso sale una sola vez.
+
 ## 9. Ajustes
 
 ![Ajustes](img/ajustes.png)
@@ -204,7 +222,9 @@ tu barco. La nota de abajo dice si la consulta a OpenWeatherMap funciona y de d�
 ![Red](img/red.png)
 
 En la pantalla de **Red**: la WiFi y su clave, el tipo de servidor (apagado, NMEA 0183, gpsd o Signal K), su dirección
-y puerto, el puerto UDP, la clave de OpenWeatherMap y el PIN del tracker. **Guardar y conectar** aplica los cambios.
+y puerto, el puerto UDP, la clave de OpenWeatherMap, el PIN del tracker y los avisos meteorológicos: la clave de AEMET
+OpenData, o el país y las zonas de Meteoalarm, y el botón del nivel desde el que salta la ventana (**Desde amarillo**,
+**Desde naranja**, **Solo rojo**, **Sin ventana**). **Guardar y conectar** aplica los cambios.
 
 ## 10. Alertas
 
@@ -220,6 +240,7 @@ Una alerta abre una ventana sobre cualquier pantalla. Los textos van en inglés,
 | **ANCHOR WATCH · NO GPS FIX** | Fondeado y 1 min sin posición | Igual |
 | **SIGNAL K ALARM / EMERGENCY** | Aviso del servidor Signal K | Se cierra sola cuando el servidor lo baja de nivel |
 | **RS485 COMPARTIDO** | La salida al piloto usa el puerto por el que entran datos | Apagar salida · Seguir así |
+| **WEATHER WARNING** | Aviso meteorológico oficial nuevo para tu zona (sección 8) | ALL WARNINGS · CLOSE. Las alertas de a bordo la sustituyen |
 
 Las de abordaje y garreo se cierran solas cuando el peligro pasa.
 
@@ -248,7 +269,7 @@ Internet solo sustituye a la meteorología: viento real, racha, presión, temper
 - Sonido de las alertas.
 - Descarga de cartas por WiFi y línea de costa de reserva.
 - Renombrar waypoints y guardar varias rutas con nombre.
-- Mareas, avisos meteorológicos, radioavisos y capas de previsión.
+- Mareas, radioavisos y capas de previsión; avisos meteorológicos de las zonas de la ruta y su mapa.
 - Mandos del piloto automático.
 - Interfaz en inglés.
 

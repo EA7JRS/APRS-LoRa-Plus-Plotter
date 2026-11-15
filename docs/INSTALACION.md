@@ -136,6 +136,10 @@ Ajustes > **Red: WiFi, TCP y UDP**. Escribe la red y su clave, elige el servidor
 
 Solo hay **un** servidor TCP a la vez. El UDP funciona a la vez que el TCP.
 
+**Avisos meteorológicos**: en la cuarta fila, la clave de AEMET OpenData (gratuita, se pide en opendata.aemet.es con un
+correo) o, fuera de España, «país: zonas» de Meteoalarm; el botón de la derecha elige desde qué nivel salta la ventana.
+Necesitan WiFi con salida a internet; AEMET, además, la posición del barco.
+
 **El móvil como fuente**: activa el punto de acceso del móvil, enciende el servidor NMEA en la app APRS LoRa+ y, en el
 plotter, pon esa WiFi, «TCP: NMEA 0183», el **servidor vacío** y el puerto 10110. Con el servidor vacío el plotter se
 conecta al equipo que da la WiFi.
@@ -210,13 +214,14 @@ Todo se guarda y se recupera al encender, también un fondeo en vigilancia.
 | No conecta a la WiFi | Nombre y clave exactos (distingue mayúsculas). El estado sale arriba en la pantalla de red |
 | «El tracker no acepta el PIN» | Pon en Ajustes > Red el PIN de control del tracker. Si lo has cambiado, apaga y enciende el Bluetooth |
 | El tiempo de internet no llega | Clave de OpenWeatherMap, WiFi con salida a internet y posición válida. La pestaña Meteo dice el motivo |
+| No salen avisos meteorológicos | Clave de AEMET entera (empieza por «eyJ») y confirmada desde el correo de AEMET, o «país: zonas» bien escrito; con posición. Sin avisos en vigor para tu zona, no sale nada |
 
 ## 9. Lo que falta en esta versión
 
 - Sonido de las alertas (zumbador).
 - Descarga de cartas por WiFi; línea de costa de reserva.
 - Renombrar waypoints, varias rutas con nombre.
-- Mareas, avisos meteorológicos y radioavisos, capas de previsión.
+- Mareas y radioavisos, capas de previsión; avisos de las zonas de la ruta.
 - Mandos del piloto automático; emitir en la red NMEA 2000.
 - Lista de equipos Bluetooth y de redes WiFi para elegir.
 

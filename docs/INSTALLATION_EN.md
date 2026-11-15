@@ -140,6 +140,10 @@ conectar** (Save and connect).
 
 Only **one** TCP server at a time. UDP works alongside TCP.
 
+**Weather warnings**: in the fourth row, the AEMET OpenData key (free, requested at opendata.aemet.es with an email
+address) or, outside Spain, Meteoalarm «country: zones»; the button on the right chooses the level from which the window
+opens. They need Wi-Fi with internet access; AEMET also needs the boat's position.
+
 **The phone as a source**: enable the phone's hotspot, turn on the NMEA server in the APRS LoRa+ app and, on the
 plotter, enter that Wi-Fi, «TCP: NMEA 0183», an **empty server** field and port 10110. With the server empty the
 plotter connects to the device providing the Wi-Fi.
@@ -214,13 +218,14 @@ Everything is saved and restored at power-up, including an active anchor watch.
 | Wi-Fi does not connect | Exact name and password (case-sensitive). The status is shown at the top of the network screen |
 | «El tracker no acepta el PIN» (the tracker rejects the PIN) | Enter the tracker's control PIN in Ajustes > Red. If you changed it, turn Bluetooth off and on |
 | Internet weather does not arrive | OpenWeatherMap key, Wi-Fi with internet access and a valid position. The Meteo tab gives the reason |
+| No weather warnings | The whole AEMET key (it starts with «eyJ»), confirmed from AEMET's email, or a correct «country: zones»; with a position. With no warnings in force for your area, nothing shows |
 
 ## 9. Not in this version
 
 - Alert sound (buzzer).
 - Chart download over Wi-Fi; fallback coastline.
 - Renaming waypoints, several named routes.
-- Tides, weather warnings and navigational warnings, forecast layers.
+- Tides and navigational warnings, forecast layers; warnings for the zones of the route.
 - Autopilot controls; transmitting on the NMEA 2000 network.
 - Lists of Bluetooth devices and Wi-Fi networks to choose from.
 - English interface.

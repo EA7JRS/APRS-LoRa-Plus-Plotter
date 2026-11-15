@@ -28,7 +28,7 @@ The on-screen texts are in Spanish; this guide gives each one in Spanish with it
 | Radar AIS | Targets around the boat, with collision risk |
 | Viento (Wind) | Apparent and true wind dial, and a 10-minute history |
 | Piloto (Pilot) | Course to steer, cross-track error and data for the autopilot |
-| Meteo (Weather) | Pressure, temperature, humidity, wind, gust and visibility |
+| Meteo (Weather) | Pressure, temperature, humidity, wind, gust and visibility; weather warnings for your area |
 | Ajustes (Settings) | Simulator, serial port, brightness, units, base map, NMEA 2000, network and Bluetooth |
 
 ## 3. Everyday tasks
@@ -61,6 +61,7 @@ They appear in a window over any screen:
 | ANCHOR WATCH · NO GPS FIX | Anchored and one minute without a position |
 | SIGNAL K ALARM / EMERGENCY | Notification from the Signal K server |
 | RS485 COMPARTIDO (shared RS485) | The pilot output uses the same port data is coming in on |
+| WEATHER WARNING | A new official weather warning for your area (AEMET or Meteoalarm) |
 
 **In this version alerts make no sound**: the buzzer is not implemented yet.
 
@@ -74,6 +75,7 @@ They appear in a window over any screen:
 | Phone with the APRS LoRa+ app | Ajustes > Red: the phone's Wi-Fi, «TCP: NMEA 0183», empty server, port 10110 |
 | APRS LoRa+ tracker or gateway | Ajustes > Bluetooth (the tracker PIN goes in Ajustes > Red) |
 | Internet weather | Ajustes > Red: OpenWeatherMap key |
+| Weather warnings | Ajustes > Red: AEMET OpenData key, or Meteoalarm «country: zones» |
 
 If a sensor stops sending, the plotter uses the next source that has that value. Internet data is shown in amber and
 labelled «estimado» (estimated).

@@ -26,7 +26,7 @@ Esta primera versión compila, pero **todavía no se ha probado en la placa**: �
 | Radar AIS | Blancos alrededor del barco, con riesgo de abordaje |
 | Viento | Esfera de viento aparente y real, e historial de 10 minutos |
 | Piloto | Rumbo a gobernar, desvío de la ruta y datos para el piloto automático |
-| Meteo | Presión, temperatura, humedad, viento, racha y visibilidad |
+| Meteo | Presión, temperatura, humedad, viento, racha y visibilidad; avisos meteorológicos de tu zona |
 | Ajustes | Simulador, puerto serie, brillo, unidades, mapa base, NMEA 2000, red y Bluetooth |
 
 ## 3. Lo más usado
@@ -58,6 +58,7 @@ Salen en una ventana sobre cualquier pantalla:
 | ANCHOR WATCH · NO GPS FIX | Fondeado y un minuto sin posición |
 | SIGNAL K ALARM / EMERGENCY | Aviso del servidor Signal K |
 | RS485 COMPARTIDO | La salida al piloto usa el mismo puerto por el que entran datos |
+| WEATHER WARNING | Aviso meteorológico oficial nuevo para tu zona (AEMET o Meteoalarm) |
 
 **En esta versión las alertas no suenan**: falta el zumbador.
 
@@ -71,6 +72,7 @@ Salen en una ventana sobre cualquier pantalla:
 | Móvil con la app APRS LoRa+ | Ajustes > Red: la WiFi del móvil, «TCP: NMEA 0183», servidor vacío, puerto 10110 |
 | Tracker APRS LoRa+ o pasarela | Ajustes > Bluetooth (el PIN del tracker, en Ajustes > Red) |
 | Tiempo de internet | Ajustes > Red: clave de OpenWeatherMap |
+| Avisos meteorológicos | Ajustes > Red: clave de AEMET OpenData, o «país: zonas» de Meteoalarm |
 
 Si un sensor deja de mandar, el plotter usa la siguiente fuente que tenga ese dato. Lo que viene de internet sale en
 ámbar y con «estimado».

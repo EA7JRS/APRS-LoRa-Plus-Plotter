@@ -43,6 +43,8 @@ Versión 5.4.1, preliminar. El núcleo de cálculo (`lib/plotter_core`) no depen
 | `n2k` | NMEA 2000: PGN de navegación, viento, motor y AIS; mensajes de varias tramas |
 | `lights` | Alcance geográfico y luminoso, ritmos de luces, marcas IALA, radio de borneo |
 | `navwarn` | Radioavisos náuticos en vigor (XML del IHM) y posiciones dentro del texto |
+| `wxwarn` | Avisos meteorológicos: CAP de AEMET (con polígono) y Atom de Meteoalarm, corte por bloques de una descarga |
+| `gunzip` | Descompresión gzip propia (el .tar.gz de los avisos de AEMET) |
 | `sim` | Simulador: un barco navegando y sus tramas NMEA |
 | `route` | Seguimiento de ruta y paso de waypoint, registro de derrota y de sonda, sonido de los avisos |
 | `signalk` | Signal K: rutas y unidades, suscripción, avisos y envío de valores propios |

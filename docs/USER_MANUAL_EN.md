@@ -125,6 +125,23 @@ If the boat stays outside the circle for 10 seconds, **ANCHOR DRAG** is raised; 
 After one minute without a position, **ANCHOR WATCH · NO GPS FIX**. The anchor watch is saved: it keeps watching after a
 power cycle.
 
+### Astro: line of position
+
+The **Astro** button on the chart opens *Recta de altura* (line of position), to fix your position with a sextant, with no tables or almanac:
+
+1. Choose the body: the *Astro* button cycles **Sol (limbo inferior)** (Sun, lower limb), **Sol (limbo superior)** (upper limb) and **Estrella** (star); `<` and `>` step through the 57 navigational stars and Polaris. For each star it shows its altitude and azimuth right now, to identify it.
+2. At the instant of the sight press **Ahora** (now), or type the UTC time as `hhmmss`.
+3. Type the sextant altitude (*Grados*, *Minutos*), the index error in minutes (*Error índice*, positive if the sextant reads high) and the height of eye in metres (*Ojo*).
+4. **Calcular y trazar** (compute and plot): dip, refraction, semi-diameter and the Sun's parallax are applied, and you get the observed altitude, the computed altitude, the azimuth and the **intercept** (*Determinante*: miles *hacia el astro*, towards, or *en contra*, away). The line is drawn on the chart in yellow, with the body and the time.
+
+![Line of position](img/astro_recta.png)
+
+The assumed position is the boat's position on the chart at that moment. Up to four lines are kept; with two or more crossing well a **fix** is computed (*Situación*, yellow circle on the chart) with its distance from the assumed position. Lines are not advanced for the run between sights: they suit sights taken together (a round of stars at twilight). *Borrar rectas* clears them. If the sight does not fit the body and time (over 120 miles), nothing is plotted and a warning is shown.
+
+![Lines on the chart](img/carta_rectas.png)
+
+The Sun, Aries and the stars are computed on board to almanac precision (0.1′), checked against a 2026 nautical almanac. No Moon or planets. The clock must have date and time (GPS or internet): one second of error is up to 0.25 miles.
+
 ## 4. Rutas (Routes)
 
 ![Routes](img/rutas.png)

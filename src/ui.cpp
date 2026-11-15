@@ -36,6 +36,7 @@
 #include "tiles.h"
 #include "wind.h"
 #include "astro.h"
+#include "celnav.h"
 #include "wmm.h"
 #include "wxcalc.h"
 
@@ -196,6 +197,27 @@ static uint32_t mobMs = 0;
 static lv_obj_t* navLine = nullptr;
 static lv_point_precise_t navLinePts[2];
 static lv_obj_t* navMark = nullptr;
+// Rectas de altura (navegacion astronomica): hasta 4 en la carta, y la situacion si hay dos o mas
+static const int kLops = 4;
+struct AstroLop { plotter::Sight s; char name[20]; char hhmm[8]; };
+static AstroLop lops[kLops];
+static int lopN = 0;
+static bool astroFixOn = false;
+static LatLon astroFix = {0, 0};
+static lv_obj_t* lopLine[kLops] = {};
+static lv_point_precise_t lopPts[kLops][2];
+static lv_obj_t* lopLbl[kLops] = {};
+static lv_obj_t* astroFixMark = nullptr;
+static lv_obj_t* astroScr = nullptr;
+static lv_obj_t* astroTa[5] = {};                       // grados, minutos, error de indice, elevacion del ojo, hora UTC
+static lv_obj_t* astroKb = nullptr;
+static lv_obj_t* astroBodyLbl = nullptr;
+static lv_obj_t* astroStarLbl = nullptr;
+static lv_obj_t* astroOut = nullptr;
+static int astroBody = 0;                               // 0 Sol limbo inferior, 1 Sol limbo superior, 2 estrella
+static int astroStar = 0;
+static void openAstro();
+static void onAstroOpen(lv_event_t*) { openAstro(); }
 static lv_obj_t* chPanel = nullptr;
 static lv_obj_t* chPanelTxt = nullptr;
 static lv_obj_t* chPanelBtn[4] = {};
@@ -1310,6 +1332,25 @@ static void makeChart(lv_obj_t* page) {
     lv_obj_t* ab = textButton(chart, "Fondeo", 110, 46, onAnchorBtn, 0);
     lv_obj_align(ab, LV_ALIGN_TOP_RIGHT, -68, 68);
     anchorBtnLbl = lv_obj_get_child(ab, 0);
+    for (int i = 0; i < kLops; i++) {                     // rectas de altura
+        lopLine[i] = lv_line_create(chart);
+        lv_obj_set_style_line_color(lopLine[i], lv_color_hex(0xF5D547), 0);
+        lv_obj_set_style_line_width(lopLine[i], 3, 0);
+        lv_obj_set_hidden(lopLine[i], true);
+        lopLbl[i] = label(chart, "", &dejavu_14, 0xF5D547);
+        lv_obj_set_style_bg_color(lopLbl[i], lv_color_hex(C_INK), 0);
+        lv_obj_set_style_bg_opa(lopLbl[i], 180, 0);
+        lv_obj_set_style_pad_hor(lopLbl[i], 4, 0);
+        lv_obj_set_hidden(lopLbl[i], true);
+    }
+    astroFixMark = box(chart, C_INK, 9);
+    lv_obj_set_size(astroFixMark, 18, 18);
+    lv_obj_set_style_border_color(astroFixMark, lv_color_hex(0xF5D547), 0);
+    lv_obj_set_style_border_width(astroFixMark, 3, 0);
+    lv_obj_set_clickable(astroFixMark, false);
+    lv_obj_set_hidden(astroFixMark, true);
+    lv_obj_t* asb = textButton(chart, "Astro", 110, 46, onAstroOpen, 0);
+    lv_obj_align(asb, LV_ALIGN_TOP_RIGHT, -68, 128);
     chCenterBtn = textButton(chart, "Centrar barco", 170, 46, onCenter, 0);
     lv_obj_align(chCenterBtn, LV_ALIGN_TOP_RIGHT, -68, 8);
     chScaleBar = box(chart, C_TEXT);
@@ -1451,6 +1492,33 @@ static void updateChart() {
         wm++;
     }
     for (int i = wm; i < kWpMarks; i++) { lv_obj_set_hidden(wpDot[i], true); lv_obj_set_hidden(wpLbl[i], true); }
+
+    // Rectas de altura: 30 mn a cada lado del punto determinante, perpendicular al azimut
+    for (int i = 0; i < kLops; i++) {
+        if (i >= lopN) { lv_obj_set_hidden(lopLine[i], true); lv_obj_set_hidden(lopLbl[i], true); continue; }
+        const LatLon c = {lops[i].s.lat, lops[i].s.lon};
+        double x1, y1, xc, yc;
+        toScreen(c, xc, yc);
+        toScreen(gcDestination(c, norm360(lops[i].s.znDeg + 90), 1.0), x1, y1);     // una milla a lo largo de la recta
+        const double ppn = hypot(x1 - xc, y1 - yc);
+        if (ppn < 1e-6 || fabs(xc) > 6000 || fabs(yc) > 6000) { lv_obj_set_hidden(lopLine[i], true); lv_obj_set_hidden(lopLbl[i], true); continue; }
+        const double half = fmin(30.0 * ppn, 1500.0), ux = (x1 - xc) / ppn, uy = (y1 - yc) / ppn;   // 30 mn a cada lado, sin salirse mucho de la pantalla
+        lopPts[i][0] = {(lv_value_precise_t)(xc + ux * half), (lv_value_precise_t)(yc + uy * half)};
+        lopPts[i][1] = {(lv_value_precise_t)(xc - ux * half), (lv_value_precise_t)(yc - uy * half)};
+        lv_line_set_points(lopLine[i], lopPts[i], 2);
+        lv_obj_set_hidden(lopLine[i], false);
+        char t[40];
+        snprintf(t, sizeof(t), "%s %s", lops[i].name, lops[i].hhmm);
+        lv_label_set_text(lopLbl[i], t);
+        lv_obj_set_pos(lopLbl[i], (int)lround(xc) + 8, (int)lround(yc) - 22);
+        lv_obj_set_hidden(lopLbl[i], !inside(xc, yc));
+    }
+    if (astroFixOn) {
+        double x, y;
+        toScreen(astroFix, x, y);
+        lv_obj_set_pos(astroFixMark, (int)lround(x) - 9, (int)lround(y) - 9);
+        lv_obj_set_hidden(astroFixMark, !inside(x, y));
+    } else lv_obj_set_hidden(astroFixMark, true);
 
     // Destino y linea desde el barco
     if (navOn) {
@@ -1902,6 +1970,230 @@ static lv_obj_t* netField(int idx, int x, int y, int w, const char* hint, int ma
 
 // "Acerca de": version, copyright, licencia, proyecto, donativo (con QR) y creditos
 static void onAboutClose(lv_event_t*) { lv_obj_set_hidden(aboutScr, true); }
+// ---- Carta > Astro: recta de altura con el sextante ----
+static lv_obj_t* vesField(int idx, int x, int y, int w, const char* hint, int maxLen, const char* chars);
+static void onVesField(lv_event_t* e);
+static const char* astroBodyName() {
+    return astroBody == 0 ? "Sol (limbo inferior)" : (astroBody == 1 ? "Sol (limbo superior)" : "Estrella");
+}
+
+// AHG y declinacion del astro elegido en el instante jd
+static void astroGhaDec(double jd, double& gha, double& dec) {
+    if (astroBody < 2) { plotter::sunGhaDec(jd, gha, dec); return; }
+    double sha;
+    plotter::starShaDec(plotter::navStar(astroStar), jd, sha, dec);
+    gha = norm360(plotter::ariesGha(jd) + sha);
+}
+
+static void astroRefresh() {
+    char b[96];
+    snprintf(b, sizeof(b), "Astro: %s", astroBodyName());
+    lv_label_set_text(astroBodyLbl, b);
+    if (astroBody < 2) { lv_label_set_text(astroStarLbl, ""); return; }
+    const plotter::NavStar& st = plotter::navStar(astroStar);
+    double la, lo;
+    const uint32_t now = millis();
+    const int64_t t = tsync::now();
+    if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo) && t > 1600000000) {   // ahora mismo, para reconocerla
+        double gha, dec, alt, az;
+        astroGhaDec(t / 86400.0 + 2440587.5, gha, dec);
+        plotter::bodyAltAz(gha, dec, la, lo, alt, az);
+        if (alt > 0) snprintf(b, sizeof(b), "%s (mag %.1f) \xC2\xB7 ahora: altura %.0f\xC2\xB0, azimut %03.0f\xC2\xB0", st.name, (double)st.mag, alt, az);
+        else snprintf(b, sizeof(b), "%s (mag %.1f) \xC2\xB7 ahora bajo el horizonte", st.name, (double)st.mag);
+    } else snprintf(b, sizeof(b), "%s (mag %.1f)", st.name, (double)st.mag);
+    for (char* p = b; *p; p++) if (*p == '.' && p > b && isdigit((unsigned char)p[-1]) && isdigit((unsigned char)p[1])) *p = ',';
+    lv_label_set_text(astroStarLbl, b);
+}
+
+static double astroNum(int i) {
+    char d[16];
+    snprintf(d, sizeof(d), "%s", lv_textarea_get_text(astroTa[i]));
+    for (char* c = d; *c; c++) if (*c == ',') *c = '.';
+    return atof(d);
+}
+
+static void astroNow() {
+    const time_t tt = (time_t)tsync::now();
+    struct tm g;
+    gmtime_r(&tt, &g);
+    char b[12];
+    snprintf(b, sizeof(b), "%02d%02d%02d", g.tm_hour, g.tm_min, g.tm_sec);
+    lv_textarea_set_text(astroTa[4], b);
+}
+
+static void astroCompute() {
+    const uint32_t now = millis();
+    double la, lo;
+    if (!store->get(Key::Lat, now, la) || !store->get(Key::Lon, now, lo)) {
+        lv_label_set_text(astroOut, "Hace falta una posici\xC3\xB3n de estima (GPS o la \xC3\xBAltima conocida).");
+        return;
+    }
+    const int64_t t0 = tsync::now();
+    const char* hs = lv_textarea_get_text(astroTa[4]);
+    if (t0 < 1600000000 || strlen(hs) != 6) { lv_label_set_text(astroOut, "Falta la hora UTC (hhmmss) o el reloj no tiene fecha."); return; }
+    const int hh = (hs[0] - '0') * 10 + (hs[1] - '0'), mm = (hs[2] - '0') * 10 + (hs[3] - '0'), ss = (hs[4] - '0') * 10 + (hs[5] - '0');
+    if (hh > 23 || mm > 59 || ss > 59) { lv_label_set_text(astroOut, "Hora UTC no v\xC3\xA1lida."); return; }
+    int64_t t = t0 - t0 % 86400 + hh * 3600 + mm * 60 + ss;
+    if (t > t0 + 3600) t -= 86400;                        // una hora "del futuro" es de ayer
+    const double jd = t / 86400.0 + 2440587.5;
+    const double sext = astroNum(0) + astroNum(1) / 60.0;
+    if (sext <= 0 || sext >= 90) { lv_label_set_text(astroOut, "Altura de sextante entre 0 y 90 grados."); return; }
+    double gha, dec;
+    astroGhaDec(jd, gha, dec);
+    const bool sun = astroBody < 2;
+    const double ho = plotter::observedAltitude(sext, astroNum(2), astroNum(3),
+                                                sun ? (astroBody == 0 ? plotter::Limb::Lower : plotter::Limb::Upper) : plotter::Limb::Center,
+                                                sun ? plotter::sunSemiDiameterArcmin(jd) : 0.0, sun ? 0.15 : 0.0);
+    AstroLop L;
+    L.s = plotter::reduceSight(la, lo, gha, dec, ho);
+    if (L.s.hcDeg < 0 || fabs(L.s.interceptNm) > 120) {     // astro, hora o altura equivocados: no se traza
+        char w[200];
+        snprintf(w, sizeof(w), "No cuadra: a esa hora el astro estar\xC3\xADa a %.0f\xC2\xB0 de altura y la medida da %.0f\xC2\xB0 (%.0f mn de diferencia).\nRevisa el astro, la hora UTC y la altura.",
+                 L.s.hcDeg, ho, fabs(L.s.interceptNm));
+        lv_label_set_text(astroOut, w);
+        return;
+    }
+    snprintf(L.name, sizeof(L.name), "%s", sun ? "Sol" : plotter::navStar(astroStar).name);
+    snprintf(L.hhmm, sizeof(L.hhmm), "%02d:%02d", hh, mm);
+    if (lopN == kLops) { for (int i = 1; i < kLops; i++) lops[i - 1] = lops[i]; lopN--; }
+    lops[lopN++] = L;
+    plotter::Sight sg[kLops];                             // cada recta, referida a la estima de ahora (se tomaron desde otras)
+    for (int i = 0; i < lopN; i++) {
+        sg[i] = lops[i].s;
+        const double dN = (lops[i].s.lat - la) * 60.0, dE = (lops[i].s.lon - lo) * 60.0 * cos(deg2rad(la));
+        sg[i].interceptNm = dN * cos(deg2rad(sg[i].znDeg)) + dE * sin(deg2rad(sg[i].znDeg));
+    }
+    double fLat, fLon;
+    astroFixOn = plotter::fixFromSights(la, lo, sg, lopN, fLat, fLon);
+    if (astroFixOn) astroFix = {fLat, fLon};
+    auto dm = [](double v, char* o, size_t n) { const double a = fabs(v); const int d = (int)a; snprintf(o, n, "%d\xC2\xB0 %04.1f'", d, (a - d) * 60); };
+    char a1[20], a2[20], b[320];
+    dm(ho, a1, sizeof(a1));
+    dm(L.s.hcDeg, a2, sizeof(a2));
+    int n = snprintf(b, sizeof(b), "%s %s UTC \xC2\xB7 altura observada %s \xC2\xB7 calculada %s \xC2\xB7 azimut %03.0f\xC2\xB0\nDeterminante: %.1f mn %s. Recta trazada en la carta (%d de %d).",
+                     L.name, L.hhmm, a1, a2, L.s.znDeg, fabs(L.s.interceptNm), L.s.interceptNm >= 0 ? "hacia el astro" : "en contra del astro", lopN, kLops);
+    if (astroFixOn && n > 0 && n < (int)sizeof(b)) {
+        char p[48];
+        formatLatLon(p, sizeof(p), astroFix, 1, true);
+        for (char* c = p; *c; c++) if ((unsigned char)c[0] == 0xE2 && (unsigned char)c[1] == 0x80 && (unsigned char)c[2] == 0xB2) { c[0] = '\''; memmove(c + 1, c + 3, strlen(c + 3) + 1); }   // la fuente de 16 no trae el signo de minuto
+        snprintf(b + n, sizeof(b) - (size_t)n, "\nSituaci\xC3\xB3n por %d rectas: %s (a %.1f mn de la estima).", lopN, p, gcDistanceNm({la, lo}, astroFix));
+    } else if (lopN >= 2 && n > 0 && n < (int)sizeof(b)) snprintf(b + n, sizeof(b) - (size_t)n, "\nRectas casi paralelas: sin situaci\xC3\xB3n.");
+    for (char* c = b; *c; c++) if (*c == '.' && c > b && isdigit((unsigned char)c[-1]) && isdigit((unsigned char)c[1])) *c = ',';
+    lv_label_set_text(astroOut, b);
+}
+
+static void onAstroBtn(lv_event_t* e) {
+    const int a = (int)(intptr_t)lv_event_get_user_data(e);
+    if (a == 0) astroBody = (astroBody + 1) % 3;
+    else if (a == 1) { astroBody = 2; astroStar = (astroStar + plotter::navStarCount() - 1) % plotter::navStarCount(); }
+    else if (a == 2) { astroBody = 2; astroStar = (astroStar + 1) % plotter::navStarCount(); }
+    else if (a == 3) astroNow();
+    else if (a == 4) astroCompute();
+    else if (a == 5) { lopN = 0; astroFixOn = false; lv_label_set_text(astroOut, "Rectas borradas."); }
+    else { lv_obj_set_hidden(astroScr, true); return; }
+    astroRefresh();
+}
+
+static void onAstroField(lv_event_t* e) { lv_keyboard_set_textarea(astroKb, (lv_obj_t*)lv_event_get_target(e)); }
+
+static void openAstro() {
+    if (!lv_textarea_get_text(astroTa[4])[0]) astroNow();
+    lv_keyboard_set_textarea(astroKb, astroTa[0]);
+    astroRefresh();
+    lv_obj_set_hidden(astroScr, false);
+}
+
+static void makeAstro() {
+    astroScr = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(astroScr);
+    lv_obj_set_size(astroScr, board::W, board::H);
+    lv_obj_set_style_bg_color(astroScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(astroScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(astroScr, false);
+    lv_obj_set_clickable(astroScr, true);
+    lv_obj_t* t = label(astroScr, "Recta de altura", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    lv_obj_t* b = textButton(astroScr, "Calcular y trazar", 220, 48, onAstroBtn, 4);
+    lv_obj_set_pos(b, 484, 8);
+    b = textButton(astroScr, "Borrar rectas", 160, 48, onAstroBtn, 5);
+    lv_obj_set_pos(b, 712, 8);
+    b = textButton(astroScr, "Cerrar", 124, 48, onAstroBtn, 6);
+    lv_obj_set_pos(b, 884, 8);
+    b = textButton(astroScr, "", 330, 48, onAstroBtn, 0);
+    lv_obj_set_pos(b, 16, 66);
+    astroBodyLbl = lv_obj_get_child(b, 0);
+    b = textButton(astroScr, "<", 56, 48, onAstroBtn, 1);
+    lv_obj_set_pos(b, 356, 66);
+    b = textButton(astroScr, ">", 56, 48, onAstroBtn, 2);
+    lv_obj_set_pos(b, 420, 66);
+    astroStarLbl = label(astroScr, "", &dejavu_16, C_SOFT);
+    lv_obj_set_pos(astroStarLbl, 490, 80);
+    static const struct { int x, w, max; const char* hint; const char* chars; } F[5] = {
+        {16, 150, 2, "Grados", "0123456789"}, {174, 170, 4, "Minutos", "0123456789.,"}, {352, 200, 5, "Error \xC3\xADndice, '", "-0123456789.,"},
+        {560, 190, 4, "Ojo, m", "0123456789.,"}, {758, 150, 6, "UTC hhmmss", "0123456789"}};
+    lv_obj_t* keep = vesScr;                              // vesField crea sus campos en vesScr: se le presta esta pantalla
+    lv_obj_t* keepTa[5];
+    for (int i = 0; i < 5; i++) keepTa[i] = vesTa[i];
+    vesScr = astroScr;
+    for (int i = 0; i < 5; i++) {
+        lv_obj_t* ta = vesField(i, F[i].x, 124, F[i].w, F[i].hint, F[i].max, F[i].chars);
+        lv_obj_remove_event_cb(ta, onVesField);
+        lv_obj_add_event_cb(ta, onAstroField, LV_EVENT_FOCUSED, nullptr);
+        lv_obj_add_event_cb(ta, onAstroField, LV_EVENT_CLICKED, nullptr);
+        astroTa[i] = ta;
+        vesTa[i] = keepTa[i];
+    }
+    vesScr = keep;
+    lv_textarea_set_text(astroTa[2], "0");
+    lv_textarea_set_text(astroTa[3], "2");
+    b = textButton(astroScr, "Ahora", 92, 48, onAstroBtn, 3);
+    lv_obj_set_pos(b, 916, 124);
+    astroOut = label(astroScr, "Mide la altura con el sextante, pulsa Ahora en el instante de la medida y escribe grados y minutos.\nLa estima es la posici\xC3\xB3n del barco en la carta.", &dejavu_16, C_SOFT);
+    lv_obj_set_pos(astroOut, 16, 186);
+    lv_obj_set_width(astroOut, 992);
+    astroKb = lv_keyboard_create(astroScr);
+    lv_keyboard_set_mode(astroKb, LV_KEYBOARD_MODE_NUMBER);
+    lv_obj_set_size(astroKb, board::W, 300);
+    lv_obj_align(astroKb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(astroKb, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(astroKb, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(astroKb, 6, 0);
+    lv_obj_set_style_pad_gap(astroKb, 6, 0);
+    lv_obj_set_style_border_width(astroKb, 0, 0);
+    lv_obj_set_style_bg_color(astroKb, lv_color_hex(C_PANEL), LV_PART_ITEMS);
+    lv_obj_set_style_bg_opa(astroKb, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(astroKb, lv_color_hex(C_ACC), LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(astroKb, lv_color_hex(C_TEXT), LV_PART_ITEMS);
+    lv_obj_set_style_radius(astroKb, 8, LV_PART_ITEMS);
+    lv_obj_set_style_border_width(astroKb, 0, LV_PART_ITEMS);
+    lv_obj_set_style_shadow_width(astroKb, 0, LV_PART_ITEMS);
+    lv_obj_set_hidden(astroScr, true);
+}
+
+// Para las pruebas en el PC: abre la pantalla y traza la recta de una estrella con la altura que tendria ahora (+ err minutos)
+void testAstro(const char* star, double errArcmin) {
+    openAstro();
+    const int i = plotter::navStarFind(star);
+    astroBody = i >= 0 ? 2 : 0;
+    if (i >= 0) astroStar = i;
+    astroNow();
+    double la, lo, gha, dec, alt, az;
+    if (store->get(Key::Lat, millis(), la) && store->get(Key::Lon, millis(), lo)) {
+        astroGhaDec(tsync::now() / 86400.0 + 2440587.5, gha, dec);
+        plotter::bodyAltAz(gha, dec, la, lo, alt, az);
+        const double hs = alt + errArcmin / 60.0 + plotter::refractionArcmin(alt) / 60.0 + plotter::dipArcmin(2) / 60.0 - (i >= 0 ? 0 : plotter::sunSemiDiameterArcmin(tsync::now() / 86400.0 + 2440587.5) / 60.0);
+        char b[12];
+        snprintf(b, sizeof(b), "%d", (int)hs);
+        lv_textarea_set_text(astroTa[0], b);
+        snprintf(b, sizeof(b), "%.1f", (hs - (int)hs) * 60);
+        lv_textarea_set_text(astroTa[1], b);
+    }
+    astroCompute();
+    astroRefresh();
+}
+
+void closeAstro() { if (astroScr) lv_obj_set_hidden(astroScr, true); }
+
 static void makeAbout() {
     aboutScr = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(aboutScr);
@@ -3218,6 +3510,7 @@ void begin(DataStore* s) {
     }
     makeNet();                                            // antes que las alertas: estas quedan por encima
     makeVessel();
+    makeAstro();
     makeAbout();
     makeModal();
     loadWaypoints();

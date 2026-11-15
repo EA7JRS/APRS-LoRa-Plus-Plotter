@@ -33,4 +33,25 @@ void starShaDec(const NavStar& s, double jd, double& shaDeg, double& decDeg);   
 // Altura verdadera y azimut de un astro (AHG y declinacion) desde una posicion; lon + al este
 void bodyAltAz(double ghaDeg, double decDeg, double lat, double lon, double& altDeg, double& azDeg);
 
+// ---- Correcciones de la altura de sextante y recta de altura ----
+double dipArcmin(double eyeHeightM);             // depresion del horizonte (1,76' x raiz de la elevacion del ojo en metros)
+double refractionArcmin(double apparentAltDeg);  // refraccion media (Bennett; 10 C y 1010 hPa), para la altura aparente
+
+enum class Limb : unsigned char { Center, Lower, Upper };   // estrellas: Center
+
+// Altura observada (verdadera) desde la de sextante. indexErrArcmin: error de indice (+ si el sextante marca de mas);
+// semiDiameterArcmin y parallaxArcmin: del Sol 15,7' a 16,3' y 0,15'; de una estrella, 0 y 0.
+double observedAltitude(double sextantAltDeg, double indexErrArcmin, double eyeHeightM, Limb limb,
+                        double semiDiameterArcmin, double parallaxArcmin);
+
+struct Sight {
+    double hcDeg = 0, znDeg = 0;     // altura calculada y azimut verdadero desde la posicion de estima
+    double interceptNm = 0;          // determinante: + hacia el astro, - en contra
+    double lat = 0, lon = 0;         // punto determinante (por donde pasa la recta, perpendicular al azimut)
+};
+Sight reduceSight(double estLat, double estLon, double ghaDeg, double decDeg, double observedAltDeg);
+
+// Situacion por dos o mas rectas (minimos cuadrados alrededor de la estima). false si son casi paralelas.
+bool fixFromSights(double estLat, double estLon, const Sight* sights, int n, double& lat, double& lon);
+
 }  // namespace plotter

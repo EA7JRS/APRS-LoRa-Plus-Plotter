@@ -19,6 +19,8 @@ void testRs485();                   // abre el aviso de RS485 compartido
 void testInternet();                // mete una observacion de internet de prueba
 void testNet();                     // abre la pantalla de red
 void testAbout();                   // abre "Acerca de"
+void testAstro(const char* star, double errArcmin);   // abre Carta > Astro y traza una recta ("" = el Sol)
+void closeAstro();
 void testVessel();                  // abre Ajustes > Embarcacion
 void testSetting(int what);         // 4 cambia de unidades, 5 de mapa base
 void testAnchor();                  // boton Fondeo de la carta

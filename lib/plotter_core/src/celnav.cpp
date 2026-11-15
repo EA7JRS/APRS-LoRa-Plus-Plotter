@@ -162,4 +162,45 @@ void bodyAltAz(double gha, double decDeg, double lat, double lon, double& alt, d
     az = norm360(rad2deg(std::atan2(-std::sin(ha) * std::cos(dec), std::sin(dec) * std::cos(la) - std::cos(dec) * std::sin(la) * std::cos(ha))));
 }
 
+double dipArcmin(double h) { return h > 0 ? 1.76 * std::sqrt(h) : 0.0; }
+
+double refractionArcmin(double h) {
+    if (h < -1.0) h = -1.0;
+    return 1.0 / std::tan(deg2rad(h + 7.31 / (h + 4.4)));
+}
+
+double observedAltitude(double hs, double ie, double eye, Limb limb, double sd, double hp) {
+    const double ha = hs - ie / 60.0 - dipArcmin(eye) / 60.0;            // altura aparente
+    double ho = ha - refractionArcmin(ha) / 60.0 + hp * std::cos(deg2rad(ha)) / 60.0;
+    if (limb == Limb::Lower) ho += sd / 60.0;
+    else if (limb == Limb::Upper) ho -= sd / 60.0;
+    return ho;
+}
+
+Sight reduceSight(double lat, double lon, double gha, double dec, double ho) {
+    Sight s;
+    bodyAltAz(gha, dec, lat, lon, s.hcDeg, s.znDeg);
+    s.interceptNm = (ho - s.hcDeg) * 60.0;
+    const LatLon p = gcDestination({lat, lon}, s.interceptNm >= 0 ? s.znDeg : norm360(s.znDeg + 180.0), std::fabs(s.interceptNm));
+    s.lat = p.lat;
+    s.lon = p.lon;
+    return s;
+}
+
+bool fixFromSights(double lat, double lon, const Sight* sg, int n, double& outLat, double& outLon) {
+    if (n < 2) return false;
+    // determinante_i = dN cos Zn_i + dE sin Zn_i (millas al norte y al este de la estima)
+    double a = 0, b = 0, c = 0, u = 0, v = 0;
+    for (int i = 0; i < n; i++) {
+        const double cz = std::cos(deg2rad(sg[i].znDeg)), sz = std::sin(deg2rad(sg[i].znDeg));
+        a += cz * cz; b += cz * sz; c += sz * sz; u += cz * sg[i].interceptNm; v += sz * sg[i].interceptNm;
+    }
+    const double det = a * c - b * b;
+    if (det < 0.03) return false;                                       // rectas casi paralelas (menos de ~10 grados)
+    const double dN = (u * c - v * b) / det, dE = (v * a - u * b) / det;
+    outLat = lat + dN / 60.0;
+    outLon = lon + dE / 60.0 / std::cos(deg2rad(lat));
+    return true;
+}
+
 }  // namespace plotter

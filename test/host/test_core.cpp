@@ -2000,6 +2000,35 @@ static void testCelnav() {
     starShaDec(navStar(navStarFind("Polaris")), julianDay(2035, 2, 2, 3), s, d);
     CHECK(near(d, 89.4083, 0.0005));
     CHECK(navStarCount() == 58 && navStarFind("nada") < 0);
+    // Correcciones (tablas del almanaque): depresion 11,08 m -> 5,9'; 1,03 m -> 1,8'; refraccion a 15 01' -> 3,6'; a 19 02' -> 2,8'
+    CHECK(near(dipArcmin(11.08), 5.9, 0.05) && near(dipArcmin(1.03), 1.8, 0.05) && dipArcmin(0) == 0);
+    CHECK(near(refractionArcmin(15.0 + 1 / 60.0), 3.6, 0.06) && near(refractionArcmin(19.0 + 2 / 60.0), 2.8, 0.06));
+    CHECK(near(refractionArcmin(0.0), 34.5, 0.3) && near(refractionArcmin(90.0), 0.0, 0.01));
+    // Sol, limbo inferior: 35 20,0' de sextante, error de indice +1,5', ojo a 3 m, semidiametro 15,9'
+    //   aparente 35 15,45'; refraccion 1,37'; paralaje 0,12' -> 35 30,1'
+    CHECK(near(observedAltitude(35 + 20.0 / 60, 1.5, 3.0, Limb::Lower, 15.9, 0.15), 35 + 30.1 / 60, 0.1 / 60));
+    CHECK(near(observedAltitude(35 + 20.0 / 60, 1.5, 3.0, Limb::Upper, 15.9, 0.15), 35 + 30.1 / 60 - 31.8 / 60, 0.1 / 60));
+    // Recta de altura y situacion: observador de verdad en 36 30 N 006 20 W, estima 8' al sur y 6' al oeste; tres estrellas
+    {
+        const double jd = julianDay(2026, 6, 16, 21), tLat = 36.5, tLon = -6.3333, eLat = tLat - 8 / 60.0, eLon = tLon - 6 / 60.0;
+        const char* names[] = {"Arcturus", "Vega", "Spica"};
+        Sight sg[3];
+        for (int i = 0; i < 3; i++) {
+            double sha, dec, ho, zn;
+            starShaDec(navStar(navStarFind(names[i])), jd, sha, dec);
+            const double gha = norm360(ariesGha(jd) + sha);
+            bodyAltAz(gha, dec, tLat, tLon, ho, zn);                    // lo que mediria el sextante ya corregido
+            sg[i] = reduceSight(eLat, eLon, gha, dec, ho);
+            CHECK(ho > 15 && std::fabs(sg[i].interceptNm) < 12);
+            double hc2, zn2;                                            // el punto determinante esta sobre el circulo de altura
+            bodyAltAz(gha, dec, sg[i].lat, sg[i].lon, hc2, zn2);
+            CHECK(near(hc2, ho, 0.3 / 60));
+        }
+        double fLat, fLon;
+        CHECK(fixFromSights(eLat, eLon, sg, 3, fLat, fLon) && near(fLat, tLat, 0.3 / 60) && near(fLon, tLon, 0.4 / 60));
+        Sight par[2] = {sg[0], sg[0]};
+        CHECK(!fixFromSights(eLat, eLon, par, 2, fLat, fLon) && !fixFromSights(eLat, eLon, sg, 1, fLat, fLon));
+    }
     // Altura y azimut: el astro en el cenit de su punto subastral, y al sur a mediodia desde mas al norte
     double alt, az;
     bodyAltAz(40.0, 20.0, 20.0, -40.0, alt, az);

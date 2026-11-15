@@ -1,6 +1,7 @@
 # Changelog
 
 ## Sin publicar
+- **Navegación astronómica en el núcleo** (`celnav`): AHG y declinación del Sol, AHG de Aries, AHS y declinación de las 57 estrellas de navegación y la Polar, semidiámetro y ecuación del tiempo, con precisión de almanaque (0,1′; contrastado con un almanaque náutico de 2026 y con PyEphem). El Sol de todo el plotter (orto, ocaso, Meteo) usa ya ese cálculo (antes 0,2′–0,4′ de error).
 - **Instrumentos > Motor** (tocando otra vez la pestaña): régimen, refrigerante, presión y temperatura de aceite, combustible, batería, consumo y horas. Lector de NMEA 2000 127489 (fast packet), 127505 y la sobrealimentación de 127488, y de un motor **J1939** en el mismo bus (61444, 61443, 65262, 65263, 65266, 65270, 65271, 65276, 65253). Sin probar con un bus real.
 - **Formatos contrastados con CANboat v9.2.0 en la CI** (`tools/canboat/run.sh`): codificadores 130306 / 129283 / 129284 y lector de motor NMEA 2000 / J1939.
 - **Distintivo marítimo comprobado** con MarineTraffic (clave de su API; núcleo `mtcheck`, `src/maritime.*`) o a mano en el MARS de la UIT; se manda al transponder (`mcok`).

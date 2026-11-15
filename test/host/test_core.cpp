@@ -16,6 +16,7 @@
 #include "anchor.h"
 #include "aistargets.h"
 #include "astro.h"
+#include "celnav.h"
 #include "chartui.h"
 #include "geo.h"
 #include "gpx.h"
@@ -1958,6 +1959,55 @@ static void testMtCheck() {
     CHECK(std::string(resultEn(NOT_FOUND)).find("MARS") != std::string::npos);
 }
 
+// Navegacion astronomica. Valores de referencia: PyEphem 4.2.1 (lugar aparente geocentrico) y las paginas del 1 de enero
+// y del 16 de junio de un almanaque nautico de 2026 (precision 0,1').
+static void testCelnav() {
+    auto dm = [](double deg, double min) { return deg + min / 60.0; };
+    double g, d, s;
+    // Sol, almanaque: 1 ene 0 h AHG 179 10,0 dec S 23 01,0; 12 h 359 06,5 / S 22 58,6; 16 jun 0 h 179 50,8 / N 23 20,4; 9 h 314 49,6 / N 23 21,2
+    sunGhaDec(julianDay(2026, 1, 1, 0), g, d);
+    CHECK(near(g, dm(179, 10.0), 0.1 / 60) && near(d, -dm(23, 1.0), 0.1 / 60));
+    sunGhaDec(julianDay(2026, 1, 1, 12), g, d);
+    CHECK(near(g, dm(359, 6.5), 0.1 / 60) && near(d, -dm(22, 58.6), 0.1 / 60));
+    sunGhaDec(julianDay(2026, 6, 16, 0), g, d);
+    CHECK(near(g, dm(179, 50.8), 0.1 / 60) && near(d, dm(23, 20.4), 0.1 / 60));
+    sunGhaDec(julianDay(2026, 6, 16, 9), g, d);
+    CHECK(near(g, dm(314, 49.6), 0.1 / 60) && near(d, dm(23, 21.2), 0.1 / 60));
+    // Aries, almanaque 16 jun: 0 h 264 16,8; 9 h 39 39,0; 23 h 250 13,5
+    CHECK(near(ariesGha(julianDay(2026, 6, 16, 0)), dm(264, 16.8), 0.1 / 60));
+    CHECK(near(ariesGha(julianDay(2026, 6, 16, 9)), dm(39, 39.0), 0.1 / 60));
+    CHECK(near(ariesGha(julianDay(2026, 6, 16, 23)), dm(250, 13.5), 0.1 / 60));
+    // semidiametro 15,75' y paso por el meridiano a las 12 h 00 m 44 s (ecuacion del tiempo -0,73 min) el 16 de junio
+    CHECK(near(sunSemiDiameterArcmin(julianDay(2026, 6, 16, 12)), 15.75, 0.02));
+    CHECK(near(equationOfTimeMin(julianDay(2026, 6, 16, 12)), -44.0 / 60, 0.02));
+    // Estrellas, almanaque 16 jun (AHS, dec)
+    static const struct { const char* n; double sha, dec; } A[] = {
+        {"Acamar", dm(315, 11.2), -dm(40, 11.7)}, {"Achernar", dm(335, 19.6), -dm(57, 5.8)}, {"Acrux", dm(172, 58.6), -dm(63, 15.1)},
+        {"Adhara", dm(255, 5.3), -dm(29, 0.5)},   {"Aldebaran", dm(290, 38.6), dm(16, 33.7)}, {"Canopus", dm(263, 52.4), -dm(52, 42.6)},
+        {"Capella", dm(280, 20.6), dm(46, 1.4)},  {"Deneb", dm(49, 24.6), dm(45, 22.3)},     {"Pollux", dm(243, 16.2), dm(27, 57.8)},
+        {"Procyon", dm(244, 49.9), dm(5, 9.4)},   {"Regulus", dm(207, 33.3), dm(11, 50.3)},  {"Rigel", dm(281, 3.1), -dm(8, 10.3)}};
+    for (auto& a : A) {
+        int i = navStarFind(a.n);
+        CHECK(i >= 0);
+        starShaDec(navStar(i), julianDay(2026, 6, 16, 12), s, d);
+        CHECK(near(s, a.sha, 0.11 / 60) && near(d, a.dec, 0.11 / 60));
+    }
+    // PyEphem, otros anios (precesion y movimiento propio): Sirio y Arturo el 4 jul 2030 12 h; la Polar el 2 feb 2035 3 h
+    starShaDec(navStar(navStarFind("sirius")), julianDay(2030, 7, 4, 12), s, d);
+    CHECK(near(s, 258.3789, 0.0005) && near(d, -16.7609, 0.0005));
+    starShaDec(navStar(navStarFind("Arcturus")), julianDay(2030, 7, 4, 12), s, d);
+    CHECK(near(s, 145.7304, 0.0005) && near(d, 19.0258, 0.0005));
+    starShaDec(navStar(navStarFind("Polaris")), julianDay(2035, 2, 2, 3), s, d);
+    CHECK(near(d, 89.4083, 0.0005));
+    CHECK(navStarCount() == 58 && navStarFind("nada") < 0);
+    // Altura y azimut: el astro en el cenit de su punto subastral, y al sur a mediodia desde mas al norte
+    double alt, az;
+    bodyAltAz(40.0, 20.0, 20.0, -40.0, alt, az);
+    CHECK(near(alt, 90.0, 1e-6));
+    bodyAltAz(40.0, 20.0, 50.0, -40.0, alt, az);
+    CHECK(near(alt, 60.0, 1e-6) && near(az, 180.0, 1e-6));
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
@@ -1969,6 +2019,7 @@ int main() {
     testVessel();
     testCallsign();
     testMtCheck();
+    testCelnav();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

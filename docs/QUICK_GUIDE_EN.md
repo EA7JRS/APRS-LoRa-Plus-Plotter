@@ -65,7 +65,7 @@ They appear in a window over any screen:
 | RS485 COMPARTIDO (shared RS485) | The pilot output uses the same port data is coming in on |
 | NAVTEX SAR / DISTRESS | NAVTEX message of subject D (search and rescue, distress, piracy) |
 | DSC DISTRESS | DSC distress call: alert, relay or acknowledgement (IR A, "go to", steers to the position) |
-| Official alerts (RED / ORANGE / YELLOW WARNING, EARTHQUAKE, TSUNAMI, SPACE WEATHER) | New alert from AEMET, MeteoAlarm, NWS, tsunami.gov, USGS / EMSC or SWPC over Wi-Fi (*Ajustes > Red*: zones and country) |
+| Official alerts (RED / ORANGE / YELLOW WARNING, EARTHQUAKE, TSUNAMI, SPACE WEATHER) | New alert from AEMET, MeteoAlarm, NWS, tsunami.gov, USGS / EMSC / ShakeNet or SWPC over Wi-Fi (*Ajustes > Red*: zones and country) |
 
 **In this version alerts make no sound**: the buzzer is not implemented yet.
 

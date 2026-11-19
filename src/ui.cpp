@@ -775,7 +775,7 @@ static void oaWhen(char* o, size_t n, int64_t t) {
 static void updateOfficialModal() {
     const plotter::Alert* a = oaList.find(oaModalId);
     if (!a) { closeModal(); return; }
-    const bool quake = a->src == plotter::AlertSrc::Usgs || a->src == plotter::AlertSrc::Emsc;
+    const bool quake = plotter::alertIsQuake(a->src);
     const char* title = quake ? "EARTHQUAKE" : a->src == plotter::AlertSrc::Tsunami ? (a->level >= 3 ? "TSUNAMI WARNING" : "TSUNAMI")
                       : a->src == plotter::AlertSrc::Swpc ? "SPACE WEATHER"
                       : a->level >= 3 ? "RED WARNING" : a->level == 2 ? "ORANGE WARNING" : "YELLOW WARNING";

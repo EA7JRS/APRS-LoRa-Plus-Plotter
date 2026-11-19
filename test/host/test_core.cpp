@@ -1803,6 +1803,23 @@ static void testAlerts() {
     CHECK(v[1].text.find("Depth 10 km, ") == 0 && v[1].text.find(" km SE") != std::string::npos);
     CHECK(quakeLevel(5.4, 186) == 2 && quakeLevel(7.1, 9842) == 0 && quakeLevel(7.6, 2500) == 2 && quakeLevel(4.2, 60) == 1 && quakeLevel(6.2, 250) == 3);
     CHECK(emscUrl(36.5, -6, unixFromUtc(2026, 11, 12, 20, 5, 9)).find("&start=2026-11-12T20:05:09") != std::string::npos);
+    // ShakeNet: formato texto de FDSN-WS 1.2 (muestra escrita segun la norma; la respuesta real no se pudo leer)
+    {
+        std::vector<Alert> s;
+        CHECK(quakeParseFdsnText("#EventID|Time|Latitude|Longitude|Depth/km|Author|Catalog|Contributor|ContributorID|MagType|Magnitude|MagAuthor|EventLocationName|EventType\n"
+                                 "rs2026wabc|2026-11-04T16:14:52.100|36.04|-5.47|12.0|RaspberryShake||RaspberryShake|rs2026wabc|ML|4.4|RaspberryShake|Strait of Gibraltar|earthquake\n"
+                                 "rs2026wabd|2026-11-04T10:00:00|37.1|-3.9|1|RaspberryShake||||ML|2.1||Granada quarry|quarry blast\r\n", AlertSrc::Shake, s));
+        CHECK(s.size() == 1 && s[0].src == AlertSrc::Shake && s[0].id == "shake/rs2026wabc" && std::fabs(quakeMag(s[0]) - 4.4) < 1e-6);
+        CHECK(s[0].onset == unixFromUtc(2026, 11, 4, 16, 14, 52) && s[0].area == "Strait of Gibraltar" && s[0].text == "Depth 12 km");
+        CHECK(quakeSame(s[0], v[1]) && alertIsQuake(AlertSrc::Shake) && !alertIsQuake(AlertSrc::Swpc));
+        std::vector<Alert> both = {s[0], v[1]};               // con EMSC del mismo terremoto se queda EMSC
+        quakeSetLevels(both, {36.5, -6.0}, true);
+        CHECK(both.size() == 1 && both[0].src == AlertSrc::Emsc);
+        CHECK(alertSrcFromCode("shake") == AlertSrc::Shake && std::string(alertSrcName(AlertSrc::Shake)) == "ShakeNet");
+        const std::string u = shakeUrl(36.5, -6, unixFromUtc(2026, 11, 12, 20, 5, 9));
+        CHECK(u.find("quakelink.raspberryshake.org/fdsnws/event/1/query?format=text") != std::string::npos && u.find("&starttime=2026-11-12T20:05:09") != std::string::npos);
+        CHECK(!quakeParseFdsnText("<html>error</html>", AlertSrc::Shake, s) || s.size() == 1);
+    }
     // SWPC
     SpaceWx w;
     CHECK(swpcParseScales("{\"-1\":{\"G\":{\"Scale\":\"0\"}},\"0\":{\"DateStamp\":\"2026-11-12\",\"R\":{\"Scale\":\"1\",\"Text\":\"minor\"},\"S\":{\"Scale\":\"0\"},\"G\":{\"Scale\":\"3\",\"Text\":\"strong\"}},"

@@ -2,6 +2,7 @@
 
 ## Sin publicar
 
+- **Terremotos de ShakeNet** (Raspberry Shake, QuakeLink): tercera fuente de terremotos de los avisos oficiales, cerca de la posición (M3,5+, 15°, 24 h), en el formato texto de FDSN; con duplicados mandan EMSC y USGS. Núcleo: `shakeUrl`, `quakeParseFdsnText`, `alertIsQuake` (8 comprobaciones; 1961 en total).
 - **MarineTraffic sin clave**: el aviso de Ajustes > Embarcación da la ficha pública del barco (`mtcheck::webUrl`) y el botón **MarineTraffic** lo confirma a mano («MarineTraffic: OK»; otra pulsación lo quita). Sus condiciones prohíben leer la web con un programa.
 - **Salida y puesta del sol exactas** (Meteo y crepúsculos): `sunTimes` y el mediodía solar se calculan con el lugar preciso del sol en ese momento (antes, con la declinación del mediodía: 2–3 min de error en España, 11 min a 66°; ahora menos de un segundo).
 - **Demoras**: botón de la Carta con la situación por dos demoras a luces de la tarjeta o waypoints, simultáneas o trasladadas (rumbo y velocidad efectivos, botón GPS), corrección total (botón Ct con la declinación y la tablilla), ángulo de corte y diferencia con el GPS; líneas y situación dibujadas en la carta. Núcleo `bearingfix` (11 comprobaciones; 1953 en total).

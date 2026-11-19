@@ -62,7 +62,7 @@ Salen en una ventana sobre cualquier pantalla:
 | RS485 COMPARTIDO | La salida al piloto usa el mismo puerto por el que entran datos |
 | NAVTEX SAR / DISTRESS | Mensaje NAVTEX de asunto D (salvamento, socorro, piratería) |
 | DSC DISTRESS | Llamada LSD de socorro: alerta, retransmisión o acuse (IR A pone rumbo a la posición) |
-| Avisos oficiales (RED / ORANGE / YELLOW WARNING, EARTHQUAKE, TSUNAMI, SPACE WEATHER) | Aviso nuevo de AEMET, MeteoAlarm, NWS, tsunami.gov, USGS / EMSC o SWPC por la WiFi (*Ajustes > Red*: zonas y país) |
+| Avisos oficiales (RED / ORANGE / YELLOW WARNING, EARTHQUAKE, TSUNAMI, SPACE WEATHER) | Aviso nuevo de AEMET, MeteoAlarm, NWS, tsunami.gov, USGS / EMSC / ShakeNet o SWPC por la WiFi (*Ajustes > Red*: zonas y país) |
 
 **En esta versión las alertas no suenan**: falta el zumbador.
 

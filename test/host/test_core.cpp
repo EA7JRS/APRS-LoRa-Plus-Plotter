@@ -1827,6 +1827,12 @@ static void testAlerts() {
     CHECK(w.g == 3 && w.r == 1 && w.s == 0 && w.gMax == 2);
     CHECK(swpcParseKp("[[\"time_tag\",\"Kp\",\"a_running\",\"station_count\"],[\"2026-11-11 21:00:00.000\",\"2.33\",\"9\",\"8\"],[\"2026-11-12 00:00:00.000\",\"5.00\",\"48\",\"8\"]]", w));
     CHECK(w.kpCount == 2 && std::fabs(w.kpNow() - 5) < 1e-6 && w.kpTime == unixFromUtc(2026, 11, 12, 0, 0, 0) && kpToG(w.kpNow()) == 1);
+    // escalas R por los rayos X y colores de NOAA
+    CHECK(xrayToR(9.9e-6) == 0 && xrayToR(1e-5) == 1 && xrayToR(4.9e-5) == 1 && xrayToR(5e-5) == 2 && xrayToR(1e-4) == 3 && xrayToR(1e-3) == 4 && xrayToR(2e-3) == 5);
+    CHECK(std::fabs(xrayClassFlux("M2.4") - 2.4e-5) < 1e-12 && std::fabs(xrayClassFlux("x") - 1e-4) < 1e-12 && xrayClassFlux("") == 0 && xrayClassFlux("Q1") == 0);
+    CHECK(xrayToR(xrayClassFlux("X1.0")) == 3 && xrayToR(xrayClassFlux("M5.2")) == 2);
+    CHECK(noaaScaleRgb(0) == 0 && noaaScaleRgb(1) == 0xFFFF00 && noaaScaleRgb(2) == 0xFFC800 && noaaScaleRgb(3) == 0xFF9600 && noaaScaleRgb(4) == 0xFF0000 && noaaScaleRgb(5) == 0xC80000 && noaaScaleRgb(9) == 0xC80000);
+    CHECK(kpToG(8.67f) == 4 && kpToG(9.0f) == 5 && kpToG(4.67f) == 0);
     CHECK(swpcParseKp("[{\"time_tag\":\"2026-11-12T03:00:00\",\"Kp\":6.67,\"a_running\":80},{\"time_tag\":\"2026-11-12T00:00:00\",\"Kp\":5.0}]", w) && std::fabs(w.kpNow() - 6.67) < 1e-3);
     CHECK(swpcParseSummary("{\"Flux\":\"182\",\"TimeStamp\":\"2026-11-12 20:00:00\"}", w) && w.sfi == 182);
     CHECK(swpcParseSummary("{\"Bt\":\"14\",\"Bz\":\"-12\",\"TimeStamp\":\"x\"}", w) && w.bz == -12 && w.bt == 14);

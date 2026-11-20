@@ -57,6 +57,8 @@ void load() {
     p.getString("mtKey", v.mtKey, sizeof(v.mtKey));
     v.vesselType = p.getInt("vType", 0);
     v.vesselLen = p.getInt("vLen", 0);
+    v.vesselPob = p.getInt("vPob", -1);
+    v.radioLang = p.getInt("rLang", 0);
     v.vesselBeam = p.getInt("vBeam", 0);
     v.vesselDraftDm = p.getInt("vDraft", 0);
     p.getString("licCall", v.licCall, sizeof(v.licCall));
@@ -123,6 +125,8 @@ void save() {
     p.putString("mtKey", v.mtKey);
     p.putInt("vType", v.vesselType);
     p.putInt("vLen", v.vesselLen);
+    p.putInt("vPob", v.vesselPob);
+    p.putInt("rLang", v.radioLang);
     p.putInt("vBeam", v.vesselBeam);
     p.putInt("vDraft", v.vesselDraftDm);
     p.putString("licCall", v.licCall);

@@ -17,7 +17,7 @@ Al encender sale un par de segundos la bienvenida de APRS LoRa+ (logo y versión
 
 ## 2. La pantalla
 
-- **Arriba**: nombre de la pestaña, posición, **Marcar** (guarda un waypoint donde estás) y **MOB** (hombre al agua).
+- **Arriba**: nombre de la pestaña, posición, **Marcar** (guarda un waypoint donde estás), **Radio** (MAYDAY, PAN PAN y SÉCURITÉ con tus datos, para leer por el canal 16) y **MOB** (hombre al agua).
 - **Abajo**: ocho pestañas.
 
 | Pestaña | Para qué |

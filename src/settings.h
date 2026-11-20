@@ -50,6 +50,8 @@ struct Values {
     int vesselLen = 0;              // eslora, m
     int vesselBeam = 0;             // manga, m
     int vesselDraftDm = 0;          // calado, decimas de metro
+    int vesselPob = -1;             // personas a bordo para los mensajes de radio (-1 = no se dice)
+    int radioLang = 0;              // idioma de los mensajes de radio: 0 espanol, 1 ingles
     // Indicativo validado en RadioID.net (DMR ID / CCS7), como la app: sin el, no se mandan datos al transponder
     char licCall[10] = "";
     char licIds[64] = "";

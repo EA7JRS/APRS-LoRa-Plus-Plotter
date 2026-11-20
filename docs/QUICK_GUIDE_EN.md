@@ -19,7 +19,7 @@ On power-up the APRS LoRa+ welcome screen (logo and version) shows for a couple 
 
 ## 2. The screen
 
-- **Top bar**: tab name, position, **Marcar** (saves a waypoint where you are) and **MOB** (man overboard).
+- **Top bar**: tab name, position, **Marcar** (saves a waypoint where you are), **Radio** (MAYDAY, PAN PAN and SÉCURITÉ with your data, to read on channel 16) and **MOB** (man overboard).
 - **Bottom bar**: eight tabs.
 
 | Tab | What it is for |

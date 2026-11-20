@@ -34,6 +34,7 @@ Arriba, siempre a la vista:
 - El **nombre de la pestaña** y una etiqueta **Simulador** cuando los datos son de prueba.
 - La **posición** del barco.
 - **Marcar**: guarda un waypoint en la posición actual (WPT 01, WPT 02...).
+- **Radio**: mensajes MAYDAY, PAN PAN y SÉCURITÉ para leer por el canal 16 (apartado 10).
 - **MOB**: hombre al agua (apartado 10).
 
 Abajo, las ocho pestañas: Instrumentos, Carta, Rutas, Radar AIS, Viento, Piloto, Meteo y Ajustes.
@@ -432,7 +433,7 @@ Una alerta abre una ventana sobre cualquier pantalla. Los textos van en inglés,
 | Ventana | Cuándo salta | Botones |
 |---|---|---|
 | **COLLISION RISK** | Un blanco AIS pasará a menos de 0,5 mn en menos de 20 min | SILENCE ALARM: calla ese buque · CLOSE: no vuelve en 10 min |
-| **MAN OVERBOARD** | Has pulsado MOB | CLOSE: la navegación al punto sigue en la carta |
+| **MAN OVERBOARD** | Has pulsado MOB | RADIO (MAYDAY): el mensaje de socorro para leer · CLOSE: la navegación al punto sigue en la carta |
 | **ANCHOR DRAG** | 10 s fuera del círculo de fondeo | SILENCE 10 MIN · CLOSE: vuelve en 2 min si sigue |
 | **ANCHOR WATCH · NO GPS FIX** | Fondeado y 1 min sin posición | Igual |
 | **SIGNAL K ALARM / EMERGENCY** | Aviso del servidor Signal K | Se cierra sola cuando el servidor lo baja de nivel |
@@ -441,7 +442,29 @@ Una alerta abre una ventana sobre cualquier pantalla. Los textos van en inglés,
 
 Las de abordaje y garreo se cierran solas cuando el peligro pasa.
 
-**MOB**: marca la posición, pone rumbo de vuelta y muestra la distancia, la demora y el tiempo transcurrido.
+**MOB**: marca la posición, pone rumbo de vuelta y muestra la distancia, la demora y el tiempo transcurrido. **RADIO (MAYDAY)** abre el mensaje de socorro de hombre al agua.
+
+### Radio: MAYDAY, PAN PAN y SÉCURITÉ
+
+El botón **Radio** de arriba (desde cualquier pestaña) abre el mensaje listo para **leer en voz** por el canal 16 VHF (o
+2182 kHz), con los datos de *Ajustes > Embarcación* (nombre, distintivo marítimo deletreado, MMSI cifra a cifra, tipo y
+eslora), la situación del GPS y la hora UTC:
+
+- **MAYDAY** (socorro): con `<` `>` la naturaleza (en el orden de la LSD: incendio, vía de agua, abordaje, varada, escora,
+  hundimiento, sin gobierno, peligro grave, abandono, piratería, hombre al agua).
+- **MAYDAY RELAY**: retransmite la última alerta de socorro LSD recibida (MMSI, situación, hora y naturaleza); sin ninguna,
+  quedan huecos para rellenar de viva voz.
+- **PAN PAN** (urgencia): avería de motor o de timón, enfermo o herido, evacuación médica, hombre al agua buscándolo, sin
+  combustible.
+- **SÉCURITÉ** (seguridad): peligro para la navegación, objeto a la deriva, aviso meteorológico, maniobra restringida.
+
+**−** / **+** ponen las personas a bordo (se guardan); **Idioma** cambia entre español e inglés. Debajo, lo que hay que
+hacer antes (alerta LSD con el botón DISTRESS, canal y potencia). En la ventana MAN OVERBOARD, **RADIO (MAYDAY)** lo abre
+con «hombre al agua». El plotter **no emite**: el mensaje se lee por la emisora.
+
+![MAYDAY](img/radio_mayday.png)
+
+![MAYDAY RELAY de una alerta LSD](img/radio_relay.png)
 
 **Avisos oficiales** (con WiFi con salida a internet, *Ajustes > Red*): meteorológicos (AEMET en España: con posición, los avisos
 cuyo polígono tiene dentro el barco, sacados del paquete público con todos los CAP; sin posición, el RSS de Meteoalerta; MeteoAlarm en el resto de Europa, con el país en *País ISO*; NWS en EE. UU.), tsunamis (tsunami.gov), terremotos (USGS,

@@ -235,7 +235,7 @@ verdadero sale de sumarla.
 | Mapa base | OpenSeaMap / IHM / IGN / Ortofoto |
 | NMEA 2000 | Encendido / Apagado |
 | Red: WiFi y TCP | Apartado 5.3 |
-| Embarcación | Datos del barco; se mandan al MAPRS transponder con el CALLSIGN validado en RadioID (DMR ID / CCS7, con internet) y el distintivo marítimo comprobado (MarineTraffic con su clave o mirando a mano su ficha pública, o el MARS de la UIT a mano) (apartado 5.4) |
+| Embarcación | Datos del barco (también para los mensajes de **Radio**: MAYDAY, PAN PAN, SÉCURITÉ); se mandan al MAPRS transponder con el CALLSIGN validado en RadioID (DMR ID / CCS7, con internet) y el distintivo marítimo comprobado (MarineTraffic con su clave o mirando a mano su ficha pública, o el MARS de la UIT a mano) (apartado 5.4) |
 | Bluetooth | Apartado 5.4 |
 
 Todo se guarda y se recupera al encender, también un fondeo en vigilancia.

@@ -21,6 +21,7 @@
 #include "celnav.h"
 #include "current.h"
 #include "bearingfix.h"
+#include "radiotel.h"
 #include "deviation.h"
 #include "navtex.h"
 #include "dsc.h"
@@ -2046,6 +2047,55 @@ static void testMtCheck() {
 
 // Navegacion astronomica. Valores de referencia: PyEphem 4.2.1 (lugar aparente geocentrico) y las paginas del 1 de enero
 // y del 16 de junio de un almanaque nautico de 2026 (precision 0,1').
+static void testRadiotel() {
+    using namespace plotter;
+    CHECK(rtNatureCount(RtKind::Mayday) == 11);
+    CHECK(rtNatureFromDsc(100) == 0 && rtNatureFromDsc(110) == 10 && rtNatureFromDsc(111) == -1);
+    CHECK(std::string(rtNatureName(RtKind::Mayday, rtNatureFromDsc(105), RtLang::En)) == "SINKING");     // 105 = hundimiento
+    CHECK(std::string(rtNatureName(RtKind::Mayday, rtNatureFromDsc(110), RtLang::Es)) == "HOMBRE AL AGUA");
+    CHECK(rtPhonetic("EA7jrs", RtLang::Es) == "ECHO ALFA SIETE JULIETT ROMEO SIERRA");
+    CHECK(rtPhonetic("EB-9", RtLang::En) == "ECHO BRAVO NINE");
+    CHECK(rtDigits("224 1", RtLang::En) == "TWO TWO FOUR ONE");
+    CHECK(rtPosition(36.53, -6.28333, RtLang::Es) == "36 GRADOS 31,8 MINUTOS NORTE, 006 GRADOS 17,0 MINUTOS OESTE");
+    CHECK(rtPosition(-0.9999, 179.99999, RtLang::En) == "00 DEGREES 60.0 MINUTES SOUTH, 180 DEGREES 00.0 MINUTES EAST" ||
+          rtPosition(-0.9999, 179.99999, RtLang::En) == "01 DEGREES 00.0 MINUTES SOUTH, 180 DEGREES 00.0 MINUTES EAST");
+    RtInput in;
+    in.name = "Mar Azul"; in.callsign = "EA1234"; in.mmsi = "224123456";
+    in.hasPos = true; in.lat = 36.53; in.lon = -6.28333; in.utcMin = 14 * 60 + 5;
+    in.nature = 1; in.persons = 3; in.description = "velero de 12 m, casco blanco";
+    std::string m = radiotelMessage(in);
+    CHECK(m.find("MAYDAY, MAYDAY, MAYDAY\n") == 0);
+    CHECK(m.find("AQU\xC3\x8D MAR AZUL, MAR AZUL, MAR AZUL\n") != std::string::npos);
+    CHECK(m.find("DISTINTIVO ECHO ALFA UNO DOS TRES CUATRO, MMSI DOS DOS CUATRO") != std::string::npos);
+    CHECK(m.find("A LAS 1405 UTC") != std::string::npos);
+    CHECK(m.find("V\xC3\x8D" "A DE AGUA\n") != std::string::npos);
+    CHECK(m.find("3 PERSONAS A BORDO\n") != std::string::npos);
+    CHECK(m.find("VELERO DE 12 M, CASCO BLANCO\n") != std::string::npos);
+    CHECK(m.size() > 7 && m.compare(m.size() - 7, 7, "CAMBIO\n") == 0);
+    in.lang = RtLang::En; in.kind = RtKind::PanPan; in.nature = 2; in.persons = 1;
+    m = radiotelMessage(in);
+    CHECK(m.find("PAN PAN PAN PAN PAN PAN\nALL STATIONS ALL STATIONS ALL STATIONS\nTHIS IS MAR AZUL MAR AZUL MAR AZUL\n") == 0);
+    CHECK(m.find("I REQUIRE MEDICAL ADVICE\n1 PERSON ON BOARD\n") != std::string::npos);
+    CHECK(m.find("OVER\n") == m.size() - 5);
+    in.kind = RtKind::Securite; in.nature = 1; in.extra = "container awash";
+    m = radiotelMessage(in);
+    CHECK(m.find("S\xC3\x89" "CURIT\xC3\x89 S\xC3\x89" "CURIT\xC3\x89") == 0);
+    CHECK(m.find("DRIFTING OBJECT\nCONTAINER AWASH\nIN POSITION 36 DEGREES") != std::string::npos);
+    CHECK(m.find("PERSON") == std::string::npos && m.find("OUT\n") == m.size() - 4);
+    in.kind = RtKind::MaydayRelay; in.lang = RtLang::Es; in.nature = 5; in.extra.clear();
+    in.relayMmsi = "224999888"; in.relayHasPos = true; in.relayLat = 36.1; in.relayLon = -6.5; in.relayPersons = 4;
+    m = radiotelMessage(in);
+    CHECK(m.find("MAYDAY RELAY, MAYDAY RELAY, MAYDAY RELAY\nA TODAS LAS ESTACIONES") == 0);
+    CHECK(m.find("DE BUQUE DESCONOCIDO, MMSI DOS DOS CUATRO NUEVE") != std::string::npos);
+    CHECK(m.find("36 GRADOS 06,0 MINUTOS NORTE, 006 GRADOS 30,0 MINUTOS OESTE\nHUNDIMIENTO\n4 PERSONAS A BORDO\n") != std::string::npos);
+    CHECK(m.find("3 PERSONAS") == std::string::npos);       // las personas propias no van en la retransmision
+    RtInput e;                                              // sin datos: huecos para rellenar de viva voz
+    m = radiotelMessage(e);
+    CHECK(m.find("[NOMBRE DEL BARCO]") != std::string::npos && m.find("[SITUACI\xC3\x93N]") != std::string::npos);
+    CHECK(m.find("DISTINTIVO") == std::string::npos && m.find("PERSONAS") == std::string::npos);
+    CHECK(std::string(vessel::typeNameEn(0)) == "sailing yacht" && std::string(vessel::typeNameEn(99)) == "sailing yacht");
+}
+
 static void testBearingFix() {
     using namespace plotter;
     const LatLon faro{36.50, -6.30}, faro2{36.45, -6.10};
@@ -2469,6 +2519,7 @@ int main() {
     testLatitude();
     testCurrent();
     testBearingFix();
+    testRadiotel();
     testDeviation();
     testNavtex();
     testDsc();

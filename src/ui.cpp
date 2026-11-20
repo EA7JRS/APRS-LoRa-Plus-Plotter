@@ -41,6 +41,8 @@
 #include "celnav.h"
 #include "current.h"
 #include "bearingfix.h"
+#include "radiotel.h"
+#include "vessel.h"
 #include "wmm.h"
 #include "wxcalc.h"
 
@@ -602,11 +604,12 @@ static void updateNavtexModal();
 static void closeDscModal(bool goTo);
 static void updateDscModal();
 static void startGoTo(LatLon dest, const char* name, bool mob);
+static void openRadio(int kind, int nature);            // Radio: mensajes de socorro, urgencia y seguridad
 static void onModalA(lv_event_t*) {                       // silenciar la alarma de ese buque (o volver a activarla)
     if (modalMode == M_OFFICIAL) { closeOfficial(); showTab(kMeteoTab); return; }   // LIST: la pestana Meteo
     if (modalMode == M_NAVTEX) { closeNavtexModal(); openNavtexList(); return; }    // LIST: los mensajes NAVTEX
     if (modalMode == M_DSC) { closeDscModal(true); return; }                         // IR A la posicion (o LISTA)
-    if (modalMode == M_MOB) { closeModal(); return; }      // la navegacion al punto sigue en la carta
+    if (modalMode == M_MOB) { closeModal(); openRadio(0, 10); return; }   // RADIO: el MAYDAY de hombre al agua para leer
     if (modalMode == M_SIGNALK) { closeModal(); return; }  // el aviso sigue en el servidor; aqui solo se cierra
     if (modalMode == M_RS485) {                            // apagar la salida al piloto
         settings::get().pilotOut = 0;
@@ -723,7 +726,7 @@ static void updateMobModal() {
     lv_label_set_text(modalName, dist);
     snprintf(b, sizeof(b), "Distance / bearing to the MOB position\nElapsed:  %u min %02u s\nPosition:  %s", (unsigned)(secs / 60), (unsigned)(secs % 60), p.c_str());
     lv_label_set_text(modalBody, b);
-    lv_label_set_text(modalBtnALbl, "SILENCE ALARM");
+    lv_label_set_text(modalBtnALbl, "RADIO (MAYDAY)");
     lv_label_set_text(modalBtnBLbl, "CLOSE");
 }
 
@@ -4469,6 +4472,165 @@ static void onMob(lv_event_t*) {
     openModal(M_MOB, 0);
 }
 
+// ---- Radio: MAYDAY, MAYDAY RELAY, PAN PAN y SECURITE para leer por el canal 16 ----
+static lv_obj_t* rtScr = nullptr;
+static lv_obj_t* rtKindBtn[4] = {};
+static lv_obj_t* rtLangLbl = nullptr;
+static lv_obj_t* rtNatLbl = nullptr;
+static lv_obj_t* rtPobLbl = nullptr;
+static lv_obj_t* rtText = nullptr;
+static lv_obj_t* rtHint = nullptr;
+static int rtKind = 0;
+static int rtNature[4] = {7, 7, 0, 0};                    // MAYDAY y RELAY: «peligro grave e inminente» de partida
+static uint32_t rtRefreshMs = 0;
+static std::string rtRelayKey;                          // alerta LSD de la que se tomo la naturaleza (se puede cambiar despues)
+
+static void rtRefresh() {
+    if (!rtScr) return;
+    settings::Values& st = settings::get();
+    const uint32_t now = millis();
+    plotter::RtInput in;
+    in.kind = (plotter::RtKind)rtKind;
+    in.lang = st.radioLang ? plotter::RtLang::En : plotter::RtLang::Es;
+    in.nature = rtNature[rtKind];
+    in.name = st.vesselName;
+    in.callsign = st.vesselMCall;
+    if (st.vesselMmsi) { char b[12]; snprintf(b, sizeof(b), "%09lu", (unsigned long)st.vesselMmsi); in.mmsi = b; }
+    double la, lo;
+    if (store->get(Key::Lat, now, la) && store->get(Key::Lon, now, lo)) { in.hasPos = true; in.lat = la; in.lon = lo; }
+    const int64_t t = tsync::now();
+    if (t > 1600000000) in.utcMin = (int)((t % 86400) / 60);
+    in.persons = st.vesselPob;
+    if (st.vesselLen > 0 || st.vesselName[0]) {
+        char d[80];
+        if (st.radioLang) snprintf(d, sizeof(d), st.vesselLen > 0 ? "%s, %d metres" : "%s", plotter::vessel::typeNameEn(st.vesselType), st.vesselLen);
+        else snprintf(d, sizeof(d), st.vesselLen > 0 ? "%s de %d metros" : "%s", plotter::vessel::typeName(st.vesselType), st.vesselLen);
+        in.description = d;
+    }
+    bool relayFrom = false;
+    if (rtKind == 1) {                                    // la ultima alerta de socorro LSD recibida
+        const auto& items = links::dsc().items();
+        for (auto it = items.rbegin(); it != items.rend(); ++it) {
+            if (!it->distress()) continue;
+            in.relayMmsi = it->ship();
+            if (it->hasPos) { in.relayHasPos = true; in.relayLat = it->pos.lat; in.relayLon = it->pos.lon; }
+            if (it->time.size() == 4) in.relayUtcMin = atoi(it->time.substr(0, 2).c_str()) * 60 + atoi(it->time.substr(2).c_str());
+            const int n = plotter::rtNatureFromDsc(it->nature());
+            if (n >= 0 && it->key() != rtRelayKey) { rtRelayKey = it->key(); in.nature = rtNature[1] = n; }
+            relayFrom = true;
+            break;
+        }
+    }
+    lv_label_set_text(rtText, plotter::radiotelMessage(in).c_str());
+    char b[160];
+    snprintf(b, sizeof(b), "%s", plotter::rtNatureName(in.kind, in.nature, in.lang));
+    lv_label_set_text(rtNatLbl, b);
+    if (st.vesselPob < 0) snprintf(b, sizeof(b), "Personas: no se dicen");
+    else snprintf(b, sizeof(b), "Personas a bordo: %d", st.vesselPob);
+    lv_label_set_text(rtPobLbl, b);
+    if (rtLangLbl) lv_label_set_text(rtLangLbl, st.radioLang ? "Idioma: EN" : "Idioma: ES");
+    static const char* const hint[4] = {
+        "1. Con LSD: tapa del bot\xC3\xB3n DISTRESS, elige la naturaleza y p\xC3\xBAlsalo 5 s.  2. Canal 16 VHF (o 2182 kHz), potencia alta.  "
+        "3. Pulsa el PTT, lee despacio, suelta y escucha. Sin respuesta en unos minutos, rep\xC3\xADtelo.",
+        "Retransmite solo si el buque en peligro no puede hacerlo o nadie le ha acusado recibo. Canal 16, potencia alta.",
+        "Canal 16 para la llamada; luego pasa a un canal de trabajo si te lo indican. Con LSD, llamada de urgencia a todos los buques.",
+        "Anuncio por el canal 16 y el aviso en el canal de trabajo que digas en el anuncio. Con LSD, llamada de seguridad a todos los buques."};
+    std::string h = hint[rtKind];
+    if (rtKind == 1) h += relayFrom ? "  Datos de la \xC3\xBAltima alerta LSD recibida." : "  No hay ninguna alerta LSD recibida: rellena de viva voz.";
+    if (!st.vesselName[0] || !st.vesselMmsi) h += "  Faltan datos de la embarcaci\xC3\xB3n (Ajustes > Embarcaci\xC3\xB3n).";
+    lv_label_set_text(rtHint, h.c_str());
+    for (int k = 0; k < 4; k++) {
+        static const uint32_t col[4] = {C_RED, C_RED, C_WARN, C_ACC};
+        lv_obj_set_style_bg_color(rtKindBtn[k], lv_color_hex(k == rtKind ? col[k] : C_PANEL), 0);
+        lv_obj_t* l = lv_obj_get_child(rtKindBtn[k], 0);
+        if (l) lv_obj_set_style_text_color(l, lv_color_hex(k == rtKind ? C_INK : C_TEXT), 0);
+    }
+}
+
+static void onRadioBtn(lv_event_t* e) {
+    const int a = (int)(intptr_t)lv_event_get_user_data(e);
+    settings::Values& st = settings::get();
+    if (a >= 1 && a <= 4) rtKind = a - 1;
+    else if (a == 5) { st.radioLang = !st.radioLang; settings::save(); }
+    else if (a == 6 || a == 7) {
+        const int n = plotter::rtNatureCount((plotter::RtKind)rtKind);
+        rtNature[rtKind] = (rtNature[rtKind] + (a == 7 ? 1 : n - 1)) % n;
+    } else if (a == 8 || a == 9) {
+        st.vesselPob = a == 9 ? (st.vesselPob < 0 ? 1 : std::min(st.vesselPob + 1, 999)) : (st.vesselPob <= 1 ? -1 : st.vesselPob - 1);
+        settings::save();
+    } else { lv_obj_set_hidden(rtScr, true); return; }
+    rtRefresh();
+}
+
+static void makeRadio() {
+    rtScr = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(rtScr);
+    lv_obj_set_size(rtScr, board::W, board::H);
+    lv_obj_set_style_bg_color(rtScr, lv_color_hex(C_BG), 0);
+    lv_obj_set_style_bg_opa(rtScr, LV_OPA_COVER, 0);
+    lv_obj_set_scrollable(rtScr, false);
+    lv_obj_set_clickable(rtScr, true);
+    lv_obj_t* t = label(rtScr, "Radio", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_pos(t, 16, 18);
+    static const struct { const char* txt; int x, w, a; } K[] = {
+        {"MAYDAY", 110, 150, 1}, {"MAYDAY RELAY", 268, 190, 2}, {"PAN PAN", 466, 150, 3}, {"S\xC3\x89" "CURIT\xC3\x89", 624, 150, 4}};
+    for (int k = 0; k < 4; k++) {
+        rtKindBtn[k] = textButton(rtScr, K[k].txt, K[k].w, 48, onRadioBtn, K[k].a);
+        lv_obj_set_pos(rtKindBtn[k], K[k].x, 8);
+    }
+    lv_obj_t* b = textButton(rtScr, "Cerrar", 124, 48, onRadioBtn, 0);
+    lv_obj_set_pos(b, 884, 8);
+    b = textButton(rtScr, "<", 52, 48, onRadioBtn, 6); lv_obj_set_pos(b, 16, 64);
+    b = textButton(rtScr, ">", 52, 48, onRadioBtn, 7); lv_obj_set_pos(b, 76, 64);
+    rtNatLbl = label(rtScr, "", &dejavu_bold_16, C_TEXT);
+    lv_obj_set_pos(rtNatLbl, 140, 78);
+    lv_obj_set_width(rtNatLbl, 380);
+    lv_label_set_long_mode(rtNatLbl, LV_LABEL_LONG_DOT);
+    b = textButton(rtScr, "-", 52, 48, onRadioBtn, 8); lv_obj_set_pos(b, 530, 64);
+    b = textButton(rtScr, "+", 52, 48, onRadioBtn, 9); lv_obj_set_pos(b, 590, 64);
+    rtPobLbl = label(rtScr, "", &dejavu_16, C_TEXT);
+    lv_obj_set_pos(rtPobLbl, 652, 78);
+    b = textButton(rtScr, "Idioma: ES", 160, 48, onRadioBtn, 5); lv_obj_set_pos(b, 848, 64);
+    rtLangLbl = lv_obj_get_child(b, 0);
+    lv_obj_t* panel = box(rtScr, C_PANEL, 10);
+    lv_obj_set_pos(panel, 16, 122);
+    lv_obj_set_size(panel, 992, 396);
+    lv_obj_set_style_pad_all(panel, 14, 0);
+    lv_obj_set_scroll_dir(panel, LV_DIR_VER);
+    rtText = label(panel, "", &dejavu_bold_20, C_TEXT);
+    lv_obj_set_width(rtText, 960);
+    lv_obj_set_style_text_line_space(rtText, 6, 0);
+    rtHint = label(rtScr, "", &dejavu_14, C_SOFT);
+    lv_obj_set_pos(rtHint, 16, 526);
+    lv_obj_set_width(rtHint, 992);
+    lv_obj_set_hidden(rtScr, true);
+}
+
+static void openRadio(int kind, int nature) {
+    if (!rtScr) makeRadio();
+    if (kind >= 0 && kind < 4) rtKind = kind;
+    if (nature >= 0 && nature < plotter::rtNatureCount((plotter::RtKind)rtKind)) rtNature[rtKind] = nature;
+    rtRefresh();
+    lv_obj_set_hidden(rtScr, false);
+}
+
+static void onRadioOpen(lv_event_t*) { openRadio(-1, -1); }
+
+// Para las pruebas en el PC
+void testRadio(int kind, int nature, int lang) {
+    settings::Values& st = settings::get();
+    if (!st.vesselName[0]) {                              // datos inventados para el dibujo
+        snprintf(st.vesselName, sizeof(st.vesselName), "Mar de Prueba");
+        st.vesselMmsi = 224000123;
+        snprintf(st.vesselMCall, sizeof(st.vesselMCall), "EB0001");
+        st.vesselLen = 11;
+        st.vesselPob = 3;
+    }
+    st.radioLang = lang;
+    openRadio(kind, nature);
+}
+void closeRadio() { if (rtScr) lv_obj_set_hidden(rtScr, true); }
+
 // Marcar: waypoint en la posicion del barco
 static void onMark(lv_event_t*) {
     uint32_t now = millis();
@@ -4515,8 +4677,17 @@ void begin(DataStore* s) {
     lv_obj_t* markL = label(mark, "Marcar", &dejavu_bold_16, C_TEXT);
     lv_obj_center(markL);
     lv_obj_add_event_cb(mark, onMark, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t* rad = lv_button_create(top);                 // Radio: MAYDAY, PAN PAN, SECURITE desde cualquier pestana
+    lv_obj_remove_style_all(rad);
+    lv_obj_set_size(rad, 84, TOP_H - 1);
+    lv_obj_align(rad, LV_ALIGN_RIGHT_MID, -154, 0);
+    lv_obj_set_style_bg_color(rad, lv_color_hex(C_WARN), 0);
+    lv_obj_set_style_bg_opa(rad, LV_OPA_COVER, 0);
+    lv_obj_t* radL = label(rad, "Radio", &dejavu_bold_16, C_INK);
+    lv_obj_center(radL);
+    lv_obj_add_event_cb(rad, onRadioOpen, LV_EVENT_CLICKED, nullptr);
     lblPos = label(top, "Sin posici\xC3\xB3n", &dejavu_16, C_SOFT);
-    lv_obj_align(lblPos, LV_ALIGN_RIGHT_MID, -168, 0);
+    lv_obj_align(lblPos, LV_ALIGN_RIGHT_MID, -252, 0);
 
     // Cuerpo: una pagina por pestana
     for (int i = 0; i < 8; i++) {
@@ -5196,6 +5367,7 @@ void update() {
     if (!store) return;
     uint32_t now = millis();
     sampleCurrent();
+    if (rtScr && !lv_obj_is_hidden(rtScr) && now - rtRefreshMs >= 5000) { rtRefreshMs = now; rtRefresh(); }   // situacion y hora al dia
     if (curScr && !lv_obj_is_hidden(curScr) && now - curLiveMs >= 1000) { curLiveMs = now; curLiveText(); }
     sampleTrack();
     sampleWind();

@@ -36,6 +36,7 @@ At the top, always visible:
 - The **tab name** and a **Simulador** badge when the data is test data.
 - The boat's **position**.
 - **Marcar** (Mark): saves a waypoint at the current position (WPT 01, WPT 02...).
+- **Radio**: MAYDAY, PAN PAN and SÉCURITÉ messages to read on channel 16 (section 10).
 - **MOB**: man overboard (section 10).
 
 At the bottom, the eight tabs: Instrumentos, Carta, Rutas, Radar AIS, Viento, Piloto, Meteo and Ajustes.
@@ -437,7 +438,7 @@ An alert opens a window over any screen. Alert texts are in English, as in the A
 | Window | Raised when | Buttons |
 |---|---|---|
 | **COLLISION RISK** | An AIS target will pass within 0.5 nm in less than 20 min | SILENCE ALARM: mutes that vessel · CLOSE: does not return for 10 min |
-| **MAN OVERBOARD** | You pressed MOB | CLOSE: navigation to the point continues on the chart |
+| **MAN OVERBOARD** | You pressed MOB | RADIO (MAYDAY): the distress message to read · CLOSE: navigation to the point continues on the chart |
 | **ANCHOR DRAG** | 10 s outside the anchor circle | SILENCE 10 MIN · CLOSE: returns in 2 min if it persists |
 | **ANCHOR WATCH · NO GPS FIX** | Anchored and 1 min without a position | Same |
 | **SIGNAL K ALARM / EMERGENCY** | Notification from the Signal K server | Closes by itself when the server lowers its level |
@@ -446,7 +447,29 @@ An alert opens a window over any screen. Alert texts are in English, as in the A
 
 Collision and anchor alerts close by themselves when the danger is over.
 
-**MOB**: marks the position, sets the course back and shows distance, bearing and elapsed time.
+**MOB**: marks the position, sets the course back and shows distance, bearing and elapsed time. **RADIO (MAYDAY)** opens the man overboard distress message.
+
+### Radio: MAYDAY, PAN PAN and SÉCURITÉ
+
+The **Radio** button at the top (from any tab) opens the message ready to **read aloud** on VHF channel 16 (or 2182 kHz),
+with the data of *Ajustes > Embarcación* (name, maritime call sign spelt out, MMSI digit by digit, type and length), the
+GPS position and the UTC time:
+
+- **MAYDAY** (distress): `<` `>` pick the nature (in the DSC order: fire, flooding, collision, grounding, listing, sinking,
+  disabled and adrift, grave and imminent danger, abandoning ship, piracy, man overboard).
+- **MAYDAY RELAY**: relays the last DSC distress alert received (MMSI, position, time and nature); with none, the gaps are
+  left to fill in by voice.
+- **PAN PAN** (urgency): engine or steering failure, sick or injured person, medical evacuation, man overboard being
+  searched for, out of fuel.
+- **SÉCURITÉ** (safety): navigational hazard, drifting object, weather warning, restricted in ability to manoeuvre.
+
+**−** / **+** set the persons on board (saved); **Idioma** switches between Spanish and English. Below, what to do first
+(DSC alert with the DISTRESS button, channel and power). In the MAN OVERBOARD window, **RADIO (MAYDAY)** opens it with
+«man overboard». The plotter **does not transmit**: the message is read over the radio.
+
+![MAYDAY](img/radio_mayday.png)
+
+![MAYDAY RELAY from a DSC alert](img/radio_relay.png)
 
 **In this version alerts make no sound.** Do not rely on the plotter as your only anchor or collision alarm.
 

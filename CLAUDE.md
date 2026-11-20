@@ -404,6 +404,7 @@ Maquetas (lienzo Design, cuatro páginas por fases): https://claude.ai/artifact/
   por la rama `release/v5.4.2` a la vez que tracker, rotor, Display y app. **No se publicó**: Manuel (2026-11-12, «sube
   mejor el release de todo a 5.4.3») pasó todo a la **5.4.3** (`PLOTTER_VERSION`, notas en `docs/releases/v5.4.3.md`,
   rama `release/v5.4.3`); la preliminar v5.4.2 que quedó en GitHub se puede borrar.
+- **Versión 5.4.7 (2026-11-20; Manuel: «actualiza todos los repositorios, los readme, docs y subimos todo a la siguiente version»)**: `PLOTTER_VERSION`, `library.json`, manuales, guías e instalación, notas en `docs/releases/v5.4.7.md`; rama `release/v5.4.7` para la release preliminar.
 - **Versión 5.4.6 (2026-11-15; Manuel: «subimos release a 5.4.6»; prepara Claude, publica Manuel)**: `PLOTTER_VERSION`, `library.json`, manuales y guías, notas en `docs/releases/v5.4.6.md`. La release sale de la etiqueta `v5.4.6` o de una rama `release/v5.4.6`.
 - README: botón de donativo PayPal.me (`paypal.me/ea7jrs`), como en el resto de repositorios de Manuel.
 - **Accesorio: instrumento de viento de 4″ (pedido 2026-11-12)**: equipo aparte sobre la **Waveshare

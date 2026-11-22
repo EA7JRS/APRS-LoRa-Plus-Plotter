@@ -82,6 +82,17 @@ int main(int argc, char** argv) {
                 ui::testCt(st, dv, stp);
             }
             else if (a == "tablilla") ui::testCtCard();
+            else if (a == "costeras") {                                 // lista inventada de costeras y centros de salvamento
+                FILE* cf = fopen("/tmp/plotter_sd/costeras.txt", "w");
+                if (cf) {
+                    fputs("# Lista de prueba: estaciones inventadas\n"
+                          "Costera de ejemplo;36.6400;-6.1500;V;002249901;28;74;\n"
+                          "Otra costera de ejemplo;37.2000;-7.0200;V;002249901;26;6;\n"
+                          "Centro de ejemplo;36.0400;-5.5500;S;002249902;;;\n", cf);
+                    fclose(cf);
+                }
+                ui::testCoast();
+            }
             else if (a == "navtex") ui::testNavtex(false);
             else if (a == "navtexlista") ui::testNavtex(true);
             else if (a == "navtexfiltros") ui::testNavtexFilters();

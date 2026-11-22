@@ -493,6 +493,12 @@ GPS position and the UTC time:
 
 ![MAYDAY](img/radio_mayday.png)
 
+If the card has a list of coast stations (`/costeras.txt`, see the installation guide), the nearest **VHF coast station**
+(«Costera») and **rescue centre** («Salvamento») are shown under the message, with distance, working channel and MMSI for a
+DSC call. Beyond 40 nm the coast station is marked «fuera de alcance» (out of range). Nothing is shown without a list or a position.
+
+![Who to call](img/radio_costera.png)
+
 ![MAYDAY RELAY from a DSC alert](img/radio_relay.png)
 
 **In this version alerts make no sound.** Do not rely on the plotter as your only anchor or collision alarm.

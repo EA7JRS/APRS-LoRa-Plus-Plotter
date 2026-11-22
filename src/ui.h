@@ -21,6 +21,7 @@ void testNet();                     // abre la pantalla de red
 void testAbout();                   // abre "Acerca de"
 void testAstroList();                                  // Astro > Visibles (dibujo del PC)
 void testRadio(int kind, int nature, int lang);          // Radio: 0 MAYDAY, 1 RELAY, 2 PAN PAN, 3 SECURITE; lang 0 ES, 1 EN
+void testCoast();
 void closeRadio();
 void testBearings(int mode);                            // Carta > Demoras: 0 simultaneas a dos luces, 1 trasladada a una
 void closeBearings();

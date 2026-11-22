@@ -488,6 +488,12 @@ con «hombre al agua». El plotter **no emite**: el mensaje se lee por la emisor
 
 ![MAYDAY](img/radio_mayday.png)
 
+Si la tarjeta tiene una lista de costeras (`/costeras.txt`, ver la instalación), bajo el mensaje salen la **costera de VHF** y el
+**centro de salvamento** más cercanos a la situación, con la distancia, el canal de trabajo y el MMSI para la llamada selectiva.
+A más de 40 millas la costera sale como «fuera de alcance». Sin lista o sin situación no se dice nada.
+
+![A quién llamar](img/radio_costera.png)
+
 ![MAYDAY RELAY de una alerta LSD](img/radio_relay.png)
 
 **Avisos oficiales** (con WiFi con salida a internet, *Ajustes > Red*): meteorológicos (AEMET en España: con posición, los avisos

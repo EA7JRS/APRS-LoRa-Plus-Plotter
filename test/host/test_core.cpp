@@ -2497,11 +2497,71 @@ static void testNavtex() {
     CHECK(!a.feed("CRNRX,2,1,7,XD12,2,083000.00,15,11,2026,40,0,A,MAYDAY RELAY^0D^0AYACHT SINKING"));
     CHECK(a.feed("CRNRX,2,2,7,,,,,,,,,, 3810N 00012W^0D^0ANNNN") && a.take(m));
     CHECK(m.id() == "XD12" && m.urgent() && m.khz == 518 && m.text == "MAYDAY RELAY\nYACHT SINKING 3810N 00012W\nNNNN" && m.positions.size() == 1);
-    // lista: la repeticion sustituye a la anterior
+    NEAR(m.errorPct, 0.0, 1e-9);
+    CHECK(!a.feed("CRNRX,1,1,8,GA20,2,083000.00,15,11,2026,50,3,A,TEXT") || (a.take(m) && std::fabs(m.errorPct - 6.0) < 1e-9 && !m.satisfactory()));
+    // reglas del receptor (MSC.508(105), Manual NAVTEX): repeticion, copia mejor, 00, 72 h, conservar, borrar
     NavtexLog log;
-    NavtexMessage x; x.station = 'G'; x.subject = 'A'; x.number = 5; x.khz = 518; x.text = "1";
-    log.add(x); x.text = "2"; log.add(x); x.number = 6; log.add(x);
-    CHECK(log.items().size() == 2 && log.items()[0].number == 6 && log.items()[1].text == "2");
+    NavtexMessage x; x.station = 'G'; x.subject = 'A'; x.number = 5; x.khz = 518; x.text = "ONE"; x.errorPct = 1.0;
+    CHECK(x.satisfactory() && !x.alwaysShown());
+    CHECK(log.add(x, t12) == NavtexVerdict::New && log.fresh() == 1);
+    x.text = "TWO";
+    CHECK(log.add(x, t12 + 4 * 3600) == NavtexVerdict::Repeat && log.fresh() == 1);           // bien recibido: la repeticion no vuelve a salir
+    CHECK(log.items().size() == 1 && log.items()[0].text == "ONE" && log.items()[0].repeats == 1 && log.items()[0].heard == t12);
+    CHECK(log.add(x, t12 + 72 * 3600) == NavtexVerdict::New && log.items()[0].text == "TWO" && log.items().size() == 1);   // a las 72 h es otro mensaje
+    x.khz = 490;
+    CHECK(log.add(x, t12 + 72 * 3600) == NavtexVerdict::New && log.items().size() == 2);        // otra frecuencia, otro mensaje
+    x.khz = 518; x.number = 6; x.errorPct = 9.0; x.text = "BAD COPY";
+    CHECK(!x.satisfactory() && log.add(x, t12) == NavtexVerdict::New);
+    x.errorPct = 12.0; x.text = "WORSE";
+    CHECK(log.add(x, t12 + 100) == NavtexVerdict::Repeat && log.items()[0].text == "BAD COPY");
+    x.errorPct = 0.5; x.text = "GOOD COPY";
+    CHECK(log.add(x, t12 + 200) == NavtexVerdict::Better && log.items()[0].text == "GOOD COPY" && log.items()[0].heard == t12);
+    x.complete = false; x.errorPct = 0; x.number = 7; x.text = "CUT";
+    CHECK(!x.satisfactory() && log.add(x, t12) == NavtexVerdict::New);
+    x.complete = true; x.errorPct = 20.0; x.text = "WHOLE BUT POOR";
+    CHECK(log.add(x, t12 + 1) == NavtexVerdict::Better);                                        // entero gana a cortado
+    x.number = 0; x.errorPct = 0; x.text = "ZERO";
+    CHECK(x.alwaysShown() && log.add(x, t12) == NavtexVerdict::New);
+    const uint32_t fr = log.fresh();
+    CHECK(log.add(x, t12 + 60) == NavtexVerdict::Better && log.fresh() == fr + 1);              // B3B4 = 00: siempre
+    {   // sin errores conocidos (receptor que no los da): entero = bien recibido
+        NavtexMessage u; u.text = "X"; CHECK(u.satisfactory()); u.complete = false; CHECK(!u.satisfactory());
+        NavtexMessage o = u, n = u; o.text = "LONG TEXT CUT"; n.text = "CUT";
+        CHECK(navtexBetterCopy(o, n) && !navtexBetterCopy(n, o));
+        CHECK(navtexVerdict(n, nullptr, t12) == NavtexVerdict::New);
+    }
+    // turno de la letra
+    CHECK(navtexInOwnSlot('G', t12 + 3600 + 5 * 60) == 1 && navtexInOwnSlot('G', t12 + 3600 + 13 * 60) == 1 && navtexInOwnSlot('G', t12 + 3600 + 14 * 60) == 0);
+    CHECK(navtexInOwnSlot('G', t12) == 0 && navtexInOwnSlot('Z', t12) == -1 && navtexInOwnSlot('G', 0) == -1);
+    // conservar y borrar
+    NavtexLog k;
+    NavtexMessage y; y.station = 'G'; y.subject = 'A'; y.khz = 518; y.text = "T"; y.errorPct = 0;
+    for (int i = 1; i <= 20; i++) { y.number = i; k.add(y, t12 + i); }
+    for (size_t i = 0; i < NavtexLog::kMaxKept; i++) CHECK(k.keep(i, true));
+    CHECK(!k.keep(NavtexLog::kMaxKept, true) && k.keptCount() == NavtexLog::kMaxKept && NavtexLog::kMaxKept == 15);
+    CHECK(k.keep(0, false) && k.keep(NavtexLog::kMaxKept, true));
+    k.clear(t12 + 100);
+    CHECK(k.items().size() == NavtexLog::kMaxKept);                                             // vaciar respeta los conservados
+    y.number = 20;                                                                             // el 20 se borro con clear (ya no era conservado)
+    CHECK(k.add(y, t12 + 200) == NavtexVerdict::Repeat && k.items().size() == NavtexLog::kMaxKept);
+    CHECK(k.add(y, t12 + 100 + 72 * 3600) == NavtexVerdict::New);                               // a las 72 h vuelve a entrar
+    {
+        NavtexLog f;
+        y.number = 50; f.add(y, t12); f.keep(0, true);
+        for (int i = 0; i < 70; i++) { y.number = 51 + i % 40; y.khz = i < 40 ? 518 : 490; f.add(y, t12 + 1 + i); }
+        bool has = false; for (const NavtexMessage& q : f.items()) if (q.number == 50 && q.kept) has = true;
+        CHECK(f.items().size() == NavtexLog::kMax && has);                                      // el conservado no sale al llenarse
+        y.khz = 518;
+        size_t n = f.items().size(); f.remove(0, t12 + 500);
+        CHECK(f.items().size() == n - 1);
+    }
+    // alarma 003 de IEC 61097-6
+    bool act = false, ack = true;
+    CHECK(parseNavtexAlr(withSum("CRALR,140200.00,003,A,V,NAVTEX: Search and rescue information").c_str(), act, ack) && act && !ack);
+    CHECK(parseNavtexAlr("$CRALR,140230.00,003,V,A,NAVTEX: Search and rescue information", act, ack) && !act && ack);
+    CHECK(!parseNavtexAlr("$CRALR,140230.00,001,A,V,x", act, ack) && !parseNavtexAlr("$GPALR,140230.00,003,A,V,x", act, ack));
+    CHECK(!parseNavtexAlr("$CRALR,140230.00,003,A,V,x*00", act, ack) && !parseNavtexAlr("$CRNRX,GA05,1,1,518,,,,,,x", act, ack));
+    CHECK(navtexAckSentence() == withSum("IIACK,003") + "\r\n");
 }
 
 int main() {

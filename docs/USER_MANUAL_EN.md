@@ -344,14 +344,30 @@ The **NAVTEX** button in the note opens the list of NAVTEX messages received, ne
 and number, «GA05»), frequency, subject (in Spanish: *Aviso a la navegación* navigational warning, *Previsión
 meteorológica* forecast, *Salvamento, socorro, piratería* search and rescue...), UTC time and text. They arrive as NMEA 0183
 **NRX** sentences over RS485, the network or Bluetooth: from an on-board NAVTEX receiver (Furuno, ICS, Nasa...) or from the
-**APRS LoRa+ app**, which decodes them (Modes > NAVTEX) and sends them through its NMEA server. A repeat of the same message
-replaces the earlier copy. Tapping one with positions in the text («36-07.5N 005-21.2W», «3810N 00012W») sets course to the
-first one on the chart.
+**APRS LoRa+ app**, which decodes them (Modes > NAVTEX) and sends them through its NMEA server, or from the **Navtex**
+program (EA7JRS/Navtex) through its TCP or UDP output. Tapping one with positions in the text («36-07.5N 005-21.2W»,
+«3810N 00012W») sets course to the first one on the chart.
+
+The list follows the rules of a NAVTEX receiver (IMO MSC.508(105), NAVTEX Manual 2023, ITU-R M.540-2):
+
+- Under each message, its quality: the error rate given by the receiver, **bien recibido** (satisfactorily received: whole
+  and with fewer than 4 % of bad characters) or **mal recibido**, and whether it came in its station's ten-minute slot
+  (*en su turno* / *fuera de su turno*).
+- A repeat of a satisfactorily received message is **not shown again for 72 hours** (it only adds *repetido*); a better
+  copy replaces a worse one; messages numbered **00** are always shown.
+- *Conservar* (keep) stores a message (up to 15, 25 % of the 60 in the list): it is not dropped when the list fills up
+  nor by *Borrar todos* (delete all).
+- *Borrar* (delete) removes one; its repeat does not come back for 72 hours either. A type-approved receiver does not let
+  messages be deleted early: here it is possible because the plotter is an auxiliary display.
+
+The list lives in memory: it is emptied when the plotter is switched off (the receiver keeps its own).
 
 ![NAVTEX](img/navtex_lista.png)
 
 A message of subject **D** (search and rescue, distress, piracy) opens the **NAVTEX SAR / DISTRESS** window with the text;
-*LIST* opens the list and *CLOSE* closes it (that message does not open it again).
+*LIST* opens the list and *CLOSE* closes it (that message does not open it again). If the receiver sends the IEC 61097-6
+alarm (`ALR` sentence, alarm 003) and is connected as the NMEA TCP server, closing the window answers `$IIACK,003`, so the
+alarm is acknowledged there too; and if it is acknowledged on the receiver, the window closes.
 
 ![NAVTEX SAR](img/navtex_alerta.png)
 

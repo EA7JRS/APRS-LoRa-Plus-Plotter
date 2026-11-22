@@ -971,9 +971,17 @@ static void nvFreq(char* o, size_t n, double khz) {
     else snprintf(o, n, "%d kHz", (int)khz);
 }
 
+static uint32_t nvModalMs = 0;
 static void updateNavtexModal() {
     const plotter::NavtexMessage* m = nvFind(nvModalKey);
     if (!m) { closeModal(); return; }
+    const links::NavtexAlarm al = links::navtexAlarm();   // reconocida en el receptor o en otro equipo: aqui tambien
+    if (al.seen && !al.active && al.ageMs < 5000u && millis() - nvModalMs > 35000u) {
+        nvShown.push_back(nvModalKey);
+        nvModalKey.clear();
+        closeModal();
+        return;
+    }
     char sub[96], f[16];
     nvFreq(f, sizeof f, m->khz);
     lv_obj_set_style_bg_color(modalHead, lv_color_hex(C_RED), 0);
@@ -988,6 +996,7 @@ static void updateNavtexModal() {
 }
 
 static void closeNavtexModal() {
+    links::navtexAck();                                  // reconoce la alarma tambien en el receptor ($IIACK,003), si hay por donde
     nvShown.push_back(nvModalKey);
     if (nvShown.size() > 40) nvShown.erase(nvShown.begin());
     nvModalKey.clear();
@@ -1008,9 +1017,23 @@ static void checkNavtex() {
         for (const std::string& x : nvShown) if (x == k) seen = true;
         if (seen) continue;
         nvModalKey = k;
+        nvModalMs = millis();
         openModal(M_NAVTEX, 0);
         return;
     }
+}
+
+static void onNavtexAct(lv_event_t* e) {                // 2i = conservar / soltar, 2i + 1 = borrar, -2 = borrar todos
+    const int v = (int)(intptr_t)lv_event_get_user_data(e);
+    plotter::NavtexLog& log = links::navtex();
+    if (v == -2) log.clear(tsync::now());
+    else if (v >= 0 && (size_t)(v / 2) < log.items().size()) {
+        const size_t i = (size_t)(v / 2);
+        if (v & 1) log.remove(i, tsync::now());
+        else log.keep(i, !log.items()[i].kept);
+    }
+    nvSeq = log.seq();
+    refreshNavtexList();
 }
 
 static void onNavtexPick(lv_event_t* e) {
@@ -1028,9 +1051,10 @@ static void onNavtexPick(lv_event_t* e) {
 static void refreshNavtexList() {
     lv_obj_clean(nvBox);
     const std::vector<plotter::NavtexMessage>& v = links::navtex().items();
-    char note[200];
-    snprintf(note, sizeof note, "%u mensajes (NRX de un receptor NAVTEX o de la app APRS LoRa+).%s",
-             (unsigned)v.size(), v.empty() ? "" : " Toca uno con posici\xC3\xB3n para ir a la primera.");
+    char note[260];
+    snprintf(note, sizeof note, "%u mensajes, %u conservados de %u (NRX de un receptor NAVTEX o de la app APRS LoRa+).%s",
+             (unsigned)v.size(), (unsigned)links::navtex().keptCount(), (unsigned)plotter::NavtexLog::kMaxKept,
+             v.empty() ? "" : " Toca uno con posici\xC3\xB3n para ir a la primera. La repetici\xC3\xB3n de uno bien recibido no vuelve a salir en 72 h.");
     lv_label_set_text(nvNote, note);
     for (size_t i = 0; i < v.size(); i++) {
         const plotter::NavtexMessage& m = v[i];
@@ -1049,13 +1073,31 @@ static void refreshNavtexList() {
         char h[160], f[16], when[24] = "";
         nvFreq(f, sizeof f, m.khz);
         if (m.utc > 0) { int y, mo, d; double hh; plotter::unixToUtc((long long)m.utc, y, mo, d, hh); const int sod = (int)(m.utc % 86400); snprintf(when, sizeof when, " \xC2\xB7 %02d %02d:%02d UTC", d, sod / 3600, sod / 60 % 60); }
-        snprintf(h, sizeof h, "%s \xC2\xB7 %s \xC2\xB7 %s%s%s%s", m.id().c_str(), f, plotter::navtexSubjectEs(m.subject), when, m.complete ? "" : " \xC2\xB7 incompleto",
-                 m.positions.empty() ? "" : " \xC2\xB7 con posici\xC3\xB3n");
+        snprintf(h, sizeof h, "%s%s \xC2\xB7 %s \xC2\xB7 %s%s%s%s", m.kept ? "CONSERVADO \xC2\xB7 " : "", m.id().c_str(), f, plotter::navtexSubjectEs(m.subject), when,
+                 m.complete ? "" : " \xC2\xB7 incompleto", m.positions.empty() ? "" : " \xC2\xB7 con posici\xC3\xB3n");
         lv_obj_t* l = label(b, h, &dejavu_bold_16, m.urgent() ? C_RED : C_TEXT);
+        lv_obj_set_width(l, 958);
+        char q[160], er[40] = "errores: no vienen";      // calidad de la copia, como la da el receptor
+        if (m.errorPct >= 0) snprintf(er, sizeof er, "errores %.1f %%", m.errorPct);
+        for (char* c = er; *c; c++) if (*c == '.') *c = ',';
+        const int slot = plotter::navtexInOwnSlot(m.station, m.utc);
+        char rp[32] = "";
+        if (m.repeats > 0) snprintf(rp, sizeof rp, " \xC2\xB7 repetido %d", m.repeats);
+        snprintf(q, sizeof q, "%s \xC2\xB7 %s%s%s%s", er, m.satisfactory() ? "bien recibido" : "mal recibido (4 % o m\xC3\xA1s, o cortado)",
+                 slot == 0 ? " \xC2\xB7 fuera de su turno" : slot == 1 ? " \xC2\xB7 en su turno" : "", rp, m.alwaysShown() ? " \xC2\xB7 00: se muestra siempre" : "");
+        l = label(b, q, &dejavu_14, m.satisfactory() ? C_SOFT : C_WARN);
         lv_obj_set_width(l, 958);
         std::string t = m.text.size() > 600 ? m.text.substr(0, 600) + "..." : m.text;
         l = label(b, t.c_str(), &dejavu_14, C_SOFT);
         lv_obj_set_width(l, 958);
+        lv_obj_t* row = lv_obj_create(b);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_size(row, 958, 44);
+        lv_obj_set_scrollable(row, false);
+        lv_obj_t* kb = textButton(row, m.kept ? "Soltar" : "Conservar", 140, 40, onNavtexAct, (intptr_t)(2 * i));
+        lv_obj_set_pos(kb, 0, 4);
+        lv_obj_t* db = textButton(row, "Borrar", 110, 40, onNavtexAct, (intptr_t)(2 * i + 1));
+        lv_obj_set_pos(db, 150, 4);
     }
 }
 
@@ -1071,9 +1113,11 @@ static void makeNavtexList() {
     lv_obj_set_pos(t, 16, 18);
     lv_obj_t* b = textButton(nvScr, "Cerrar", 124, 48, onNavtexPick, -1);
     lv_obj_set_pos(b, 884, 8);
+    b = textButton(nvScr, "Borrar todos", 160, 48, onNavtexAct, -2);     // respeta los conservados
+    lv_obj_set_pos(b, 714, 8);
     nvNote = label(nvScr, "", &dejavu_14, C_SOFT);
     lv_obj_set_pos(nvNote, 16, 64);
-    lv_obj_set_width(nvNote, 860);
+    lv_obj_set_width(nvNote, 980);
     nvBox = lv_obj_create(nvScr);
     lv_obj_remove_style_all(nvBox);
     lv_obj_set_pos(nvBox, 16, 116);
@@ -3232,11 +3276,11 @@ void testCtCard() { if (ctScr) ctCardOpen(); }
 // Para las pruebas en el PC: mensajes NAVTEX de ejemplo por NRX (uno de salvamento abre la ventana) y la lista
 void testNavtex(bool list) {
     static const char* const lines[] = {
-        "$CRNRX,GA05,1,3,518,15,11,2026,120500,0.8,TARIFA NAVTEX NAV WARNING 123/26",
-        "$CRNRX,GA05,2,3,518,15,11,2026,120500,0.8,WRECK IN 36-07.5N 005-21.2W.",
-        "$CRNRX,GA05,3,3,518,15,11,2026,120500,0.8,VESSELS KEEP CLEAR 1 MILE.",
-        "$CRNRX,XE41,1,2,518,15,11,2026,135000,0.0,FORECAST CABO DE GATA TO CABO DE LA NAO",
-        "$CRNRX,XE41,2,2,518,15,11,2026,135000,0.0,EAST 4 TO 5, LOCALLY 6. MODERATE SEA.",
+        "$CRNRX,GA05,1,3,518,15,11,2026,130500,0.8,TARIFA NAVTEX NAV WARNING 123/26",
+        "$CRNRX,GA05,2,3,518,15,11,2026,130500,0.8,WRECK IN 36-07.5N 005-21.2W.",
+        "$CRNRX,GA05,3,3,518,15,11,2026,130500,0.8,VESSELS KEEP CLEAR 1 MILE.",
+        "$CRNRX,XE41,1,2,518,15,11,2026,155200,0.0,FORECAST CABO DE GATA TO CABO DE LA NAO",
+        "$CRNRX,XE41,2,2,518,15,11,2026,155200,0.0,EAST 4 TO 5, LOCALLY 6. MODERATE SEA.",
         "$CRNRX,XD12,1,2,518,15,11,2026,140200,1.2,MAYDAY RELAY. YACHT TAKING WATER IN 3810N 00012W",
         "$CRNRX,XD12,2,2,518,15,11,2026,140200,1.2,VESSELS IN VICINITY KEEP SHARP LOOKOUT AND REPORT TO MRCC VALENCIA",
     };

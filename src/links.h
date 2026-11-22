@@ -71,6 +71,10 @@ plotter::DeviationCard& deviationCard();
 void saveDeviationCard();               // la guarda en los ajustes
 // Mensajes NAVTEX que llegan en sentencias NRX (receptor NAVTEX de a bordo o la app APRS LoRa+ por su servidor NMEA)
 plotter::NavtexLog& navtex();
+// Alarma 003 del receptor NAVTEX (sentencia ALR): active = el receptor la tiene sin reconocer; ageMs = cuanto hace de la ultima ALR
+struct NavtexAlarm { bool seen = false; bool active = false; uint32_t ageMs = 0; };
+NavtexAlarm navtexAlarm();
+bool navtexAck();                       // manda $IIACK,003 al receptor (servidor TCP NMEA conectado); false si no hay por donde
 // Llamadas LSD / DSC (sentencia DSC de una emisora con LSD o de la app APRS LoRa+)
 plotter::DscLog& dsc();
 void injectLine(const char* line);      // pruebas: una sentencia como si llegara por la red

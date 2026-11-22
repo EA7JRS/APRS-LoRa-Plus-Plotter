@@ -81,6 +81,35 @@ int64_t navtexNextSlot(char b1, int64_t now) {
     return -1;
 }
 
+int navtexInOwnSlot(char b1, int64_t utc) {
+    int first = navtexFirstSlotMin(b1);
+    if (first < 0 || utc <= 0) return -1;
+    int min = (int)((utc / 60) % 240);
+    return ((min - first + 240) % 240) <= 13 ? 1 : 0;
+}
+
+// ---- reglas del receptor
+
+namespace {
+int quality(const NavtexMessage& m) { return m.satisfactory() ? 2 : m.complete ? 1 : 0; }   // 2 bien recibido, 1 entero con demasiados errores, 0 cortado
+double errOf(const NavtexMessage& m) { return m.errorPct < 0 ? 0 : m.errorPct; }
+}  // namespace
+
+bool navtexBetterCopy(const NavtexMessage& fresh, const NavtexMessage& old) {
+    int qn = quality(fresh), qo = quality(old);
+    if (qn != qo) return qn > qo;
+    if (qn == 0) return fresh.text.size() * (100.0 - errOf(fresh)) > old.text.size() * (100.0 - errOf(old));   // cortados: el que trae mas texto bueno
+    return errOf(fresh) < errOf(old);
+}
+
+NavtexVerdict navtexVerdict(const NavtexMessage& fresh, const NavtexMessage* old, int64_t now) {
+    if (!old) return NavtexVerdict::New;
+    if (now > 0 && old->heard > 0 && now - old->heard >= kNavtexIdentitySec) return NavtexVerdict::New;   // el numero se ha vuelto a usar
+    if (fresh.alwaysShown()) return NavtexVerdict::Better;
+    if (old->satisfactory()) return NavtexVerdict::Repeat;
+    return navtexBetterCopy(fresh, *old) ? NavtexVerdict::Better : NavtexVerdict::Repeat;
+}
+
 // ---- NRX
 
 namespace {
@@ -207,6 +236,8 @@ bool NrxAssembler::feed(const char* sentence) {
             pt.m.khz = khzOf(f[4]);
             pt.m.utc = utcOf(f[6], f[7], f[8], f[5]);
             pt.m.complete = f[11] != "V";
+            const int chars = atoi(f[9].c_str()), badc = atoi(f[10].c_str());
+            if (chars > 0 && !f[10].empty() && badc >= 0 && badc <= chars) pt.m.errorPct = 100.0 * badc / chars;
         }
         pt.lines[(size_t)num - 1] = body + "\x01";
         if (num == pt.total) {
@@ -236,15 +267,111 @@ bool NrxAssembler::take(NavtexMessage& out) {
     return true;
 }
 
-void NavtexLog::add(const NavtexMessage& m) {
-    for (size_t i = 0; i < items_.size(); i++)
-        if (items_[i].station == m.station && items_[i].subject == m.subject && items_[i].number == m.number && items_[i].khz == m.khz) {
-            items_.erase(items_.begin() + (long)i);
-            break;
-        }
+namespace {
+bool sameId(const NavtexMessage& a, const NavtexMessage& b) { return a.station == b.station && a.subject == b.subject && a.number == b.number && a.khz == b.khz; }
+}  // namespace
+
+NavtexVerdict NavtexLog::add(const NavtexMessage& in, int64_t now) {
+    NavtexMessage m = in;
+    if (m.heard == 0) m.heard = now;
+    for (size_t i = 0; i < gone_.size();)                             // borrados: se olvidan a las 72 h
+        if (now > 0 && gone_[i].at > 0 && now - gone_[i].at >= kNavtexIdentitySec) gone_.erase(gone_.begin() + (long)i); else i++;
+    if (!m.alwaysShown())
+        for (const Gone& g : gone_)
+            if (g.station == m.station && g.subject == m.subject && g.number == m.number && g.khz == m.khz) { seq_++; return NavtexVerdict::Repeat; }
+    size_t at = items_.size();
+    for (size_t i = 0; i < items_.size(); i++) if (sameId(items_[i], m)) { at = i; break; }
+    const NavtexVerdict v = navtexVerdict(m, at < items_.size() ? &items_[at] : nullptr, now);
+    seq_++;
+    if (v == NavtexVerdict::Repeat) { items_[at].repeats++; return v; }
+    if (at < items_.size()) {
+        if (v == NavtexVerdict::Better) { m.kept = items_[at].kept; if (!m.alwaysShown()) m.heard = items_[at].heard; m.repeats = items_[at].repeats; }
+        if (v == NavtexVerdict::Better || !items_[at].kept) items_.erase(items_.begin() + (long)at);   // un conservado no lo pisa el numero reutilizado
+    }
     items_.insert(items_.begin(), m);
-    if (items_.size() > kMax) items_.pop_back();
+    while (items_.size() > kMax) {                                    // sale el mas antiguo sin conservar
+        size_t k = items_.size();
+        while (k > 1 && items_[k - 1].kept) k--;
+        items_.erase(items_.begin() + (long)(k - 1));
+    }
+    fresh_++;
+    return v;
+}
+
+size_t NavtexLog::keptCount() const {
+    size_t n = 0;
+    for (const NavtexMessage& m : items_) if (m.kept) n++;
+    return n;
+}
+
+bool NavtexLog::keep(size_t i, bool on) {
+    if (i >= items_.size()) return false;
+    if (on && !items_[i].kept && keptCount() >= kMaxKept) return false;
+    items_[i].kept = on;
+    seq_++;
+    return true;
+}
+
+void NavtexLog::forget(const NavtexMessage& m, int64_t now) {
+    Gone g{m.station, m.subject, m.number, m.khz, now};
+    gone_.push_back(g);
+    if (gone_.size() > 2 * kMax) gone_.erase(gone_.begin());
+}
+
+void NavtexLog::remove(size_t i, int64_t now) {
+    if (i >= items_.size()) return;
+    forget(items_[i], now);
+    items_.erase(items_.begin() + (long)i);
     seq_++;
 }
+
+void NavtexLog::clear(int64_t now) {
+    for (size_t i = 0; i < items_.size();)
+        if (items_[i].kept) i++; else { forget(items_[i], now); items_.erase(items_.begin() + (long)i); }
+    seq_++;
+}
+
+// ---- ALR / ACK
+
+namespace {
+std::string withSum(const std::string& body) {
+    unsigned x = 0;
+    for (char c : body) x ^= (unsigned char)c;
+    char b[8];
+    snprintf(b, sizeof b, "*%02X\r\n", x);
+    return "$" + body + b;
+}
+}  // namespace
+
+bool parseNavtexAlr(const char* sentence, bool& active, bool& acknowledged) {
+    if (!sentence) return false;
+    std::string s(sentence);
+    while (!s.empty() && (s.back() == '\r' || s.back() == '\n')) s.pop_back();
+    size_t star = s.rfind('*');
+    if (star != std::string::npos && star + 3 == s.size()) {
+        unsigned sum = 0;
+        size_t from = (s[0] == '$' || s[0] == '!') ? 1 : 0;
+        for (size_t i = from; i < star; i++) sum ^= (unsigned char)s[i];
+        if (hexv(s[star + 1]) < 0 || hexv(s[star + 2]) < 0 || (unsigned)(hexv(s[star + 1]) * 16 + hexv(s[star + 2])) != sum) return false;
+        s.resize(star);
+    }
+    size_t c = s.find(',');
+    if (c == std::string::npos || c < 3 || s.compare(c - 3, 3, "ALR") != 0) return false;
+    std::vector<std::string> f;
+    size_t p = c + 1;
+    while (true) {
+        size_t q = s.find(',', p);
+        if (q == std::string::npos) { f.push_back(s.substr(p)); break; }
+        f.push_back(s.substr(p, q - p));
+        p = q + 1;
+    }
+    if (f.size() < 4 || atoi(f[1].c_str()) != 3 || f[1].empty()) return false;
+    if (c < 5 || s.compare(c - 5, 2, "CR") != 0) return false;        // la 003 es de NAVTEX solo si la dice un receptor NAVTEX (CR)
+    active = f[2] == "A";
+    acknowledged = f[3] == "A";
+    return true;
+}
+
+std::string navtexAckSentence() { return withSum("IIACK,003"); }
 
 }  // namespace plotter

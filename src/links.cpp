@@ -144,6 +144,8 @@ static plotter::NrxAssembler nrx;
 static plotter::NavtexLog navtexLog;
 
 static plotter::DscLog dscLog;
+static bool alrSeen = false, alrActive = false;
+static uint32_t alrMs = 0;
 
 plotter::NavtexLog& navtex() { return navtexLog; }
 plotter::DscLog& dsc() { return dscLog; }
@@ -157,11 +159,34 @@ static void extraLine(const char* line) {
         if (plotter::parseDscSentence(line, c)) { c.utc = tsync::now(); dscLog.add(c); }
         return;
     }
+    if (strstr(line, "ALR,")) {
+        bool act = false, ack = false;
+        if (plotter::parseNavtexAlr(line, act, ack)) { alrSeen = true; alrActive = act && !ack; alrMs = millis(); }
+        return;
+    }
     if (!strstr(line, "NRX,")) return;
     if (nrx.feed(line)) {
         plotter::NavtexMessage m;
-        while (nrx.take(m)) navtexLog.add(m);
+        while (nrx.take(m)) navtexLog.add(m, tsync::now());
     }
+}
+
+NavtexAlarm navtexAlarm() {
+    NavtexAlarm a;
+    a.seen = alrSeen;
+    a.ageMs = alrSeen ? (uint32_t)(millis() - alrMs) : 0;
+    a.active = alrSeen && alrActive && a.ageMs < 90000u;      // el receptor la repite cada 30 s: sin noticias en 90 s, no se sabe
+    return a;
+}
+
+bool navtexAck() {
+    alrActive = false;
+    if (settings::get().tcpKind == net::TCP_NMEA && net::status().tcp) {
+        const std::string s = plotter::navtexAckSentence();
+        net::sendTcp(s.c_str(), (int)s.size());
+        return true;
+    }
+    return false;
 }
 
 plotter::DeviationCard& deviationCard() { return devCard; }

@@ -22,6 +22,7 @@
 #include "current.h"
 #include "bearingfix.h"
 #include "radiotel.h"
+#include "coast.h"
 #include "deviation.h"
 #include "navtex.h"
 #include "dsc.h"
@@ -2437,6 +2438,35 @@ static void testDeviation() {
     CHECK(full.n == DeviationCard::kMax && near(full.p[0].compassHdg, 72.0, 1e-6));
 }
 
+static void testCoast() {
+    // una lista inventada, con la forma de la que saca tools/radiosenales (ninguna estacion real)
+    CoastStation l[4], s;
+    CHECK(parseCoastRecord("Punta Inventada;36.12500;-5.76300;V;002249901;83;6;", l[0]));
+    CHECK(std::strcmp(l[0].name, "Punta Inventada") == 0 && l[0].kind == 'V' && l[0].mmsi == 2249901 && l[0].channel == 83 && l[0].channel2 == 6 && l[0].khz == 0);
+    CHECK(parseCoastRecord("Cabo Falso;36.60000;-6.20000;V;002249901;28;;\r\n", l[1]) && l[1].channel2 == 0);
+    CHECK(parseCoastRecord("Centro Ficticio;36.03000;-5.55000;S;002249902;;;", l[2]) && l[2].kind == 'S' && l[2].channel == 0);
+    CHECK(parseCoastRecord("Onda Media;36.70000;-6.10000;M;002249901;;;1704.0", l[3]) && l[3].khz == 1704.0);
+    CHECK(!parseCoastRecord("# nombre;lat;lon;tipo;MMSI;canal;canal 2;kHz", s));
+    CHECK(!parseCoastRecord("", s) && !parseCoastRecord("Sin posicion;;;V;;;;", s));
+    CHECK(!parseCoastRecord("Mal tipo;36;-5;X;;;;", s) && !parseCoastRecord("Mal canal;36;-5;V;;99;;", s));
+    CHECK(!parseCoastRecord("MMSI corto;36;-5;V;2249901;;;", s) && !parseCoastRecord("Latitud;96;-5;V;;;;", s));
+    CHECK(parseCoastRecord("Solo lo justo;36;-5;S", s) && s.mmsi == 0);
+    char b[120];
+    CHECK(formatCoastRecord(b, sizeof b, l[0]) > 0 && std::strcmp(b, "Punta Inventada;36.12500;-5.76300;V;002249901;83;6;") == 0);
+    CHECK(formatCoastRecord(b, sizeof b, l[3]) > 0 && parseCoastRecord(b, s) && s.khz == 1704.0 && s.kind == 'M');
+    CHECK(formatCoastRecord(b, 10, l[0]) == 0);
+    // desde 36 N 005 45 W: la costera de VHF mas cercana es la primera (a 7,6 mn, casi al norte)
+    double d = 0, brg = 0;
+    CHECK(nearestCoast(l, 4, 'V', 36.0, -5.75, d, brg) == 0 && std::fabs(d - 7.53) < 0.1 && (brg > 350 || brg < 5));
+    CHECK(nearestCoast(l, 4, 'S', 36.0, -5.75, d, brg) == 2 && std::fabs(d - 9.87) < 0.2 && brg > 70 && brg < 90);
+    CHECK(nearestCoast(l, 4, 'M', 36.0, -5.75, d, brg) == 3);
+    CHECK(nearestCoast(l, 2, 'S', 36.0, -5.75, d, brg) == -1 && nearestCoast(l, 0, 'V', 36.0, -5.75, d, brg) == -1);
+    CHECK(coastLine(l[0], 7.6, 40, false) == "Punta Inventada a 8 mn \xC2\xB7 canal 83 (Salvamento 6) \xC2\xB7 LSD 002249901");
+    CHECK(coastLine(l[1], 52, 40, false) == "Cabo Falso a 52 mn (fuera de alcance) \xC2\xB7 canal 28 \xC2\xB7 LSD 002249901");
+    CHECK(coastLine(l[2], 9.9, 0, true) == "Centro Ficticio, 10 nm \xC2\xB7 DSC 002249902");
+    CHECK(coastLine(l[3], 60, 0, false) == "Onda Media a 60 mn \xC2\xB7 1704.0 kHz \xC2\xB7 LSD 002249901");
+}
+
 static void testDsc() {
     // la sentencia que manda la app APRS LoRa+ (y una emisora con LSD) con una alerta de socorro: 36 07 N 005 21 W a las 14:23
     DscCall c;
@@ -2612,6 +2642,7 @@ int main() {
     testDeviation();
     testNavtex();
     testDsc();
+    testCoast();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

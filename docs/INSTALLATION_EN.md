@@ -103,6 +103,7 @@ On the UART port, at 115200 baud:
 | `/charts/pnoa/<zoom>/<x>/<y>.jpeg` | PNOA aerial imagery |
 | `/waypoints.gpx` | Waypoints and the route; written by the plotter |
 | `/luces.txt` | Light list: `name;latitude;longitude;characteristic;height m;range nm` (optional) |
+| `/costeras.txt` | Coast stations and rescue centres: `name;latitude;longitude;type;MMSI;channel;channel 2;kHz` (optional; built from the PDF of the Spanish *Libro de Radioseñales* (IHM) with `tools/radiosenales/radiosenales.py`, for your own use only) |
 
 Tiles use the usual OpenStreetMap numbering (XYZ, 256 × 256). You have to copy them by hand: the plotter does not
 download them yet. Zooms 10 to 15 are enough to sail an area. Respect each provider's terms: do not bulk-download from

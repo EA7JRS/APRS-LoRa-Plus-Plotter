@@ -100,6 +100,7 @@ Por el puerto UART, a 115200 baudios:
 | `/charts/pnoa/<zoom>/<x>/<y>.jpeg` | Ortofoto PNOA |
 | `/waypoints.gpx` | Waypoints y la ruta; lo escribe el plotter |
 | `/luces.txt` | Lista de luces: `nombre;latitud;longitud;característica;altura m;alcance mn` (opcional) |
+| `/costeras.txt` | Costeras y centros de salvamento: `nombre;latitud;longitud;tipo;MMSI;canal;canal 2;kHz` (opcional; se saca del PDF del Libro de Radioseñales del IHM con `tools/radiosenales/radiosenales.py`, solo para tu uso) |
 
 Las teselas llevan la numeración habitual de OpenStreetMap (XYZ, 256 × 256). Hay que copiarlas a mano: el plotter aún
 no las descarga. Para navegar por una zona bastan los zooms 10 a 15. Respeta las condiciones de cada proveedor: no

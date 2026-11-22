@@ -42,6 +42,7 @@
 #include "current.h"
 #include "bearingfix.h"
 #include "radiotel.h"
+#include "coast.h"
 #include "vessel.h"
 #include "wmm.h"
 #include "wxcalc.h"
@@ -175,6 +176,8 @@ static RouteFollower nav;
 // que saca tools/faros/libro_faros.py del Libro de Faros del IHM, para uso personal)
 static std::vector<LightRecord> lightList;
 static const char* kLightFile = "S:/luces.txt";
+static std::vector<CoastStation> coastList;             // costeras y centros de salvamento: lista propia de la tarjeta
+static const char* kCoastFile = "S:/costeras.txt";
 static const int kLightMarks = 40;
 static lv_obj_t* lightDot[kLightMarks] = {};
 static lv_obj_t* lightLbl[kLightMarks] = {};
@@ -1614,6 +1617,25 @@ static void loadLights() {
         }
     }
     if (!line.empty() && parseLightRecord(line.c_str(), r)) lightList.push_back(r);
+    lv_fs_close(&f);
+}
+
+static void loadCoast() {
+    lv_fs_file_t f;
+    if (lv_fs_open(&f, kCoastFile, LV_FS_MODE_RD) != LV_FS_RES_OK) return;           // sin lista: Radio no dice a quien llamar
+    coastList.clear();
+    std::string line;
+    char buf[256];
+    uint32_t br = 0;
+    CoastStation r;
+    while (coastList.size() < 400 && lv_fs_read(&f, buf, sizeof(buf), &br) == LV_FS_RES_OK && br > 0) {
+        for (uint32_t i = 0; i < br; i++) {
+            if (buf[i] != '\n') { if (line.size() < 160) line += buf[i]; continue; }
+            if (parseCoastRecord(line.c_str(), r)) coastList.push_back(r);
+            line.clear();
+        }
+    }
+    if (!line.empty() && parseCoastRecord(line.c_str(), r)) coastList.push_back(r);
     lv_fs_close(&f);
 }
 
@@ -4672,6 +4694,8 @@ static lv_obj_t* rtNatLbl = nullptr;
 static lv_obj_t* rtPobLbl = nullptr;
 static lv_obj_t* rtText = nullptr;
 static lv_obj_t* rtHint = nullptr;
+static lv_obj_t* rtCoast = nullptr;                    // a quien llamar: la costera de VHF y el centro de salvamento mas cercanos
+static lv_obj_t* rtPanel = nullptr;
 static int rtKind = 0;
 static int rtNature[4] = {7, 7, 0, 0};                    // MAYDAY y RELAY: «peligro grave e inminente» de partida
 static uint32_t rtRefreshMs = 0;
@@ -4714,6 +4738,20 @@ static void rtRefresh() {
         }
     }
     lv_label_set_text(rtText, plotter::radiotelMessage(in).c_str());
+    {
+        // de la lista de la tarjeta (costeras.txt); sin lista o sin situacion no se dice nada
+        std::string c;
+        if (in.hasPos && !coastList.empty()) {
+            double d = 0, brg = 0;
+            const bool en = st.radioLang;
+            int i = plotter::nearestCoast(coastList.data(), (int)coastList.size(), 'V', in.lat, in.lon, d, brg);
+            if (i >= 0) c = std::string(en ? "Coast station: " : "Costera: ") + plotter::coastLine(coastList[i], d, 40, en);
+            i = plotter::nearestCoast(coastList.data(), (int)coastList.size(), 'S', in.lat, in.lon, d, brg);
+            if (i >= 0) c += std::string(c.empty() ? "" : "\n") + (en ? "Rescue centre: " : "Salvamento: ") + plotter::coastLine(coastList[i], d, 0, en);
+        }
+        lv_label_set_text(rtCoast, c.c_str());
+        lv_obj_set_height(rtPanel, c.empty() ? 396 : 346);
+    }
     char b[160];
     snprintf(b, sizeof(b), "%s", plotter::rtNatureName(in.kind, in.nature, in.lang));
     lv_label_set_text(rtNatLbl, b);
@@ -4784,7 +4822,7 @@ static void makeRadio() {
     lv_obj_set_pos(rtPobLbl, 652, 78);
     b = textButton(rtScr, "Idioma: ES", 160, 48, onRadioBtn, 5); lv_obj_set_pos(b, 848, 64);
     rtLangLbl = lv_obj_get_child(b, 0);
-    lv_obj_t* panel = box(rtScr, C_PANEL, 10);
+    lv_obj_t* panel = rtPanel = box(rtScr, C_PANEL, 10);
     lv_obj_set_pos(panel, 16, 122);
     lv_obj_set_size(panel, 992, 396);
     lv_obj_set_style_pad_all(panel, 14, 0);
@@ -4792,6 +4830,10 @@ static void makeRadio() {
     rtText = label(panel, "", &dejavu_bold_20, C_TEXT);
     lv_obj_set_width(rtText, 960);
     lv_obj_set_style_text_line_space(rtText, 6, 0);
+    rtCoast = label(rtScr, "", &dejavu_bold_16, C_ACC);
+    lv_obj_set_pos(rtCoast, 16, 474);
+    lv_obj_set_width(rtCoast, 992);
+    lv_label_set_long_mode(rtCoast, LV_LABEL_LONG_DOT);
     rtHint = label(rtScr, "", &dejavu_14, C_SOFT);
     lv_obj_set_pos(rtHint, 16, 526);
     lv_obj_set_width(rtHint, 992);
@@ -4809,6 +4851,9 @@ static void openRadio(int kind, int nature) {
 static void onRadioOpen(lv_event_t*) { openRadio(-1, -1); }
 
 // Para las pruebas en el PC
+// Para las pruebas en el PC: vuelve a leer la lista de costeras de la tarjeta
+void testCoast() { loadCoast(); }
+
 void testRadio(int kind, int nature, int lang) {
     settings::Values& st = settings::get();
     if (!st.vesselName[0]) {                              // datos inventados para el dibujo
@@ -4965,6 +5010,7 @@ void begin(DataStore* s) {
     makeModal();
     loadWaypoints();
     loadLights();
+    loadCoast();
     loadNavtex();
     applyUnits();
     setBaseMap(settings::get().baseMap);

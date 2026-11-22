@@ -2540,20 +2540,12 @@ static void testNavtex() {
     for (size_t i = 0; i < NavtexLog::kMaxKept; i++) CHECK(k.keep(i, true));
     CHECK(!k.keep(NavtexLog::kMaxKept, true) && k.keptCount() == NavtexLog::kMaxKept && NavtexLog::kMaxKept == 15);
     CHECK(k.keep(0, false) && k.keep(NavtexLog::kMaxKept, true));
-    k.clear(t12 + 100);
-    CHECK(k.items().size() == NavtexLog::kMaxKept);                                             // vaciar respeta los conservados
-    y.number = 20;                                                                             // el 20 se borro con clear (ya no era conservado)
-    CHECK(k.add(y, t12 + 200) == NavtexVerdict::Repeat && k.items().size() == NavtexLog::kMaxKept);
-    CHECK(k.add(y, t12 + 100 + 72 * 3600) == NavtexVerdict::New);                               // a las 72 h vuelve a entrar
     {
         NavtexLog f;
         y.number = 50; f.add(y, t12); f.keep(0, true);
         for (int i = 0; i < 70; i++) { y.number = 51 + i % 40; y.khz = i < 40 ? 518 : 490; f.add(y, t12 + 1 + i); }
         bool has = false; for (const NavtexMessage& q : f.items()) if (q.number == 50 && q.kept) has = true;
         CHECK(f.items().size() == NavtexLog::kMax && has);                                      // el conservado no sale al llenarse
-        y.khz = 518;
-        size_t n = f.items().size(); f.remove(0, t12 + 500);
-        CHECK(f.items().size() == n - 1);
     }
     {   // guardar y leer la lista (tarjeta)
         NavtexLog a1, b1;
@@ -2562,15 +2554,13 @@ static void testNavtex() {
         a1.add(z, t12 + 10);
         z.number = 6; z.khz = 4209.5; z.errorPct = -1; z.complete = false; z.text = "CUT"; a1.add(z, t12 + 20);
         z.number = 7; z.khz = 490; a1.add(z, t12 + 30);
-        a1.keep(2, true); a1.remove(0, t12 + 40);                                               // se borra el 7, se conserva el 5
+        a1.keep(2, true);                                                                       // se conserva el 5
         const std::string txt = a1.save();
-        CHECK(b1.load(txt + "M;GA09;518.0;1;1;1;0.0;0;0;RESTO DE UN FICHERO ANTERIOR\n", t12 + 50) == 2 && b1.save() == txt);
-        CHECK(b1.items()[1].kept && b1.items()[1].text == "WRECK; IN 36-07.5N 005-21.2W\nBACK\\SLASH" && b1.items()[1].positions.size() == 1);
-        CHECK(b1.items()[0].khz == 4209.5 && !b1.items()[0].complete && b1.items()[0].errorPct < 0 && b1.items()[1].heard == t12 + 10);
-        z.number = 7; z.khz = 490; z.complete = true;
-        CHECK(b1.add(z, t12 + 60) == NavtexVerdict::Repeat && b1.items().size() == 2);           // el borrado se sigue recordando
+        CHECK(b1.load(txt + "M;GA09;518.0;1;1;1;0.0;0;0;RESTO DE UN FICHERO ANTERIOR\n", t12 + 50) == 3 && b1.save() == txt);
+        CHECK(b1.items()[2].kept && b1.items()[2].text == "WRECK; IN 36-07.5N 005-21.2W\nBACK\\SLASH" && b1.items()[2].positions.size() == 1);
+        CHECK(b1.items()[1].khz == 4209.5 && !b1.items()[1].complete && b1.items()[1].errorPct < 0 && b1.items()[2].heard == t12 + 10);
         NavtexLog c1;
-        CHECK(c1.load(txt, t12 + 40 + 72 * 3600) == 2 && c1.add(z, t12 + 41 + 72 * 3600) == NavtexVerdict::New);
+        CHECK(c1.load("G;GA07;490.0;5\n" + txt, t12) == 3);                                     // una linea de borrado de una version anterior
         CHECK(c1.load("basura\nM;GA05\nM;??;1;2;3;4;5;6;7;x\n", t12) == 0 && c1.items().empty());
     }
     // alarma 003 de IEC 61097-6
@@ -2580,6 +2570,27 @@ static void testNavtex() {
     CHECK(!parseNavtexAlr("$CRALR,140230.00,001,A,V,x", act, ack) && !parseNavtexAlr("$GPALR,140230.00,003,A,V,x", act, ack));
     CHECK(!parseNavtexAlr("$CRALR,140230.00,003,A,V,x*00", act, ack) && !parseNavtexAlr("$CRNRX,GA05,1,1,518,,,,,,x", act, ack));
     CHECK(navtexAckSentence() == withSum("IIACK,003") + "\r\n");
+    // gestion de alertas del puente: ALF del receptor (como la escribe Navtex 1.7.0) y ACN
+    char st = 0; int inst = 0;
+    CHECK(parseNavtexAlf("$CRALF,1,1,0,122537.00,B,W,V,,3,1,2,0,NAVTEX SAR*5B", st, inst) && st == 'V' && inst == 1 && navtexAlfUnack(st));
+    CHECK(parseNavtexAlf("$CRALF,1,1,0,122607.00,B,W,N,,3,1,3,0,NAVTEX SAR*42", st, inst) && st == 'N' && !navtexAlfUnack(st));
+    CHECK(!parseNavtexAlf("$CRALF,1,1,0,122607.00,B,W,N,,3,1,3,0,NAVTEX SAR*00", st, inst));
+    CHECK(!parseNavtexAlf(withSum("CRALF,1,1,0,122607.00,B,W,V,FEC,3,1,3,0,X").c_str(), st, inst) && !parseNavtexAlf(withSum("CRALF,1,1,0,122607.00,B,W,V,,7,1,3,0,X").c_str(), st, inst));
+    CHECK(!parseNavtexAlf(withSum("GPALF,1,1,0,122607.00,B,W,V,,3,1,3,0,X").c_str(), st, inst));
+    CHECK(navtexAcnSentence() == withSum("IIACN,,,3,1,A,C") + "\r\n");
+    // filtros del receptor: NRM (las tres que contesta Navtex a CRQ) y la orden
+    NavtexMask nm;
+    CHECK(parseNavtexNrm("$CRNRM,1,1,03FFFFFF,0000083F*3E", nm) && nm.function == 1 && nm.khz == 490 && nm.stations == kNavtexAllLetters && nm.subjects == 0x83Fu);
+    CHECK(parseNavtexNrm("$CRNRM,1,3,03FFFFFF,0000083F*3C", nm) && nm.khz == 4209.5);
+    CHECK(parseNavtexNrm(withSum("CRNRM,1,2,FC000041,0000000B").c_str(), nm) && nm.khz == 518 && nm.stations == 0x41u && nm.subjects == 0xBu);   // reservados fuera
+    CHECK(!parseNavtexNrm("$CRNRM,1,1,03FFFFFF,0000083F*00", nm) && !parseNavtexNrm(withSum("CRNRM,1,4,03FFFFFF,0000083F").c_str(), nm));
+    CHECK(!parseNavtexNrm(withSum("CRNRM,1,1,3FFFFFF,0000083F").c_str(), nm) && !parseNavtexNrm(withSum("CRNRM,1,1,03FFFFFG,0000083F").c_str(), nm));
+    nm.function = 1; nm.khz = 518; nm.stations = (1u << 6) | (1u << 23); nm.subjects = 1u << 4;          // G y X; solo E: A, B, D y L van siempre
+    CHECK(navtexNrmSentence(nm) == withSum("IINRM,1,2,00800040,0000081B") + "\r\n");
+    NavtexMask back;
+    CHECK(parseNavtexNrm(navtexNrmSentence(nm).c_str(), back) && back.stations == nm.stations && back.subjects == 0x81Bu);
+    CHECK(navtexNrmQuery() == withSum("IICRQ,NRM") + "\r\n" && navtexNrmQuery().size() == 15 && navtexFreqIndex(490) == 1 && navtexFreqIndex(4209.5) == 3);
+    CHECK(kNavtexFixedSubjects == 0x80Bu);
 }
 
 int main() {

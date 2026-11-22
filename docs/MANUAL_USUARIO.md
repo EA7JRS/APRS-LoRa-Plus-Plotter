@@ -350,19 +350,28 @@ La lista sigue las reglas de un receptor NAVTEX (OMI MSC.508(105), Manual NAVTEX
   4 % de caracteres erróneos) o **mal recibido**, y si llegó en el turno de diez minutos de su estación.
 - La repetición de un mensaje bien recibido **no vuelve a salir en 72 horas** (solo suma «repetido»); una copia mejor
   sustituye a una peor; los de número **00** se muestran siempre.
-- *Conservar* guarda un mensaje (hasta 15, el 25 % de los 60 de la lista): no sale al llenarse ni con *Borrar todos*.
-- *Borrar* quita uno; su repetición tampoco vuelve en 72 horas. Un receptor homologado no deja borrar los mensajes antes
-  de tiempo: aquí se puede porque el plotter es una pantalla auxiliar.
+- *Conservar* guarda un mensaje (hasta 15, el 25 % de los 60 de la lista): no sale al llenarse la lista.
+- Los mensajes **no se pueden borrar a mano** (MSC.508(105), 6.1.1): cuando la lista se llena sale el más antiguo sin
+  conservar.
 
 La lista se guarda en la tarjeta (`/navtex.txt`, a los 5 s de cada cambio) y se lee al arrancar: los conservados y lo ya
 visto en las últimas 72 horas siguen ahí tras apagar. Sin tarjeta se queda en la memoria y se pierde al apagar.
 
 ![NAVTEX](img/navtex_lista.png)
 
+**Filtros del receptor.** El botón *Filtros* enseña qué estaciones (letra B1) y qué asuntos (letra B2) guarda el receptor
+en cada frecuencia, y deja cambiarlos: se tocan las letras y *Enviar al receptor*. Los asuntos A, B, D y L no se pueden
+quitar. Usa las sentencias `NRM` y `CRQ` de IEC 61097-6, así que necesita el programa Navtex (u otro receptor que las
+entienda) como servidor «TCP: NMEA» de Ajustes > Red; por UDP, Bluetooth o el RS485 no hay camino de vuelta.
+
+![Filtros](img/navtex_filtros.png)
+
 Un mensaje de asunto **D** (búsqueda y salvamento, socorro, piratería) abre la ventana **NAVTEX SAR / DISTRESS** con el
 texto; *LIST* lleva a la lista y *CLOSE* la cierra (ese mensaje no vuelve a abrirla). Si el receptor manda la alarma
 de IEC 61097-6 (sentencia `ALR`, alarma 003) y está conectado como servidor TCP de NMEA, al cerrar la ventana el plotter
 le contesta `$IIACK,003` y la alarma queda reconocida también allí; y si se reconoce en el receptor, la ventana se cierra.
+Con un receptor que use la gestión de alertas del puente (sentencia `ALF`; en Navtex, el ajuste `nrx.bam`), el plotter
+la lee y reconoce con `ACN`.
 
 ![NAVTEX SAR](img/navtex_alerta.png)
 

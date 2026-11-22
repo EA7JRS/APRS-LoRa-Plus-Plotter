@@ -12,8 +12,10 @@
 // La lista sigue las reglas de un receptor NAVTEX (OMI MSC.508(105), 6.2; Manual NAVTEX de 2023, 6.2 y 7.5; UIT-R M.540-2):
 // la identidad B1B2B3B4 de un mensaje bien recibido (entero y con menos de un 4 % de caracteres erroneos) se recuerda 72 h y
 // su repeticion no vuelve a mostrarse; una copia mejor sustituye a una peor; B3B4 = 00 se muestra siempre; lo que el usuario
-// marca para conservar no se pierde al llenarse la lista. Alarma de busqueda y salvamento para otros equipos: ALR 003 de
-// IEC 61097-6 ($CRALR,hhmmss.00,003,A,V,texto), que se reconoce con $--ACK,003.
+// marca para conservar no se pierde al llenarse la lista; el usuario no puede borrar mensajes (MSC.508(105), 6.1.1): salen
+// solos, el mas antiguo sin conservar cuando la lista se llena. Alarma de busqueda y salvamento para otros equipos: ALR 003
+// de IEC 61097-6 ($CRALR,hhmmss.00,003,A,V,texto), que se reconoce con $--ACK,003; y, si el receptor habla la gestion de
+// alertas del puente (MSC.302(87), IEC 62923), la sentencia ALF, que se reconoce con ACN. Filtros del receptor: NRM y CRQ.
 #ifndef PLOTTER_NAVTEX_H_
 #define PLOTTER_NAVTEX_H_
 
@@ -62,6 +64,23 @@ NavtexVerdict navtexVerdict(const NavtexMessage& fresh, const NavtexMessage* old
 bool parseNavtexAlr(const char* sentence, bool& active, bool& acknowledged);
 std::string navtexAckSentence();                    // "$IIACK,003*hh\r\n": reconoce la alarma en el receptor
 
+// Gestion de alertas del puente: $CRALF,1,1,0,hhmmss.00,B,W,V,,3,1,rev,0,NAVTEX SAR (solo la alerta 3 de un receptor NAVTEX,
+// sin codigo de fabricante). state: V sin reconocer, S silenciada, A reconocida, N normal, U, O. unack = V o S.
+bool parseNavtexAlf(const char* sentence, char& state, int& instance);
+inline bool navtexAlfUnack(char state) { return state == 'V' || state == 'S'; }
+std::string navtexAcnSentence(int instance = 1);    // "$IIACN,,,3,1,A,C*hh\r\n": reconoce la alerta (orden A)
+
+// Filtros del receptor (IEC 61097-6, anexo C.2): $--NRM,funcion,frecuencia,estaciones,asuntos; funcion 1 = lo que se guarda;
+// frecuencia 1 = 490, 2 = 518, 3 = 4209,5 kHz; mascaras de 32 bits en hexadecimal, bit 0 = letra A. Los asuntos A, B, D y L
+// no se pueden excluir (IEC 61097-6, 4.3.7).
+const uint32_t kNavtexAllLetters = 0x03FFFFFFu;
+const uint32_t kNavtexFixedSubjects = (1u << 0) | (1u << 1) | (1u << 3) | (1u << 11);   // A, B, D, L
+struct NavtexMask { int function = 1; double khz = 518; uint32_t stations = kNavtexAllLetters; uint32_t subjects = kNavtexAllLetters; };
+bool parseNavtexNrm(const char* sentence, NavtexMask& out);
+std::string navtexNrmSentence(const NavtexMask& m);  // "$IINRM,1,2,03FFFFFF,0000083F*hh\r\n"
+std::string navtexNrmQuery();                        // "$IICRQ,NRM*hh\r\n": el receptor contesta con sus tres NRM
+int navtexFreqIndex(double khz);                     // 1, 2 o 3
+
 // Monta mensajes a partir de sentencias NRX (con o sin "$", con o sin suma). feed() devuelve true cuando hay un mensaje en take().
 class NrxAssembler {
 public:
@@ -86,18 +105,13 @@ public:
     uint32_t fresh() const { return fresh_; }       // cambia solo con un mensaje nuevo o una copia mejor (lo que hay que mostrar)
     bool keep(size_t i, bool on);                   // false si ya hay kMaxKept conservados
     size_t keptCount() const;
-    void remove(size_t i, int64_t nowUnix = 0);     // borrado: su repeticion no vuelve a salir en 72 h
-    void clear(int64_t nowUnix = 0);                // borra todos menos los conservados
     // Para guardar la lista en la tarjeta: una linea por mensaje ("M;B1B2B3B4;kHz;utc;oido;entero;error;repetido;conservado;texto",
-    // con \n y \\ escapados en el texto) y por borrado que aun se recuerda ("G;B1B2B3B4;kHz;cuando")
+    // con \n y \\ escapados en el texto)
     std::string save() const;
     int load(const std::string& text, int64_t nowUnix = 0);   // sustituye la lista; devuelve los mensajes leidos
 private:
-    struct Gone { char station, subject; int number; double khz; int64_t at; };
     std::vector<NavtexMessage> items_;
-    std::vector<Gone> gone_;
     uint32_t seq_ = 0, fresh_ = 0;
-    void forget(const NavtexMessage& m, int64_t nowUnix);
 };
 
 }  // namespace plotter

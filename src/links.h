@@ -74,7 +74,12 @@ plotter::NavtexLog& navtex();
 // Alarma 003 del receptor NAVTEX (sentencia ALR): active = el receptor la tiene sin reconocer; ageMs = cuanto hace de la ultima ALR
 struct NavtexAlarm { bool seen = false; bool active = false; uint32_t ageMs = 0; };
 NavtexAlarm navtexAlarm();
-bool navtexAck();                       // manda $IIACK,003 al receptor (servidor TCP NMEA conectado); false si no hay por donde
+bool navtexAck();                       // reconoce la alarma en el receptor (ACN si habla gestion de alertas, si no ACK); false si no hay por donde
+// Filtros del receptor NAVTEX (NRM): lo que contesto a la ultima consulta, por frecuencia (0 = 490, 1 = 518, 2 = 4209,5 kHz)
+struct NavtexFilters { plotter::NavtexMask m[3]; bool have[3] = {false, false, false}; bool link = false; };
+NavtexFilters navtexFilters();
+bool navtexAskFilters();                // $IICRQ,NRM al receptor; false si no hay enlace TCP NMEA
+bool navtexSetFilter(const plotter::NavtexMask& m);   // $IINRM,1,...; el receptor contesta con lo que queda
 // Llamadas LSD / DSC (sentencia DSC de una emisora con LSD o de la app APRS LoRa+)
 plotter::DscLog& dsc();
 void injectLine(const char* line);      // pruebas: una sentencia como si llegara por la red

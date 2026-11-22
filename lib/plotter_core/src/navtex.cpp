@@ -331,6 +331,73 @@ void NavtexLog::clear(int64_t now) {
     seq_++;
 }
 
+std::string NavtexLog::save() const {
+    std::string o = "# NAVTEX 1\n";
+    char b[160];
+    for (const NavtexMessage& m : items_) {
+        snprintf(b, sizeof b, "M;%s;%.1f;%lld;%lld;%d;%.1f;%d;%d;", m.id().c_str(), m.khz, (long long)m.utc, (long long)m.heard, m.complete ? 1 : 0,
+                 m.errorPct, m.repeats, m.kept ? 1 : 0);
+        o += b;
+        for (char c : m.text) { if (c == '\n') o += "\\n"; else if (c == '\\') o += "\\\\"; else if (c != '\r') o += c; }
+        o += '\n';
+    }
+    for (const Gone& g : gone_) {
+        snprintf(b, sizeof b, "G;%c%c%02d;%.1f;%lld\n", g.station, g.subject, g.number % 100, g.khz, (long long)g.at);
+        o += b;
+    }
+    o += "# END\n";                                                  // lo que quede detras (un fichero anterior mas largo) no se lee
+    return o;
+}
+
+int NavtexLog::load(const std::string& text, int64_t now) {
+    items_.clear();
+    gone_.clear();
+    size_t p = 0;
+    while (p < text.size()) {
+        size_t e = text.find('\n', p);
+        if (e == std::string::npos) e = text.size();
+        std::string l = text.substr(p, e - p);
+        p = e + 1;
+        if (!l.empty() && l.back() == '\r') l.pop_back();
+        if (l.compare(0, 5, "# END") == 0) break;
+        if (l.size() < 4 || l[1] != ';' || (l[0] != 'M' && l[0] != 'G')) continue;
+        std::vector<std::string> f;
+        size_t q = 2;
+        const size_t want = l[0] == 'M' ? 8 : 2;                      // campos antes del ultimo (el texto puede llevar ';')
+        while (f.size() < want) {
+            size_t r = l.find(';', q);
+            if (r == std::string::npos) break;
+            f.push_back(l.substr(q, r - q));
+            q = r + 1;
+        }
+        if (f.size() != want || !isCode(f[0])) continue;
+        const std::string last = l.substr(q);
+        if (l[0] == 'G') {
+            Gone g{f[0][0], f[0][1], atoi(f[0].c_str() + 2), atof(f[1].c_str()), atoll(last.c_str())};
+            if (now > 0 && g.at > 0 && now - g.at >= kNavtexIdentitySec) continue;
+            if (gone_.size() < 2 * kMax) gone_.push_back(g);
+            continue;
+        }
+        if (items_.size() >= kMax) continue;
+        NavtexMessage m;
+        m.station = f[0][0]; m.subject = f[0][1]; m.number = atoi(f[0].c_str() + 2);
+        m.khz = atof(f[1].c_str());
+        m.utc = atoll(f[2].c_str()); m.heard = atoll(f[3].c_str());
+        m.complete = f[4] == "1";
+        m.errorPct = atof(f[5].c_str());
+        m.repeats = atoi(f[6].c_str());
+        m.kept = f[7] == "1" && keptCount() < kMaxKept;
+        for (size_t i = 0; i < last.size(); i++) {
+            if (last[i] == '\\' && i + 1 < last.size()) { m.text += last[i + 1] == 'n' ? '\n' : last[i + 1]; i++; }
+            else m.text += last[i];
+        }
+        navWarningPositions(m.text, m.positions);
+        items_.push_back(m);
+    }
+    seq_++;
+    return (int)items_.size();
+}
+
 // ---- ALR / ACK
 
 namespace {

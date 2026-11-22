@@ -88,6 +88,10 @@ public:
     size_t keptCount() const;
     void remove(size_t i, int64_t nowUnix = 0);     // borrado: su repeticion no vuelve a salir en 72 h
     void clear(int64_t nowUnix = 0);                // borra todos menos los conservados
+    // Para guardar la lista en la tarjeta: una linea por mensaje ("M;B1B2B3B4;kHz;utc;oido;entero;error;repetido;conservado;texto",
+    // con \n y \\ escapados en el texto) y por borrado que aun se recuerda ("G;B1B2B3B4;kHz;cuando")
+    std::string save() const;
+    int load(const std::string& text, int64_t nowUnix = 0);   // sustituye la lista; devuelve los mensajes leidos
 private:
     struct Gone { char station, subject; int number; double khz; int64_t at; };
     std::vector<NavtexMessage> items_;

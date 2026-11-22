@@ -2555,6 +2555,24 @@ static void testNavtex() {
         size_t n = f.items().size(); f.remove(0, t12 + 500);
         CHECK(f.items().size() == n - 1);
     }
+    {   // guardar y leer la lista (tarjeta)
+        NavtexLog a1, b1;
+        NavtexMessage z; z.station = 'G'; z.subject = 'A'; z.number = 5; z.khz = 518; z.utc = t12; z.errorPct = 1.5;
+        z.text = "WRECK; IN 36-07.5N 005-21.2W\nBACK\\SLASH";
+        a1.add(z, t12 + 10);
+        z.number = 6; z.khz = 4209.5; z.errorPct = -1; z.complete = false; z.text = "CUT"; a1.add(z, t12 + 20);
+        z.number = 7; z.khz = 490; a1.add(z, t12 + 30);
+        a1.keep(2, true); a1.remove(0, t12 + 40);                                               // se borra el 7, se conserva el 5
+        const std::string txt = a1.save();
+        CHECK(b1.load(txt + "M;GA09;518.0;1;1;1;0.0;0;0;RESTO DE UN FICHERO ANTERIOR\n", t12 + 50) == 2 && b1.save() == txt);
+        CHECK(b1.items()[1].kept && b1.items()[1].text == "WRECK; IN 36-07.5N 005-21.2W\nBACK\\SLASH" && b1.items()[1].positions.size() == 1);
+        CHECK(b1.items()[0].khz == 4209.5 && !b1.items()[0].complete && b1.items()[0].errorPct < 0 && b1.items()[1].heard == t12 + 10);
+        z.number = 7; z.khz = 490; z.complete = true;
+        CHECK(b1.add(z, t12 + 60) == NavtexVerdict::Repeat && b1.items().size() == 2);           // el borrado se sigue recordando
+        NavtexLog c1;
+        CHECK(c1.load(txt, t12 + 40 + 72 * 3600) == 2 && c1.add(z, t12 + 41 + 72 * 3600) == NavtexVerdict::New);
+        CHECK(c1.load("basura\nM;GA05\nM;??;1;2;3;4;5;6;7;x\n", t12) == 0 && c1.items().empty());
+    }
     // alarma 003 de IEC 61097-6
     bool act = false, ack = true;
     CHECK(parseNavtexAlr(withSum("CRALR,140200.00,003,A,V,NAVTEX: Search and rescue information").c_str(), act, ack) && act && !ack);

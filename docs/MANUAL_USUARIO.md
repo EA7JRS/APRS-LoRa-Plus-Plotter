@@ -354,7 +354,8 @@ La lista sigue las reglas de un receptor NAVTEX (OMI MSC.508(105), Manual NAVTEX
 - *Borrar* quita uno; su repetición tampoco vuelve en 72 horas. Un receptor homologado no deja borrar los mensajes antes
   de tiempo: aquí se puede porque el plotter es una pantalla auxiliar.
 
-La lista vive en la memoria: se vacía al apagar el plotter (el receptor conserva los suyos).
+La lista se guarda en la tarjeta (`/navtex.txt`, a los 5 s de cada cambio) y se lee al arrancar: los conservados y lo ya
+visto en las últimas 72 horas siguen ahí tras apagar. Sin tarjeta se queda en la memoria y se pierde al apagar.
 
 ![NAVTEX](img/navtex_lista.png)
 

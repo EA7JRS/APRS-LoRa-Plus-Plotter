@@ -1003,8 +1003,41 @@ static void closeNavtexModal() {
     closeModal();
 }
 
+// La lista se guarda en la tarjeta (S:/navtex.txt) a los 5 s del ultimo cambio y se lee al arrancar: asi los conservados y
+// lo ya visto en las ultimas 72 h siguen tras apagar. Sin tarjeta se queda en memoria.
+static const char* kNavtexFile = "S:/navtex.txt";
+static uint32_t nvSavedSeq = 0, nvDirtyMs = 0, nvDirtySeq = 0;
+static void loadNavtex() {
+    lv_fs_file_t f;
+    if (lv_fs_open(&f, kNavtexFile, LV_FS_MODE_RD) != LV_FS_RES_OK) return;
+    std::string all;
+    char buf[512];
+    uint32_t br = 0;
+    while (all.size() < 200000 && lv_fs_read(&f, buf, sizeof(buf), &br) == LV_FS_RES_OK && br > 0) all.append(buf, br);
+    lv_fs_close(&f);
+    plotter::NavtexLog& log = links::navtex();
+    log.load(all, tsync::now());
+    for (const plotter::NavtexMessage& m : log.items())     // lo que ya estaba guardado no vuelve a abrir la ventana
+        if (m.urgent() && nvShown.size() < 40) nvShown.push_back(m.id() + "@" + std::to_string((int)m.khz));
+    nvSavedSeq = nvDirtySeq = nvSeq = log.seq();
+}
+static void saveNavtexIfDue() {
+    const plotter::NavtexLog& log = links::navtex();
+    if (log.seq() == nvSavedSeq) return;
+    if (log.seq() != nvDirtySeq) { nvDirtySeq = log.seq(); nvDirtyMs = millis(); return; }
+    if (millis() - nvDirtyMs < 5000u) return;
+    nvSavedSeq = log.seq();
+    lv_fs_file_t f;
+    if (lv_fs_open(&f, kNavtexFile, LV_FS_MODE_WR) != LV_FS_RES_OK) return;      // sin tarjeta: se queda en memoria
+    const std::string s = log.save();
+    uint32_t bw = 0;
+    lv_fs_write(&f, s.data(), (uint32_t)s.size(), &bw);
+    lv_fs_close(&f);
+}
+
 static void refreshNavtexList();
 static void checkNavtex() {
+    saveNavtexIfDue();
     const plotter::NavtexLog& log = links::navtex();
     if (log.seq() == nvSeq) return;
     nvSeq = log.seq();
@@ -3284,6 +3317,8 @@ void testNavtex(bool list) {
         "$CRNRX,XD12,1,2,518,15,11,2026,140200,1.2,MAYDAY RELAY. YACHT TAKING WATER IN 3810N 00012W",
         "$CRNRX,XD12,2,2,518,15,11,2026,140200,1.2,VESSELS IN VICINITY KEEP SHARP LOOKOUT AND REPORT TO MRCC VALENCIA",
     };
+    links::navtex().load("");                            // el dibujo no depende de lo que hubiera en la tarjeta de pruebas
+    nvShown.clear();
     for (const char* l : lines) links::injectLine(l);
     if (list) { closeModal(); nvShown.push_back("XD12@518"); openNavtexList(); }
 }
@@ -4817,6 +4852,7 @@ void begin(DataStore* s) {
     makeModal();
     loadWaypoints();
     loadLights();
+    loadNavtex();
     applyUnits();
     setBaseMap(settings::get().baseMap);
     {                                                     // fondeo que estaba vigilado antes de apagar o reiniciar

@@ -360,7 +360,8 @@ The list follows the rules of a NAVTEX receiver (IMO MSC.508(105), NAVTEX Manual
 - *Borrar* (delete) removes one; its repeat does not come back for 72 hours either. A type-approved receiver does not let
   messages be deleted early: here it is possible because the plotter is an auxiliary display.
 
-The list lives in memory: it is emptied when the plotter is switched off (the receiver keeps its own).
+The list is saved on the card (`/navtex.txt`, 5 s after each change) and read at start-up: kept messages and what was
+seen in the last 72 hours are still there after switching off. Without a card it stays in memory and is lost on power-off.
 
 ![NAVTEX](img/navtex_lista.png)
 

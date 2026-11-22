@@ -31,6 +31,7 @@ void testCt(const char* star, double dev, int step);   // Astro > Desvio (Ct) co
 void testCtCard();
 void testLights(int zoom, int pick);                   // vuelve a leer S:/luces.txt, centra y elige una luz
 void testDsc(bool list);                               // llamadas LSD de ejemplo; list abre la lista
+void testNavtexFilters();                              // la pantalla de filtros del receptor NAVTEX
 void testNavtex(bool list);                            // mensajes NAVTEX de ejemplo; list abre la lista                                     // abre la tablilla
 void testVessel();                  // abre Ajustes > Embarcacion
 void testSetting(int what);         // 4 cambia de unidades, 5 de mapa base

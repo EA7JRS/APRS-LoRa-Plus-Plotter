@@ -1,5 +1,9 @@
 # Changelog
 
+## Sin publicar
+
+- **NAVTEX, reglas del receptor** (OMI MSC.508(105), Manual NAVTEX de 2023, UIT-R M.540-2, IEC 61097-6), como el programa Navtex y la app: la lista da la calidad de cada mensaje (tasa de errores, también de la forma IEC de NRX; bien recibido por debajo del 4 %; turno de la estación); la repetición de uno bien recibido no vuelve a salir en 72 h, una copia mejor sustituye a una peor y el 00 se muestra siempre; **Conservar** (hasta 15); los mensajes **no se pueden borrar a mano** (MSC.508(105), 6.1.1). La lista se guarda en la tarjeta (`/navtex.txt`) y se lee al arrancar. Alarma de salvamento: lee `ALR` 003 y `ALF` (gestión de alertas del puente) y, al cerrar la ventana, contesta `ACK` o `ACN` al receptor conectado como servidor TCP de NMEA; reconocida en el receptor, la ventana se cierra. **Filtros del receptor** (botón *Filtros*): estaciones y asuntos que guarda en cada frecuencia, leídos con `CRQ,NRM` y cambiados con `NRM`. Núcleo: `navtexVerdict`, `navtexBetterCopy`, `navtexInOwnSlot`, `parseNavtexAlr`, `parseNavtexAlf`, `navtexAckSentence`, `navtexAcnSentence`, `parseNavtexNrm`, `navtexNrmSentence`, `NavtexLog` (63 comprobaciones; 2059 en total).
+
 ## 5.4.7 — 2026-11-20
 
 - **Colores de las escalas de NOAA** en el núcleo para las pantallas del ecosistema: `noaaScaleRgb` (1 amarillo, 2 naranja claro, 3 naranja, 4 rojo, 5 rojo oscuro), `xrayToR` (escala R de los rayos X: M1, M5, X1, X10, X20) y `xrayClassFlux` (5 comprobaciones; 1966 en total).

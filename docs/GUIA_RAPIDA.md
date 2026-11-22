@@ -28,7 +28,7 @@ Al encender sale un par de segundos la bienvenida de APRS LoRa+ (logo y versión
 | Radar AIS | Blancos alrededor del barco, con riesgo de abordaje |
 | Viento | Esfera de viento aparente y real, e historial de 10 minutos |
 | Piloto | Rumbo a gobernar, desvío de la ruta y datos para el piloto automático (Raymarine ST2000+ o genérico) |
-| Meteo | Presión, temperatura (con sensación térmica), humedad (con punto de rocío), viento, racha, visibilidad, sol y luna; botón **NAVTEX** con los mensajes recibidos (NRX) y botón **LSD** con las llamadas DSC |
+| Meteo | Presión, temperatura (con sensación térmica), humedad (con punto de rocío), viento, racha, visibilidad, sol y luna; botón **NAVTEX** con los mensajes recibidos (NRX; calidad, conservar, filtros del receptor) y botón **LSD** con las llamadas DSC |
 | Ajustes | Simulador, puerto serie, brillo, unidades, mapa base, NMEA 2000, red, Bluetooth y «Acerca de» (versión, licencia, créditos y QR del donativo) |
 
 ## 3. Lo más usado

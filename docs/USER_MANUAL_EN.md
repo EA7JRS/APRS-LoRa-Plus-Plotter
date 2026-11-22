@@ -344,14 +344,38 @@ The **NAVTEX** button in the note opens the list of NAVTEX messages received, ne
 and number, «GA05»), frequency, subject (in Spanish: *Aviso a la navegación* navigational warning, *Previsión
 meteorológica* forecast, *Salvamento, socorro, piratería* search and rescue...), UTC time and text. They arrive as NMEA 0183
 **NRX** sentences over RS485, the network or Bluetooth: from an on-board NAVTEX receiver (Furuno, ICS, Nasa...) or from the
-**APRS LoRa+ app**, which decodes them (Modes > NAVTEX) and sends them through its NMEA server. A repeat of the same message
-replaces the earlier copy. Tapping one with positions in the text («36-07.5N 005-21.2W», «3810N 00012W») sets course to the
-first one on the chart.
+**APRS LoRa+ app**, which decodes them (Modes > NAVTEX) and sends them through its NMEA server, or from the **Navtex**
+program (EA7JRS/Navtex) through its TCP or UDP output. Tapping one with positions in the text («36-07.5N 005-21.2W»,
+«3810N 00012W») sets course to the first one on the chart.
+
+The list follows the rules of a NAVTEX receiver (IMO MSC.508(105), NAVTEX Manual 2023, ITU-R M.540-2):
+
+- Under each message, its quality: the error rate given by the receiver, **bien recibido** (satisfactorily received: whole
+  and with fewer than 4 % of bad characters) or **mal recibido**, and whether it came in its station's ten-minute slot
+  (*en su turno* / *fuera de su turno*).
+- A repeat of a satisfactorily received message is **not shown again for 72 hours** (it only adds *repetido*); a better
+  copy replaces a worse one; messages numbered **00** are always shown.
+- *Conservar* (keep) stores a message (up to 15, 25 % of the 60 in the list): it is not dropped when the list fills up.
+- Messages **cannot be deleted by hand** (MSC.508(105), 6.1.1): when the list is full the oldest one not kept goes.
+
+The list is saved on the card (`/navtex.txt`, 5 s after each change) and read at start-up: kept messages and what was
+seen in the last 72 hours are still there after switching off. Without a card it stays in memory and is lost on power-off.
 
 ![NAVTEX](img/navtex_lista.png)
 
+**Receiver filters.** The *Filtros* button shows which stations (letter B1) and subjects (letter B2) the receiver stores
+on each frequency and lets you change them: tap the letters, then *Enviar al receptor* (send to the receiver); *Leer del
+receptor* reads them again and *Todas* selects all. Subjects A, B, D and L cannot be removed. It uses the `NRM` and `CRQ`
+sentences of IEC 61097-6, so it needs the Navtex program (or another receiver that understands them) as the «TCP: NMEA»
+server in Ajustes > Red; over UDP, Bluetooth or RS485 there is no way back.
+
+![Filters](img/navtex_filtros.png)
+
 A message of subject **D** (search and rescue, distress, piracy) opens the **NAVTEX SAR / DISTRESS** window with the text;
-*LIST* opens the list and *CLOSE* closes it (that message does not open it again).
+*LIST* opens the list and *CLOSE* closes it (that message does not open it again). If the receiver sends the IEC 61097-6
+alarm (`ALR` sentence, alarm 003) and is connected as the NMEA TCP server, closing the window answers `$IIACK,003`, so the
+alarm is acknowledged there too; and if it is acknowledged on the receiver, the window closes. With a receiver that uses
+bridge alert management (`ALF` sentence; in Navtex, the `nrx.bam` setting), the plotter reads it and acknowledges with `ACN`.
 
 ![NAVTEX SAR](img/navtex_alerta.png)
 

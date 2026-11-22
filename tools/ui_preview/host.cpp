@@ -84,6 +84,7 @@ int main(int argc, char** argv) {
             else if (a == "tablilla") ui::testCtCard();
             else if (a == "navtex") ui::testNavtex(false);
             else if (a == "navtexlista") ui::testNavtex(true);
+            else if (a == "navtexfiltros") ui::testNavtexFilters();
             else if (sscanf(a.c_str(), "luces:%d:%d", &x, &y) == 2) {   // luces:<zoom>:<luz elegida, -1 ninguna>; lista inventada
                 FILE* lf = fopen("/tmp/plotter_sd/luces.txt", "w");
                 if (lf) {

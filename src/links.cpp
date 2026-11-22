@@ -144,6 +144,12 @@ static plotter::NrxAssembler nrx;
 static plotter::NavtexLog navtexLog;
 
 static plotter::DscLog dscLog;
+static bool alrSeen = false, alrActive = false, alfSeen = false;
+static uint32_t alrMs = 0, alfMs = 0;
+static int alfInstance = 1;
+static plotter::NavtexMask nrmMask[3];
+static bool nrmHave[3] = {false, false, false};
+static bool navtexLink() { return settings::get().tcpKind == net::TCP_NMEA && net::status().tcp; }   // el receptor es el servidor TCP de NMEA
 
 plotter::NavtexLog& navtex() { return navtexLog; }
 plotter::DscLog& dsc() { return dscLog; }
@@ -157,11 +163,67 @@ static void extraLine(const char* line) {
         if (plotter::parseDscSentence(line, c)) { c.utc = tsync::now(); dscLog.add(c); }
         return;
     }
+    if (strstr(line, "ALR,")) {
+        bool act = false, ack = false;
+        if (plotter::parseNavtexAlr(line, act, ack)) { alrSeen = true; alrActive = act && !ack; alrMs = millis(); }
+        return;
+    }
+    if (strstr(line, "ALF,")) {                           // gestion de alertas del puente: manda sobre ALR
+        char state = 0;
+        int inst = 1;
+        if (plotter::parseNavtexAlf(line, state, inst)) { alrSeen = true; alfSeen = true; alfInstance = inst; alrActive = plotter::navtexAlfUnack(state); alrMs = alfMs = millis(); }
+        return;
+    }
+    if (strstr(line, "NRM,")) {
+        plotter::NavtexMask m;
+        if (plotter::parseNavtexNrm(line, m) && m.function == 1) { const int k = plotter::navtexFreqIndex(m.khz) - 1; nrmMask[k] = m; nrmHave[k] = true; }
+        return;
+    }
     if (!strstr(line, "NRX,")) return;
     if (nrx.feed(line)) {
         plotter::NavtexMessage m;
-        while (nrx.take(m)) navtexLog.add(m);
+        while (nrx.take(m)) navtexLog.add(m, tsync::now());
     }
+}
+
+NavtexAlarm navtexAlarm() {
+    NavtexAlarm a;
+    a.seen = alrSeen;
+    a.ageMs = alrSeen ? (uint32_t)(millis() - alrMs) : 0;
+    a.active = alrSeen && alrActive && a.ageMs < 90000u;      // el receptor la repite cada 30 s: sin noticias en 90 s, no se sabe
+    return a;
+}
+
+bool navtexAck() {
+    alrActive = false;
+    if (!navtexLink()) return false;
+    // un receptor que habla la gestion de alertas del puente (ALF en los ultimos 2 min) se reconoce con ACN; si no, con ACK
+    const std::string s = alfSeen && millis() - alfMs < 120000u ? plotter::navtexAcnSentence(alfInstance) : plotter::navtexAckSentence();
+    net::sendTcp(s.c_str(), (int)s.size());
+    return true;
+}
+
+NavtexFilters navtexFilters() {
+    NavtexFilters f;
+    for (int k = 0; k < 3; k++) { f.m[k] = nrmMask[k]; f.have[k] = nrmHave[k]; }
+    f.link = navtexLink();
+    return f;
+}
+
+bool navtexAskFilters() {
+    if (!navtexLink()) return false;
+    const std::string s = plotter::navtexNrmQuery();
+    net::sendTcp(s.c_str(), (int)s.size());
+    return true;
+}
+
+bool navtexSetFilter(const plotter::NavtexMask& m) {
+    if (!navtexLink()) return false;
+    plotter::NavtexMask x = m;
+    x.function = 1;
+    const std::string s = plotter::navtexNrmSentence(x);
+    net::sendTcp(s.c_str(), (int)s.size());
+    return true;
 }
 
 plotter::DeviationCard& deviationCard() { return devCard; }

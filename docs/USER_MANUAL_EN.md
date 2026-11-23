@@ -335,7 +335,7 @@ the observation is from.
 On-board calculations: the temperature tile gives the **feels-like temperature** (wind chill with the true wind when
 cold, heat index when hot and humid) when it differs from the air by half a degree, and the humidity tile the **dew
 point** (Magnus formula). Above the note, the **sun** (rise and set to within a second, civil and nautical twilight) and the **moon** (phase, lit
-fraction, rise and set) for the day at the boat's position, in UTC.
+fraction, rise and set) for the day at the boat's position, in UTC. Phase and lit fraction are the true ones for that moment, and *marea NN %* is the **equilibrium tide**: the pull of Moon and Sun together against that of a mean spring tide (100); it rises at new and full moon and with the Moon at perigee, and falls at the quarters. A guide to the day's coefficient: not the height or time of the tide at any port.
 
 
 ### NAVTEX

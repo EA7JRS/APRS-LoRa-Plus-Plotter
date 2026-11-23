@@ -20,6 +20,7 @@
 #include "astro.h"
 #include "celnav.h"
 #include "current.h"
+#include "ephem.h"
 #include "bearingfix.h"
 #include "radiotel.h"
 #include "deviation.h"
@@ -2504,6 +2505,104 @@ static void testNavtex() {
     CHECK(log.items().size() == 2 && log.items()[0].number == 6 && log.items()[1].text == "2");
 }
 
+// Sol, Luna y Tierra (ephem): contrastado con Meeus ("Astronomical Algorithms", ej. 49.a y 50.a), con las fases, estaciones
+// y eclipses de 2026 y 2027 de los almanaques (NASA / USNO) y con los valores de referencia de EME en 432 MHz
+static void testEphem() {
+    auto jdOf = [](int y, int m, int d, double h, double min) { return julianDay(y, m, d, h + min / 60.0); };
+    const double minute = 1.0 / 1440.0;
+    // fases: luna llena del 24-11-2026 a las 14:53 UTC y nueva del 9-12-2026 a las 00:52; Meeus 49.a (18-2-1977, 03:37:42 TD)
+    const double jd = julianDay(2026, 11, 23, 6);
+    NEAR(nextMoonPhase(jd, 2), jdOf(2026, 11, 24, 14, 53), 2 * minute);
+    NEAR(nextMoonPhase(jd, 0), jdOf(2026, 12, 9, 0, 52), 2 * minute);
+    NEAR(nextMoonPhase(julianDay(1977, 2, 10, 0), 0), jdOf(1977, 2, 18, 3, 36.9), 2 * minute);
+    CHECK(nextMoonPhase(nextMoonPhase(jd, 2), 2) - nextMoonPhase(jd, 2) > 29.2);      // justo en la llena: la siguiente
+    MoonPhase p = moonPhaseTrue(jd);
+    CHECK(p.waxing && p.phase8 == 4);
+    NEAR(p.illum, 0.971, 0.004);
+    NEAR(p.ageDays, 13.96, 0.03);
+    NEAR(std::fabs(p.ageDays - moonAgeDays(2026, 11, 23, 6)), 0.2, 0.6);              // la media se desvia horas; la verdadera no
+    p = moonPhaseTrue(nextMoonPhase(jd, 0) + 0.01);
+    NEAR(p.ageDays, 0.01, 0.002);
+    NEAR(p.illum, 0, 0.002);
+    p = moonPhaseTrue(nextMoonPhase(jd, 3));
+    CHECK(!p.waxing && p.phase8 == 6);
+    NEAR(p.illum, 0.5, 0.01);
+    // perigeo y apogeo: Meeus 50.a, apogeo del 7-10-1988 a las 20:30 TD, 405 948 km
+    double km;
+    NEAR(nextMoonApsis(julianDay(1988, 10, 1, 0), false, km), jdOf(1988, 10, 7, 20, 29), 5 * minute);
+    NEAR(km, 405948, 60);
+    NEAR(nextMoonApsis(jd, true, km), jdOf(2026, 11, 25, 21, 4), 10 * minute);
+    CHECK(km > 356000 && km < 370500);
+    NEAR(moonAngularDiameterArcmin(384400), 31.08, 0.02);
+    // eclipses de 2026: total de Luna el 3-3 (magnitud 1,15), anular de Sol el 17-2, total de Sol el 12-8 (gamma 0,898),
+    // parcial de Luna el 28-8 (0,93); la hora es la de la sicigia, a unos minutos del maximo
+    Eclipse e = nextEclipse(julianDay(2026, 1, 1, 0), true);
+    CHECK(e.kind == EclipseKind::LunarTotal);
+    NEAR(e.jd, jdOf(2026, 3, 3, 11, 33), 10 * minute);
+    NEAR(e.magnitude, 1.15, 0.02);
+    e = nextEclipse(julianDay(2026, 1, 1, 0), false);
+    CHECK(e.kind == EclipseKind::SolarAnnular);
+    NEAR(e.jd, jdOf(2026, 2, 17, 12, 12), 15 * minute);
+    e = nextEclipse(julianDay(2026, 3, 1, 0), false);
+    CHECK(e.kind == EclipseKind::SolarTotal);
+    NEAR(e.jd, jdOf(2026, 8, 12, 17, 46), 15 * minute);
+    NEAR(e.magnitude, 0.898, 0.01);
+    e = nextEclipse(julianDay(2026, 3, 10, 0), true);
+    CHECK(e.kind == EclipseKind::LunarPartial);
+    NEAR(e.magnitude, 0.93, 0.02);
+    e = nextEclipse(jd, true);
+    CHECK(e.kind == EclipseKind::LunarPenumbral);                                    // 20-2-2027
+    NEAR(e.jd, julianDay(2027, 2, 20, 23.4), 0.02);
+    e = nextEclipse(jd, false);
+    CHECK(e.kind == EclipseKind::SolarAnnular);                                      // 6-2-2027
+    CHECK(eclipseAtSyzygy(nextMoonPhase(jd, 2), true).kind == EclipseKind::None);
+    CHECK(std::strcmp(eclipseNameEs(EclipseKind::SolarTotal), "Eclipse total de Sol") == 0 && std::strcmp(eclipseNameEn(EclipseKind::LunarPartial), "Partial lunar eclipse") == 0);
+    // marea de equilibrio: vivas en sicigia y con la Luna en el perigeo, muertas en cuadratura
+    const double tFull = tideForceIndex(nextMoonPhase(jd, 2)), tQuarter = tideForceIndex(nextMoonPhase(jd, 3));
+    CHECK(tFull > 105 && tFull < 125);
+    CHECK(tQuarter > 28 && tQuarter < 50);
+    // rebote lunar: 261,6 dB en 432 MHz a la distancia media; eco de 2,4 a 2,7 s; Doppler de menos de +-1,3 kHz en 70 cm
+    EmeInfo m = emeInfo(jd, 36.53, -6.29, 432e6);
+    CHECK(m.rangeKm > 350000 && m.rangeKm < 407000);
+    NEAR(m.pathLossDb, 261.64 + 40 * std::log10(m.rangeKm / 384400.0), 0.02);
+    NEAR(m.echoDelayS, 2 * m.rangeKm / 299792.458, 1e-9);
+    CHECK(std::fabs(m.dopplerHz) < 1300 && m.dopplerHz != 0);
+    NEAR(emeInfo(jd, 36.53, -6.29, 144e6).dopplerHz, m.dopplerHz / 3, 0.01);
+    // Sol: 0,9833 UA en el perihelio y 1,0167 en el afelio; estaciones de 2026 (20-3 14:46 y 21-12 20:50 UTC)
+    double au;
+    NEAR(nextEarthApsis(jd, true, au), julianDay(2027, 1, 3, 12), 1.5);
+    NEAR(au, 0.98330, 0.0001);
+    NEAR(nextEarthApsis(jd, false, au), julianDay(2027, 7, 5, 6), 1.5);
+    NEAR(au, 1.01670, 0.0001);
+    int season = -1;
+    NEAR(nextSeason(jd, season), jdOf(2026, 12, 21, 20, 50), 2 * minute);
+    CHECK(season == 3);
+    NEAR(nextSeason(julianDay(2026, 1, 1, 0), season), jdOf(2026, 3, 20, 14, 46), 2 * minute);
+    CHECK(season == 0);
+    NEAR(sunDistanceAu(jd), 0.9875, 0.0003);
+    NEAR(sunAngularDiameterArcmin(jd), 32.39, 0.02);
+    NEAR(solarIrradianceToa(jd), 1361.0 / (0.98755 * 0.98755), 0.5);
+    NEAR(carringtonRotation(julianDay(2026, 11, 23, 6)), 2318.13, 0.02);
+    NEAR(clearSkyUvIndex(90, 1.0), 12.5, 1e-9);
+    CHECK(clearSkyUvIndex(-5, 1.0) == 0 && clearSkyUvIndex(30, 1.0) < 2.5 && clearSkyUvIndex(60, 1.0, 250) > clearSkyUvIndex(60, 1.0, 350));
+    // Tierra: horizonte de 3,57 y 4,12 km por raiz de la altura en metros; gravedad normal de WGS84; radios del elipsoide
+    NEAR(horizonKm(100), 35.7, 0.05);
+    NEAR(radioHorizonKm(100), 41.2, 0.05);
+    NEAR(radioRangeKm(10, 100), 13.03 + 41.2, 0.1);
+    NEAR(opticalRangeNm(4, 36), 2.03 * 8, 1e-9);
+    CHECK(horizonKm(0) == 0 && radioHorizonKm(-3) == 0);
+    NEAR(normalGravity(0, 0), 9.780325, 1e-6);
+    NEAR(normalGravity(90, 0), 9.832185, 1e-6);
+    NEAR(normalGravity(45, 1000), 9.806200 - 0.003086, 1e-5);
+    NEAR(earthRadiusAtM(0), 6378137, 0.5);
+    NEAR(earthRadiusAtM(90), 6356752.3, 0.5);
+    int y, mo, d;
+    double h;
+    jdToUtc(jdOf(2026, 11, 24, 14, 53), y, mo, d, h);
+    CHECK(y == 2026 && mo == 11 && d == 24);
+    NEAR(h, 14 + 53 / 60.0, 1e-3);
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
@@ -2523,6 +2622,7 @@ int main() {
     testDeviation();
     testNavtex();
     testDsc();
+    testEphem();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

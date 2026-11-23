@@ -39,6 +39,7 @@
 #include "wind.h"
 #include "astro.h"
 #include "celnav.h"
+#include "ephem.h"
 #include "current.h"
 #include "bearingfix.h"
 #include "radiotel.h"
@@ -4149,7 +4150,7 @@ static void skyLine(char* out, size_t n) {
     double sr, ss, cr, cs, mr, ms;
     bool hr, hs;
     char a[8], bb[8], c[8], e[8], f[8], g[8];
-    char sun[112], moon[80];
+    char sun[112], moon[96];
     if (plotter::sunTimes(y, mo, d, la, lo, -0.833, sr, ss)) {
         hhmm(a, sizeof a, sr); hhmm(bb, sizeof bb, ss);
         if (plotter::sunTimes(y, mo, d, la, lo, -6, cr, cs)) { hhmm(c, sizeof c, cr); hhmm(e, sizeof e, cs); }
@@ -4160,14 +4161,23 @@ static void skyLine(char* out, size_t n) {
         else { snprintf(n1, sizeof n1, "--"); snprintf(n2, sizeof n2, "--"); }
         snprintf(sun, sizeof sun, "Sol %s-%s (crep\xC3\xBAsculo civil %s-%s, n\xC3\xA1utico %s-%s)", a, bb, c, e, n1, n2);
     } else snprintf(sun, sizeof sun, "Sol: no sale ni se pone hoy");
-    double age = plotter::moonAgeDays(y, mo, d, h);
+    // fase verdadera (elongacion real, no el mes sinodico medio) y marea de equilibrio; se recalculan cada minuto
+    static uint32_t ephMs = 0;
+    static plotter::MoonPhase mp;
+    static double tide = 0;
+    if (ephMs == 0 || now - ephMs > 60000) {
+        const double jd = plotter::julianDay(y, mo, d, h);
+        mp = plotter::moonPhaseTrue(jd);
+        tide = plotter::tideForceIndex(jd);
+        ephMs = now ? now : 1;
+    }
     plotter::moonTimes(y, mo, d, la, lo, mr, hr, ms, hs);
     if (hr) hhmm(f, sizeof f, mr); else snprintf(f, sizeof f, "--");
     if (hs) hhmm(g, sizeof g, ms); else snprintf(g, sizeof g, "--");
     char ph[24];
-    snprintf(ph, sizeof ph, "%s", plotter::moonPhaseNameEs(plotter::moonPhase8(age)));
+    snprintf(ph, sizeof ph, "%s", plotter::moonPhaseNameEs(mp.phase8));
     ph[0] = (char)tolower((unsigned char)ph[0]);
-    snprintf(moon, sizeof moon, "Luna: %s (%d %%), sale %s, se pone %s", ph, (int)lround(plotter::moonIllumination(age) * 100), f, g);
+    snprintf(moon, sizeof moon, "Luna: %s (%d %%), sale %s, se pone %s, marea %d %%", ph, (int)lround(mp.illum * 100), f, g, (int)lround(tide));
     snprintf(out, n, "%s \xC2\xB7 %s (UTC).", sun, moon);
 }
 
@@ -4263,7 +4273,7 @@ static void updateMeteo() {
     else if (!ns.wifi) snprintf(last, sizeof(last), "Sin WiFi: no se puede pedir el tiempo de internet.");
     else if (!ls.wxMs) snprintf(last, sizeof(last), ns.wxFail ? "OpenWeatherMap no contesta (%u intentos)." : "Esperando la primera observaci\xC3\xB3n de OpenWeatherMap.", (unsigned)ns.wxFail);
     else snprintf(last, sizeof(last), "OpenWeatherMap%s%s \xC2\xB7 hace %u min.", ls.wxPlace[0] ? " \xC2\xB7 " : "", ls.wxPlace, (unsigned)((now - ls.wxMs) / 60000));
-    char sky[160];
+    char sky[224];
     skyLine(sky, sizeof(sky));
     // Avisos oficiales en vigor (el mas grave primero) y tiempo espacial
     char oa[220], spc[120] = "";

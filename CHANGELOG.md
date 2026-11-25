@@ -1,7 +1,8 @@
 # Changelog
 
-## Después de la 5.4.7 (sin publicar)
+## 5.5.0 — 2026-11-25
 
+- **Unificación del ecosistema en la 5.5.0** (tracker, app Android, rotor, Display, plotter y los kits al mismo número).
 - **Sol, Luna y Tierra (`ephem`, núcleo):** lo que se deduce de las efemérides de `celnav` y de las constantes físicas de los tres cuerpos, para todo el ecosistema. **Luna:** fase verdadera por la elongación real (`moonPhaseTrue`; la del mes sinódico medio se desvía horas), próximas fases (`nextMoonPhase`), perigeo y apogeo (`nextMoonApsis`), diámetro aparente, eclipses de Luna y de Sol (`nextEclipse`: tipo y magnitud o gamma; de los de Sol solo se dice que lo hay en algún lugar de la Tierra), **marea de equilibrio** (`tideForceIndex`: fuerza de Luna y Sol frente a la sicigia media = 100; orienta, no predice ningún puerto) y **rebote lunar** (`emeInfo`: pérdida del trayecto, retardo del eco, Doppler y distancia topocéntrica). **Sol:** distancia, diámetro, irradiancia fuera de la atmósfera, índice UV de cielo despejado, rotación de Carrington, equinoccios y solsticios, perihelio y afelio. **Tierra:** horizonte óptico y de radio (4/3), alcance entre antenas, gravedad normal y radio del elipsoide WGS84. Contrastado con Meeus (ej. 49.a y 50.a), con las fases, estaciones y eclipses de 2026 y 2027 y con la pérdida de referencia en 432 MHz (261,6 dB). 2061 comprobaciones.
 - **Meteo:** la línea de la Luna usa la fase y la parte iluminada verdaderas y añade la marea de equilibrio del momento («marea 107 %»).
 

@@ -2506,7 +2506,9 @@ static void testNavtex() {
 }
 
 // Sol, Luna y Tierra (ephem): contrastado con Meeus ("Astronomical Algorithms", ej. 49.a y 50.a), con las fases, estaciones
-// y eclipses de 2026 y 2027 de los almanaques (NASA / USNO) y con los valores de referencia de EME en 432 MHz
+// y eclipses de 2026 y 2027 de los almanaques (NASA / USNO) y con los valores de referencia de EME en 432 MHz. Fases,
+// estaciones y apsides verificadas ademas contra astropy/ERFA (2026-2035): fases < 5 s, estaciones < 30 s, perihelio /
+// afelio geocentrico < 2,5 h (tools/almanac_validate).
 static void testEphem() {
     auto jdOf = [](int y, int m, int d, double h, double min) { return julianDay(y, m, d, h + min / 60.0); };
     const double minute = 1.0 / 1440.0;
@@ -2568,11 +2570,14 @@ static void testEphem() {
     NEAR(m.echoDelayS, 2 * m.rangeKm / 299792.458, 1e-9);
     CHECK(std::fabs(m.dopplerHz) < 1300 && m.dopplerHz != 0);
     NEAR(emeInfo(jd, 36.53, -6.29, 144e6).dopplerHz, m.dopplerHz / 3, 0.01);
-    // Sol: 0,9833 UA en el perihelio y 1,0167 en el afelio; estaciones de 2026 (20-3 14:46 y 21-12 20:50 UTC)
+    // Sol: perihelio y afelio GEOCENTRICOS (con el bamboleo lunar, como USNO / IMCCE / OAN; contrastados con astropy/ERFA a
+    // < 2,5 h, antes se iban hasta ~1 dia con la distancia al baricentro); 0,9833 UA en el perihelio, 1,0167 en el afelio.
     double au;
-    NEAR(nextEarthApsis(jd, true, au), julianDay(2027, 1, 3, 12), 1.5);
+    NEAR(nextEarthApsis(julianDay(2026, 1, 1, 0), true, au), jdOf(2026, 1, 3, 17, 15), 0.12);   // antes se saltaba este
     NEAR(au, 0.98330, 0.0001);
-    NEAR(nextEarthApsis(jd, false, au), julianDay(2027, 7, 5, 6), 1.5);
+    NEAR(nextEarthApsis(jd, true, au), jdOf(2027, 1, 3, 2, 32), 0.15);
+    NEAR(au, 0.98330, 0.0001);
+    NEAR(nextEarthApsis(jd, false, au), jdOf(2027, 7, 5, 5, 6), 0.12);
     NEAR(au, 1.01670, 0.0001);
     int season = -1;
     NEAR(nextSeason(jd, season), jdOf(2026, 12, 21, 20, 50), 2 * minute);

@@ -27,6 +27,7 @@
 #include "navtex.h"
 #include "dsc.h"
 #include "chartui.h"
+#include "poshold.h"
 #include "geo.h"
 #include "gpx.h"
 #include "motion.h"
@@ -2603,6 +2604,28 @@ static void testEphem() {
     NEAR(h, 14 + 53 / 60.0, 1e-3);
 }
 
+static void testPosHold() {
+    plotter::PosHold h;                 // startMs 0.97, stopMs 0.5, maxJumpM 15
+    double a, o;
+    h.update(36.721300, -4.421400, 0.0, a, o); CHECK(h.held() && std::fabs(a - 36.721300) < 1e-9 && std::fabs(o + 4.421400) < 1e-9);
+    // baile del fix (~2 m) con velocidad baja: devuelve la referencia congelada
+    h.update(36.721315, -4.421390, 0.2, a, o); CHECK(h.held() && std::fabs(a - 36.721300) < 1e-9);
+    // histeresis: 3 lecturas rapidas seguidas para darlo por en marcha
+    h.update(36.721320, -4.421390, 2.0, a, o); CHECK(h.held());
+    h.update(36.721340, -4.421390, 2.0, a, o); CHECK(h.held());
+    h.update(36.721360, -4.421390, 2.0, a, o); CHECK(!h.held() && std::fabs(a - 36.721360) < 1e-9);   // en marcha: sigue el fix
+    // de vuelta a parado y salto grande (~30 m) sin velocidad fiable: reubica
+    h.update(36.721300, -4.421400, 0.0, a, o); h.update(36.721300, -4.421400, 0.0, a, o); h.update(36.721300, -4.421400, 0.0, a, o);
+    CHECK(h.held());
+    h.update(36.721570, -4.421400, -1.0, a, o); CHECK(!h.held() && std::fabs(a - 36.721570) < 1e-9);  // ~30 m, sin velocidad
+    // desactivado: siempre el fix en bruto
+    plotter::PosHold h2; h2.enabled = false;
+    h2.update(36.721300, -4.421400, 0.0, a, o); h2.update(36.721305, -4.421404, 0.0, a, o);
+    CHECK(!h2.held() && std::fabs(a - 36.721305) < 1e-9 && std::fabs(o + 4.421404) < 1e-9);
+    CHECK(std::fabs(plotter::PosHold::distM(36.72, -4.42, 36.72, -4.42)) < 1e-9);
+    CHECK(plotter::PosHold::distM(0, 0, 0, 1) > 111000 && plotter::PosHold::distM(0, 0, 0, 1) < 111500);
+}
+
 int main() {
     testGeo(); testMotion(); testWind(); testUnits(); testAstro(); testStore(); testNmea(); testAisExtra(); testInputs(); testPilot(); testSignalK(); testRoute(); testGnss(); testLights(); testNavWarn(); testTiles(); testChartUi(); testWxStation(); testSim(); testAisTargets(); testGpx(); testStream(); testAnchor(); testN2k();
     testN2kTx();
@@ -2623,6 +2646,7 @@ int main() {
     testNavtex();
     testDsc();
     testEphem();
+    testPosHold();
     std::printf("%d comprobaciones, %d fallos\n", total, failed);
     return failed ? 1 : 0;
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.5.1 — 2026-11-28
+
+- **Almanaque (`ephem`) afinado con datos oficiales:** el perihelio y el afelio de la Tierra se calculan ahora en posición **geocéntrica** (antes, con la distancia al baricentro Tierra-Luna, salían hasta un par de horas desviados) y con una **búsqueda de extremos robusta** (cruce de la derivada por bisección, en vez de la sección áurea, que fallaba en los extremos planos). Contrastado con Skyfield/JPL y el OAN: perihelios y afelios de 2026-2035 dentro de ~2,5 h, sin falsos extremos mensuales. Herramienta `tools/almanac_validate/` para repetir la comprobación.
+- **Filtro de equipo parado compartido (`plotter::PosHold`, `lib/plotter_core/src/poshold.h`):** se promueve a `plotter_core` el filtro del rotor (histéresis de dos umbrales y 3 lecturas, salto grande sin velocidad fiable) para que lo use todo el ecosistema desde un solo origen. Con el barco fondeado, el baile del fix del GPS no mueve la posición; navegando sigue el fix en vivo.
+- Ecosistema a la **5.5.1** (tracker, app Android, rotor, Display y plotter al mismo número). 2073 comprobaciones de host.
+
 ## 5.5.0 — 2026-11-25
 
 - **Unificación del ecosistema en la 5.5.0** (tracker, app Android, rotor, Display, plotter y los kits al mismo número).
